@@ -147,10 +147,16 @@ Expr *_parse_expr_list(ExprParserContext *ctx) {
     update_line(ctx);
     if (ctx->it.count == 0) NOB_UNREACHABLE("unexpected s-expr end, ) was expected here");
     if (*ctx->it.data == EXPR_TOKEN_LIST_END) break;
-    if (*ctx->it.data == EXPR_TOKEN_DOT && isspace(ctx->it.data[1])) {
-      TODO("implement last list element set");
-    }
     if (exprs.count && spaces.count == 0) NOB_UNREACHABLE("space was expected here");
+    if (*ctx->it.data == EXPR_TOKEN_DOT && isspace(ctx->it.data[1])) {
+      nob_sv_chop_left(&ctx->it, 1);
+      spaces = nob_sv_chop_while(&ctx->it, isspace);
+      update_line(ctx);
+      da_append(&exprs, _parse_expr(ctx));
+      if (*ctx->it.data != EXPR_TOKEN_LIST_END) NOB_UNREACHABLE("expected list end here");
+      nob_sv_chop_left(&ctx->it, 1);
+      return make_expr_list_opt(exprs.count, exprs.items);
+    }
     da_append(&exprs, _parse_expr(ctx));
   }
   nob_sv_chop_left(&ctx->it, 1);

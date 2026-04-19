@@ -13,6 +13,8 @@
 typedef struct ExprRunContext {
 } ExprRunContext;
 Expr *expr_eval(Expr *input, ExprRunContext *ctx) {
+  UNUSED(input);
+  UNUSED(ctx);
   TODO("e-expression eval");
   // if (input->kind != EXPR_PAIR) return input;
   // if (input->pair.left->kind != EXPR_SYMBOL) return input;
