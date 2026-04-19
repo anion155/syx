@@ -76,6 +76,7 @@ bool build(Context *ctx) {
   if (!cc_run(ctx)) return false;
 
   if (ctx->flags.run) {
+    if (ctx->flags.debug) nob_cmd_append(&ctx->cmd, "lldb");
     nob_cmd_append(&ctx->cmd, temp_sprintf("%s/sexpr", ctx->paths.build));
     if (ctx->argc) nob_da_append_many(&ctx->cmd, ctx->argv, ctx->argc);
     if (!nob_cmd_run(&ctx->cmd)) return false;

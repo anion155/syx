@@ -99,6 +99,71 @@ Expr *make_expr_literal_string(expr_string_t value) {
 #define EXPR_TOKEN_DIGIT_0    '0'
 #define EXPR_TOKEN_GUARD      '|'
 
+void print_expr(Expr *expr, int level) {
+  switch (expr->kind) {
+  case EXPR_NIL: break;
+  case EXPR_SYMBOL: {
+    if (expr->symbol.guarded) {
+      printf("|%s|", expr->symbol.name);
+    } else {
+      printf("%s", expr->symbol.name);
+    }
+  } break;
+  case EXPR_LITERAL_NUMBER_INTEGER: {
+    printf("%ld", expr->integer);
+  } break;
+  case EXPR_LITERAL_NUMBER_REAL: {
+    printf("%f", expr->real);
+  } break;
+  case EXPR_LITERAL_STRING: {
+    printf("\"%s\"", expr->string);
+  } break;
+  case EXPR_PAIR: {
+    if (!level) printf("(");
+    print_expr(expr->pair.left, 0);
+    if (expr->pair.right->kind != EXPR_NIL) {
+      printf(" ");
+      print_expr(expr->pair.right, level + 1);
+    }
+    if (!level) printf(")");
+  } break;
+  default:
+    break;
+  }
+}
+
+void dump_expr(Expr *expr, int level) {
+  printf("%*c", level * 2, ' ');
+  switch (expr->kind) {
+  case EXPR_NIL: {
+    printf("NIL\n");
+  } break;
+  case EXPR_SYMBOL: {
+    if (expr->symbol.guarded) {
+      printf("SYMBOL: |%s|\n", expr->symbol.name);
+    } else {
+      printf("SYMBOL: %s\n", expr->symbol.name);
+    }
+  } break;
+  case EXPR_LITERAL_NUMBER_INTEGER: {
+    printf("INTEGER: %ld\n", expr->integer);
+  } break;
+  case EXPR_LITERAL_NUMBER_REAL: {
+    printf("REAL: %f\n", expr->real);
+  } break;
+  case EXPR_LITERAL_STRING: {
+    printf("STRING: '%s'\n", expr->string);
+  } break;
+  case EXPR_PAIR: {
+    printf("PAIR:\n");
+    dump_expr(expr->pair.left, level + 1);
+    dump_expr(expr->pair.right, level + 1);
+  } break;
+  default:
+    break;
+  }
+}
+
 int islineend(int c) {
   return (c == '\n' || c == '\r');
 }
@@ -106,7 +171,7 @@ int issymbol_special(int c) {
   return c == '?' || c == '@' || c == '!' || c == '$';
 }
 int issymbol(int c) {
-  return c == EXPR_TOKEN_HYPHEN || issymbol_special(c) || isalnum(c);
+  return c == EXPR_TOKEN_HYPHEN || isspecial(c) || isalnum(c);
 }
 
 typedef struct {
@@ -116,18 +181,19 @@ typedef struct {
   size_t linenumber;
 } ExprParserContext;
 void update_line(ExprParserContext *ctx) {
-  // const char *line_end = ctx->line.data + ctx->line.count;
-  // while ((ctx->it.data - line_end) > 0) {
-  //   const char *source_end = ctx->source.data + ctx->source.count;
-  //   Nob_String_View line = { .data = line_end, .count = source_end - line_end };
-  //   ctx->line = nob_sv_chop_while(&line, islineend);
-  //   ctx->linenumber += 1;
-  //   line_end = ctx->line.data + ctx->line.count;
-  // }
+  const char *line_end = ctx->line.data + ctx->line.count;
+  while ((ctx->it.data - line_end) > 0) {
+    const char *source_end = ctx->source.data + ctx->source.count;
+    Nob_String_View line = { .data = line_end, .count = source_end - line_end };
+    ctx->line = nob_sv_chop_while(&line, islineend);
+    ctx->linenumber += 1;
+    line_end = ctx->line.data + ctx->line.count;
+  }
 }
 
 Expr *_parse_expr_string(ExprParserContext *ctx) {
   if (*ctx->it.data != EXPR_TOKEN_QUOTES) NOB_UNREACHABLE("expected string literal start here");
+  nob_sv_chop_left(&ctx->it, 1);
   size_t i = 0;
   while (ctx->it.data[i] != EXPR_TOKEN_QUOTES) {
     if (ctx->it.data[i] == EXPR_TOKEN_ESCAPE) i += 1;
@@ -140,27 +206,6 @@ Expr *_parse_expr_string(ExprParserContext *ctx) {
   ctx->it.data  += i;
   Expr *expr = make_expr(EXPR_LITERAL_STRING);
   expr->string = strdup(temp_sv_to_cstr(value));
-  return expr;
-}
-Expr *_parse_expr_real(ExprParserContext *ctx, expr_int_t integer_part, bool is_negative);
-Expr *_parse_expr_integer(ExprParserContext *ctx) {
-  bool is_negative = *ctx->it.data == EXPR_TOKEN_HYPHEN;
-  if (is_negative) nob_sv_chop_left(&ctx->it, 1);
-  expr_int_t value = 0;
-  size_t i = 0;
-  if (!ctx->it.count) NOB_UNREACHABLE("expected number literal here");
-  if (ctx->it.data[i] == EXPR_TOKEN_DOT) return _parse_expr_real(ctx, value, is_negative);
-  while (isdigit(ctx->it.data[i])) {
-    value = value * 10 + (ctx->it.data[i] - EXPR_TOKEN_DIGIT_0);
-    i += 1;
-    if (i >= ctx->it.count) break;
-    if (ctx->it.data[i] == EXPR_TOKEN_DOT) return _parse_expr_real(ctx, value, is_negative);
-  }
-  ctx->it.count -= i;
-  ctx->it.data  += i;
-  Expr *expr = make_expr(EXPR_LITERAL_NUMBER_INTEGER);
-  if (is_negative) value *= -1;
-  expr->integer = value;
   return expr;
 }
 Expr *_parse_expr_real(ExprParserContext *ctx, expr_int_t integer_part, bool is_negative) {
@@ -179,6 +224,31 @@ Expr *_parse_expr_real(ExprParserContext *ctx, expr_int_t integer_part, bool is_
   Expr *expr = make_expr(EXPR_LITERAL_NUMBER_REAL);
   expr->real = (expr_real_t)integer_part + (expr_real_t)frac_part / (expr_real_t)exponent;
   if (is_negative) expr->real *= -1;
+  return expr;
+}
+Expr *_parse_expr_integer(ExprParserContext *ctx) {
+  bool is_negative = *ctx->it.data == EXPR_TOKEN_HYPHEN;
+  if (is_negative) nob_sv_chop_left(&ctx->it, 1);
+  expr_int_t value = 0;
+  size_t i = 0;
+  if (!ctx->it.count) NOB_UNREACHABLE("expected number literal here");
+  #define update_to_real_if_needed() if (ctx->it.data[i] == EXPR_TOKEN_DOT) { \
+    ctx->it.count -= i; \
+    ctx->it.data  += i; \
+    return _parse_expr_real(ctx, value, is_negative); \
+  }
+  update_to_real_if_needed();
+  while (isdigit(ctx->it.data[i])) {
+    value = value * 10 + (ctx->it.data[i] - EXPR_TOKEN_DIGIT_0);
+    i += 1;
+    if (i >= ctx->it.count) break;
+    update_to_real_if_needed();
+  }
+  ctx->it.count -= i;
+  ctx->it.data  += i;
+  Expr *expr = make_expr(EXPR_LITERAL_NUMBER_INTEGER);
+  if (is_negative) value *= -1;
+  expr->integer = value;
   return expr;
 }
 Expr *_parse_expr_guarded_symbol(ExprParserContext *ctx) {
@@ -201,6 +271,7 @@ Expr *_parse_expr_guarded_symbol(ExprParserContext *ctx) {
 Expr *_parse_expr_symbol(ExprParserContext *ctx) {
   if (*ctx->it.data == EXPR_TOKEN_GUARD) return _parse_expr_guarded_symbol(ctx);
   Nob_String_View name = nob_sv_chop_while(&ctx->it, issymbol);
+  if (!name.count) UNREACHABLE("unexpected empty symbol name");
   Expr *expr = make_expr(EXPR_SYMBOL);
   expr->symbol.name = temp_sv_to_cstr(name);
   expr->symbol.guarded = false;
@@ -233,7 +304,7 @@ Expr *_parse_expr(ExprParserContext *ctx) {
   return _parse_expr_symbol(ctx);
 }
 Expr *parse_expr(Nob_String_View source) {
-  ExprParserContext ctx = {.source = source, .it = source, .line = {.data = source.data, .count = 0}, .linenumber = 0};
+  ExprParserContext ctx = {.source = source, .it = source, .line = source, .linenumber = 0};
   nob_sv_chop_while(&ctx.it, isspace);
   update_line(&ctx);
   Expr *expr = _parse_expr_list(&ctx);
@@ -246,38 +317,6 @@ Expr *parse_expr(Nob_String_View source) {
     NOB_UNREACHABLE("unexpected end of s-expression");
   }
   return expr;
-}
-
-void print_expr(Expr *expr, int level) {
-  printf("%*c", level * 2, ' ');
-  switch (expr->kind) {
-  case EXPR_NIL: {
-    printf("NIL\n");
-  } break;
-  case EXPR_SYMBOL: {
-    if (expr->symbol.guarded) {
-      printf("SYMBOL: |%s|\n", expr->symbol.name);
-    } else {
-      printf("SYMBOL: %s\n", expr->symbol.name);
-    }
-  } break;
-  case EXPR_LITERAL_NUMBER_INTEGER: {
-    printf("INTEGER: %ld\n", expr->integer);
-  } break;
-  case EXPR_LITERAL_NUMBER_REAL: {
-    printf("REAL: %f\n", expr->real);
-  } break;
-  case EXPR_LITERAL_STRING: {
-    printf("STRING: '%s'\n", expr->string);
-  } break;
-  case EXPR_PAIR: {
-    printf("PAIR:\n");
-    print_expr(expr->pair.left, level + 1);
-    print_expr(expr->pair.right, level + 1);
-  } break;
-  default:
-    break;
-  }
 }
 
 int main(int argc, char **argv) {
@@ -296,6 +335,7 @@ int main(int argc, char **argv) {
   //   make_expr_int(2),
   //   make_expr_int(3),
   // );
+  dump_expr(input, 0);
   print_expr(input, 0);
 
   return 0;
