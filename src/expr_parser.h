@@ -28,10 +28,13 @@ int islineend(int c) {
   return (c == '\n' || c == '\r');
 }
 int issymbol_special(int c) {
-  return c == '?' || c == '@' || c == '!' || c == '$';
+  return (
+       c == '?' || c == '@' || c == '!' || c == '$' || c == '+' || c == '-' || c == '*' || c == '/' || c == '='
+    || c == '<' || c == '>'
+  );
 }
 int issymbol(int c) {
-  return c == EXPR_TOKEN_HYPHEN || isspecial(c) || isalnum(c);
+  return c == EXPR_TOKEN_HYPHEN || issymbol_special(c) || isalnum(c);
 }
 
 void update_line(ExprParserContext *ctx) {
@@ -59,7 +62,7 @@ Expr *_parse_expr_string(ExprParserContext *ctx) {
   ctx->it.count -= i;
   ctx->it.data  += i;
   Expr *expr = make_expr(EXPR_KIND_STRING);
-  expr->string = strdup(temp_sv_to_cstr(value));
+  expr->string = strndup(value.data, value.count);
   return expr;
 }
 Expr *_parse_expr_real(ExprParserContext *ctx, expr_int_t integer_part, bool is_negative) {
@@ -119,16 +122,20 @@ Expr *_parse_expr_guarded_symbol(ExprParserContext *ctx) {
   ctx->it.count -= i;
   ctx->it.data  += i;
   Expr *expr = make_expr(EXPR_KIND_SYMBOL);
-  expr->symbol.name = temp_sv_to_cstr(name);
+  expr->symbol.name = strndup(name.data, name.count);
   expr->symbol.guarded = true;
   return expr;
 }
+Nob_String_View EXPR_KEYWORD_TRUE = { .data = "true", .count = 4 };
+Nob_String_View EXPR_KEYWORD_FALSE = { .data = "false", .count = 5 };
 Expr *_parse_expr_symbol(ExprParserContext *ctx) {
   if (*ctx->it.data == EXPR_TOKEN_GUARD) return _parse_expr_guarded_symbol(ctx);
   Nob_String_View name = nob_sv_chop_while(&ctx->it, issymbol);
   if (!name.count) UNREACHABLE("unexpected empty symbol name");
+  if (nob_sv_eq(name, EXPR_KEYWORD_TRUE)) return make_expr_bool(true);
+  if (nob_sv_eq(name, EXPR_KEYWORD_FALSE)) return make_expr_bool(false);
   Expr *expr = make_expr(EXPR_KIND_SYMBOL);
-  expr->symbol.name = temp_sv_to_cstr(name);
+  expr->symbol.name = strndup(name.data, name.count);
   expr->symbol.guarded = false;
   return expr;
 }
@@ -167,7 +174,11 @@ Expr *_parse_expr(ExprParserContext *ctx) {
   char curent = *ctx->it.data;
   if (curent == EXPR_TOKEN_LIST_START) return _parse_expr_list(ctx);
   if (curent == EXPR_TOKEN_QUOTES) return _parse_expr_string(ctx);
-  if (curent == EXPR_TOKEN_HYPHEN || isdigit(curent)) return _parse_expr_integer(ctx);
+  if (curent == EXPR_TOKEN_HYPHEN) {
+    if (isspace(ctx->it.data[1])) return _parse_expr_symbol(ctx);
+    return _parse_expr_integer(ctx);
+  }
+  if (isdigit(curent)) return _parse_expr_integer(ctx);
   if (curent == EXPR_TOKEN_DOT) return _parse_expr_real(ctx, 0, false);
   return _parse_expr_symbol(ctx);
 }

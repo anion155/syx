@@ -15,21 +15,21 @@ typedef long int expr_int_t;
 typedef double expr_real_t;
 typedef char * expr_string_t;
 
-struct ExprSymbol {
+typedef struct Expr_Symbol {
   const char *name;
   bool guarded;
-};
+} Expr_Symbol;
 
 typedef struct Expr Expr;
-struct ExprList {
+typedef struct Expr_List {
   Expr **items;
   size_t count;
-};
+} Expr_List;
 struct Expr {
   Expr_Kind kind;
   union {
-    struct ExprSymbol symbol;
-    struct ExprList list;
+    Expr_Symbol symbol;
+    Expr_List list;
     expr_bool_t boolean;
     expr_int_t integer;
     expr_real_t real;
@@ -87,7 +87,7 @@ Expr *make_expr_integer(expr_int_t value) {
 }
 Expr *make_expr_real(expr_real_t value) {
   Expr *expr = make_expr(EXPR_KIND_REAL);
-  expr->integer = value;
+  expr->real = value;
   return expr;
 }
 Expr *make_expr_string(expr_string_t value) {

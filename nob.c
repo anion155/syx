@@ -19,6 +19,7 @@ typedef struct Context {
     const char *build;
   } paths;
   Nob_Cmd cmd;
+  Nob_Procs procs;
   Jim cdb_jim;
   struct {
     bool cdb;
