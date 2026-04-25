@@ -11,7 +11,6 @@ typedef struct Expr_Arguments {
   Expr_Value *items;
   size_t count;
   size_t capacity;
-  Expr *expr;
 } Expr_Arguments;
 typedef Expr_Value (*Expr_Evaluator)(Expr_Env *env, Expr_Arguments arguments);
 typedef struct Expr_Closure {
@@ -183,7 +182,7 @@ Expr_Value *expr_env_lookup(Expr_Env *env, const char *name) {
 }
 
 Expr_Arguments expr_arguments(Expr *expr) {
-  Expr_Arguments arguments = {0, .expr = expr};
+  Expr_Arguments arguments = {0};
   expr_list_for_each(expr, arg_expr) {
     Expr_Value arg = {.kind = EXPR_VALUE_KIND_EXPR, .expr = arg_expr};
     da_append(&arguments, arg);
@@ -346,8 +345,33 @@ Expr_Value expr_evaluate_syntax_rules(Expr_Env *env, Expr_Arguments arguments) {
   UNUSED(env); UNUSED(arguments); TODO("expr_evaluate_syntax_rules");
 }
 
+Expr_Value expr__builtin_sum_upgrade_real(Expr_Env *env, Expr_Arguments arguments, expr_int_t integer_value) {
+  UNUSED(env);
+  expr_real_t value = integer_value;
+  da_foreach(Expr_Value, argument, &arguments) {
+    if (argument->kind != EXPR_VALUE_KIND_EXPR) UNREACHABLE("Every argument supposed to be value");
+    argument->expr = expr_convert_to_real(argument->expr);
+    value += argument->expr->real;
+  }
+  return (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = make_expr_real(value)};
+}
 Expr_Value expr_builtin_sum(Expr_Env *env, Expr_Arguments arguments) {
-  UNUSED(env); UNUSED(arguments); TODO("expr_builtin_sum");
+  expr_int_t value = 0;
+  size_t index = 0;
+  da_foreach(Expr_Value, argument, &arguments) {
+    if (argument->kind != EXPR_VALUE_KIND_EXPR) UNREACHABLE("Every argument supposed to be value");
+    if (argument->expr->kind == EXPR_KIND_REAL) {
+      return expr__builtin_sum_upgrade_real(env, (Expr_Arguments){
+        .items = arguments.items + index,
+        .count = arguments.count - index,
+        .capacity = 0,
+      }, value);
+    }
+    argument->expr = expr_convert_to_integer(argument->expr);
+    value += argument->expr->integer;
+    index += 1;
+  }
+  return (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = make_expr_integer(value)};
 }
 
 #endif // EXPR_EVAL_IMPLEMENTATION

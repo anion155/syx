@@ -28,11 +28,11 @@ Expr *expr_convert_to_string(Expr *expr);
 #undef EXPR_UTILS_IMPLEMENTATION
 
 expr_int_t parse_integer(String_View *sv) {
-  bool is_negative = *sv->data == '-';
+  bool is_negative = sv->data[0] == '-';
   if (is_negative) nob_sv_chop_left(sv, 1);
+  if (!sv->count) UNREACHABLE("expected number literal here");
   expr_int_t value = 0;
   size_t i = 0;
-  if (!sv->count) UNREACHABLE("expected number literal here");
   while (isdigit(sv->data[i])) {
     value = value * 10 + (sv->data[i] - '0');
     i += 1;
@@ -44,7 +44,7 @@ expr_int_t parse_integer(String_View *sv) {
   return value;
 }
 expr_real_t parse_fractions(String_View *sv) {
-  if (*sv->data != '.') UNREACHABLE("expected real number's fractional part start here");
+  if (sv->data[0] != '.') UNREACHABLE("expected real number's fractional part start here");
   nob_sv_chop_left(sv, 1);
   expr_int_t fractional_part = 0;
   expr_int_t exponent = 1;
@@ -55,14 +55,16 @@ expr_real_t parse_fractions(String_View *sv) {
     i += 1;
   }
   if (i == 0) UNREACHABLE("expected real number's fractional part start here");
+  sv->count -= i;
+  sv->data  += i;
   return (expr_real_t)fractional_part / (expr_real_t)exponent;
 }
 expr_real_t parse_real(String_View *sv) {
   expr_int_t integer_part = parse_integer(sv);
   if (sv->data[0] != '.') return (expr_real_t)integer_part;
   expr_real_t value = parse_fractions(sv);
-  if (integer_part < 0) value += integer_part;
-  else value = integer_part - value;
+  if (integer_part < 0) value = integer_part - value;
+  else value = integer_part + value;
   return value;
 }
 

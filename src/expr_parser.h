@@ -59,7 +59,7 @@ void update_line(ExprParserContext *ctx) {
 }
 
 Expr *parse__expr_string(ExprParserContext *ctx) {
-  if (*ctx->it.data != EXPR_TOKEN_DQUOTES) UNREACHABLE("expected string literal start here");
+  if (ctx->it.data[0] != EXPR_TOKEN_DQUOTES) UNREACHABLE("expected string literal start here");
   nob_sv_chop_left(&ctx->it, 1);
   size_t i = 0;
   while (ctx->it.data[i] != EXPR_TOKEN_DQUOTES) {
@@ -75,8 +75,8 @@ Expr *parse__expr_string(ExprParserContext *ctx) {
 }
 Expr *parse__expr_real(ExprParserContext *ctx, expr_int_t integer_part) {
   expr_real_t fractional_part = parse_fractions(&ctx->it);
-  if (integer_part < 0) fractional_part += integer_part;
-  else fractional_part = integer_part - fractional_part;
+  if (integer_part < 0) fractional_part = integer_part - fractional_part;
+  else fractional_part = integer_part + fractional_part;
   return make_expr_real(fractional_part);
 }
 Expr *parse__expr_integer(ExprParserContext *ctx) {
@@ -90,7 +90,7 @@ upgrade:
   return parse__expr_real(ctx, value);
 }
 Expr *parse__expr_guarded_symbol(ExprParserContext *ctx) {
-  if (*ctx->it.data != EXPR_TOKEN_GUARD) UNREACHABLE("expected guarded symbol start here");
+  if (ctx->it.data[0] != EXPR_TOKEN_GUARD) UNREACHABLE("expected guarded symbol start here");
   nob_sv_chop_left(&ctx->it, 1);
   size_t i = 0;
   while (ctx->it.data[i] != EXPR_TOKEN_GUARD) {
@@ -104,7 +104,7 @@ Expr *parse__expr_guarded_symbol(ExprParserContext *ctx) {
   return make_expr_symbol(strndup(name.data, name.count), true);
 }
 Expr *parse__expr_symbol(ExprParserContext *ctx) {
-  if (*ctx->it.data == EXPR_TOKEN_GUARD) return parse__expr_guarded_symbol(ctx);
+  if (ctx->it.data[0] == EXPR_TOKEN_GUARD) return parse__expr_guarded_symbol(ctx);
   Nob_String_View name = nob_sv_chop_while(&ctx->it, issymbol);
   if (!name.count) UNREACHABLE("unexpected empty symbol name");
   return make_expr_symbol(strndup(name.data, name.count), false);
@@ -116,21 +116,21 @@ typedef struct {
   size_t capacity;
 } ExprList;
 Expr *parse__expr_list(ExprParserContext *ctx) {
-  if (*ctx->it.data != EXPR_TOKEN_LIST_START) UNREACHABLE("expected ( symbol here");
+  if (ctx->it.data[0] != EXPR_TOKEN_LIST_START) UNREACHABLE("expected ( symbol here");
   nob_sv_chop_left(&ctx->it, 1);
   ExprList exprs = {0};
   while (true) {
     Nob_String_View spaces = nob_sv_chop_while(&ctx->it, isspace);
     update_line(ctx);
     if (ctx->it.count == 0) UNREACHABLE("unexpected s-expr end, ) was expected here");
-    if (*ctx->it.data == EXPR_TOKEN_LIST_END) break;
+    if (ctx->it.data[0] == EXPR_TOKEN_LIST_END) break;
     if (exprs.count && spaces.count == 0) UNREACHABLE("space was expected here");
-    if (*ctx->it.data == EXPR_TOKEN_DOT && isspace(ctx->it.data[1])) {
+    if (ctx->it.data[0] == EXPR_TOKEN_DOT && isspace(ctx->it.data[1])) {
       nob_sv_chop_left(&ctx->it, 1);
       spaces = nob_sv_chop_while(&ctx->it, isspace);
       update_line(ctx);
       da_append(&exprs, parse__expr(ctx));
-      if (*ctx->it.data != EXPR_TOKEN_LIST_END) UNREACHABLE("expected list end here");
+      if (ctx->it.data[0] != EXPR_TOKEN_LIST_END) UNREACHABLE("expected list end here");
       nob_sv_chop_left(&ctx->it, 1);
       return make_expr_list_opt(exprs.count, exprs.items);
     }
@@ -141,12 +141,12 @@ Expr *parse__expr_list(ExprParserContext *ctx) {
   return make_expr_list_opt(exprs.count, exprs.items);
 }
 Expr *parse__expr_quote(ExprParserContext *ctx) {
-  if (*ctx->it.data != EXPR_TOKEN_QUOTES) UNREACHABLE("expected ( symbol here");
+  if (ctx->it.data[0] != EXPR_TOKEN_QUOTES) UNREACHABLE("expected ( symbol here");
   nob_sv_chop_left(&ctx->it, 1);
   return make_expr_quote(parse__expr(ctx));
 }
 Expr *parse__expr(ExprParserContext *ctx) {
-  char current = *ctx->it.data;
+  char current = ctx->it.data[0];
   if (current == EXPR_TOKEN_LIST_START) return parse__expr_list(ctx);
   if (current == EXPR_TOKEN_QUOTES) return parse__expr_quote(ctx);
   if (current == EXPR_TOKEN_DQUOTES) return parse__expr_string(ctx);
