@@ -61,10 +61,22 @@ Expr *make_expr_list_opt(size_t count, Expr **items);
     sizeof((Expr *[]){__VA_ARGS__}) / sizeof(Expr *), \
     (Expr *[]){__VA_ARGS__}                           \
   )
-#define expr_list_for_each(first, value, ...) for (            \
-  Expr *value##_ = (first), *value = value##_->pair.left;      \
-  value##_->kind == EXPR_KIND_PAIR;                            \
-  value##_ = value##_->pair.right, value = value##_->pair.left \
+#define UNREACHABLE_EXPR(message, as) \
+  (fprintf(stderr, "%s:%d: UNREACHABLE: %s\n", __FILE__, __LINE__, (message)), abort(), as)
+#define expr_list_for_each(first, value) for (      \
+  Expr *value##_it = (first),                       \
+    *value = value##_it->kind == EXPR_KIND_PAIR     \
+      ? value##_it->pair.left                       \
+      : UNREACHABLE_EXPR("malformed list", NULL);   \
+  value##_it->kind != EXPR_KIND_NIL;                \
+  value##_it = value##_it->kind == EXPR_KIND_PAIR   \
+    ? value##_it->pair.right                        \
+    : &EXPR_NIL,                                    \
+  value = value##_it->kind == EXPR_KIND_PAIR        \
+    ? value##_it->pair.left                         \
+    : value##_it->kind == EXPR_KIND_NIL             \
+      ? NULL                                        \
+      : UNREACHABLE_EXPR("malformed list", NULL)    \
 )
 Expr *make_expr_quote(Expr *quote);
 Expr *make_expr_bool(expr_bool_t value);
@@ -82,7 +94,7 @@ Expr *make_expr_string(expr_string_t value);
 void fprint_expr(FILE *f, Expr *expr);
 #define print_expr(expr) fprint_expr(stdout, (expr))
 void fdump_expr_opt(FILE *f, Expr *expr, size_t current_indent, size_t next_indent);
-#define dump_expr_opt(expr) fdump_expr_opt(stdout, (expr), 0, 1)
+#define dump_expr_opt(expr, current_indent, next_indent) fdump_expr_opt(stdout, (expr), (current_indent), (next_indent))
 #define fdump_expr(f, expr) fdump_expr_opt((f), (expr), 0, 1)
 #define dump_expr(expr) dump_expr_opt((expr), 0, 1)
 

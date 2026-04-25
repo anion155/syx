@@ -98,6 +98,11 @@ Expr_Value expr_evaluate_let_syntax(Expr_Env *env, Expr_Arguments arguments);
 Expr_Value expr_evaluate_syntax_rules(Expr_Env *env, Expr_Arguments arguments);
 
 
+/** Builtins */
+/** '+' - Sum all arguments */
+Expr_Value expr_builtin_sum(Expr_Env *env, Expr_Arguments arguments);
+
+
 void expr_eval_arguments(Expr_Env *env, Exprs *arguments);
 Expr_Value expr_eval(Expr_Env *env, Expr_Value input);
 
@@ -143,6 +148,7 @@ void expr_env_put_symbol(Expr_Env *env, const char *name, Expr_Value value) {
 }
 void init_expr_global_env(Expr_Env *env) {
   env->symbols.hasheq = ht_cstr_hasheq;
+  /** Special forms */
   expr_env_put_symbol(env, "quote",         (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_quote        });
   expr_env_put_symbol(env, "if",            (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_if           });
   expr_env_put_symbol(env, "lambda",        (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_lambda       });
@@ -163,6 +169,9 @@ void init_expr_global_env(Expr_Env *env) {
   expr_env_put_symbol(env, "define-syntax", (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_define_syntax});
   expr_env_put_symbol(env, "let-syntax",    (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_let_syntax   });
   expr_env_put_symbol(env, "syntax-rules",  (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_syntax_rules });
+
+  /** Builtins */
+  expr_env_put_symbol(env, "+", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_sum});
 }
 Expr_Value *expr_env_lookup(Expr_Env *env, const char *name) {
   Expr_Value *item = NULL;
@@ -181,11 +190,6 @@ Expr_Arguments expr_arguments(Expr *expr) {
   }
   return arguments;
 }
-void eval_expr_arguments(Expr_Env *env, Expr_Arguments *arguments) {
-  da_foreach(Expr_Value, arg, arguments) {
-    *arg = expr_eval(env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = arg->expr});
-  }
-}
 Expr_Value expr_eval(Expr_Env *env, Expr_Value input) {
   if (input.kind != EXPR_VALUE_KIND_EXPR) return input;
   if (input.expr->kind == EXPR_KIND_QUOTE) return (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = input.expr->quote};
@@ -197,34 +201,44 @@ Expr_Value expr_eval(Expr_Env *env, Expr_Value input) {
   if (input.expr->kind != EXPR_KIND_PAIR) return input;
   if (!input.expr->pair.left) return input;
   Expr_Value head = expr_eval(env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = input.expr->pair.left});
+  Expr *arguments_expr = input.expr->pair.right;
   switch (head.kind) {
     case EXPR_VALUE_KIND_EXPR: UNREACHABLE("is not a procedure");
     case EXPR_VALUE_KIND_SPECIAL_FORM: {
-      Expr_Arguments arguments = expr_arguments(input.expr->pair.right);
+      Expr_Arguments arguments = expr_arguments(arguments_expr);
       Expr_Value result = head.special(env, arguments);
       da_free(arguments);
       return result;
     }
     case EXPR_VALUE_KIND_BUILTIN: {
-      Expr_Arguments arguments = expr_arguments(input.expr->pair.right);
-      eval_expr_arguments(env, &arguments);
+      Expr_Arguments arguments = expr_arguments(arguments_expr);
+      da_foreach(Expr_Value, arg, &arguments) {
+        *arg = expr_eval(env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = arg->expr});
+      }
       Expr_Value result = head.special(env, arguments);
       da_free(arguments);
       return result;
     }
     case EXPR_VALUE_KIND_CLOSURE: {
-      Expr_Arguments arguments = expr_arguments(input.expr->pair.right);
-      eval_expr_arguments(env, &arguments);
-      Expr_Env call_env = {.parent = head.closure.env};
-      size_t index = 0;
-      expr_list_for_each(head.closure.arguments, name) {
-        if (arguments.count < index + 1) UNREACHABLE("Incorrect amount of arguments");
-        expr_env_put_symbol(&call_env, name->symbol.name, arguments.items[index]);
-        index += 1;
+      Expr_Env call_env = {.parent = head.closure.env, .symbols = {.hasheq = ht_cstr_hasheq}};
+      Expr *it = arguments_expr;
+      expr_list_for_each(head.closure.arguments, name_expr) {
+        const char *name = name_expr->symbol.name;
+        Expr_Value value = {.kind = EXPR_VALUE_KIND_EXPR};
+        if (name_expr_it->kind == EXPR_KIND_NIL) {
+          value.expr = it;
+          expr_env_put_symbol(&call_env, name, value);
+          it = &EXPR_NIL;
+          break;
+        }
+        if (it->kind == EXPR_KIND_NIL) UNREACHABLE("Too few arguments");
+        value.expr = it->pair.left;
+        expr_env_put_symbol(&call_env, name, value);
+        it = it->pair.right;
       }
-      da_free(arguments);
-      TODO("closure evaluation");
-      // return result;
+      if (it->kind != EXPR_KIND_NIL) UNREACHABLE("Too many arguments");
+      Expr_Value result = expr_eval(&call_env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = head.closure.body});
+      return result;
     }
   }
 }
@@ -330,6 +344,10 @@ Expr_Value expr_evaluate_let_syntax(Expr_Env *env, Expr_Arguments arguments) {
 }
 Expr_Value expr_evaluate_syntax_rules(Expr_Env *env, Expr_Arguments arguments) {
   UNUSED(env); UNUSED(arguments); TODO("expr_evaluate_syntax_rules");
+}
+
+Expr_Value expr_builtin_sum(Expr_Env *env, Expr_Arguments arguments) {
+  UNUSED(env); UNUSED(arguments); TODO("expr_builtin_sum");
 }
 
 #endif // EXPR_EVAL_IMPLEMENTATION
