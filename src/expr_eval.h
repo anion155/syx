@@ -51,6 +51,7 @@ struct Expr_Env {
 
 void expr_env_put_symbol(Expr_Env *env, const char *name, Expr_Value value);
 void init_expr_global_env(Expr_Env *env);
+Expr_Env make_expr_env(Expr_Env *parent);
 Expr_Value *expr_env_lookup(Expr_Env *env, const char *name);
 
 
@@ -175,6 +176,9 @@ void init_expr_global_env(Expr_Env *env) {
   /** Builtins */
   expr_env_put_symbol(env, "+", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_sum});
 }
+Expr_Env make_expr_env(Expr_Env *parent) {
+  return (Expr_Env){.parent = parent, .symbols = {.hasheq = ht_cstr_hasheq}};
+}
 Expr_Value *expr_env_lookup(Expr_Env *env, const char *name) {
   Expr_Value *item = NULL;
   while (env != NULL && item == NULL) {
@@ -209,7 +213,8 @@ Expr_Value expr_eval_builtin(Expr_Env *env, Expr_Evaluator evaluator, Expr *argu
   return result;
 }
 Expr_Value expr_eval_closure(Expr_Env *env, Expr_Closure *closure, Expr *arguments) {
-  Expr_Env call_env = {.parent = closure->env, .symbols = {.hasheq = ht_cstr_hasheq}};
+  UNUSED(env);
+  Expr_Env call_env = make_expr_env(closure->env);
   Expr *it = arguments;
   expr_list_for_each(closure->arguments, name_expr) {
     const char *name = name_expr->symbol.name;
@@ -243,8 +248,8 @@ Expr_Value expr_eval(Expr_Env *env, Expr_Value input) {
   Expr *arguments = input.expr->pair.right;
   switch (head.kind) {
     case EXPR_VALUE_KIND_EXPR: UNREACHABLE("is not a procedure");
-    case EXPR_VALUE_KIND_SPECIAL_FORM: return expr_eval_special_form(env, &head.special, arguments);
-    case EXPR_VALUE_KIND_BUILTIN: return expr_eval_builtin(env, &head.builtin, arguments);
+    case EXPR_VALUE_KIND_SPECIAL_FORM: return expr_eval_special_form(env, head.special, arguments);
+    case EXPR_VALUE_KIND_BUILTIN: return expr_eval_builtin(env, head.builtin, arguments);
     case EXPR_VALUE_KIND_CLOSURE: return expr_eval_closure(env, &head.closure, arguments);
   }
 }
