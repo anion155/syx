@@ -39,8 +39,8 @@ int main(int argc, char **argv) {
   print_expr(input.expr);
   // dump_expr(input.expr);
   Expr_Env env={0};
-  init_expr_env(&env);
-  Expr *result = expr_eval(&env, input.expr);
+  init_expr_global_env(&env);
+  Expr_Value result = expr_eval(&env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = input.expr});
   print_expr(result);
 
   return 0;

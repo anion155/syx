@@ -39,8 +39,8 @@ int islineend(int c) {
 }
 int issymbol_special(int c) {
   return (
-       c == '?' || c == '@' || c == '!' || c == '$' || c == '+' || c == '-' || c == '*' || c == '/' || c == '='
-    || c == '<' || c == '>'
+       c == '#' || c == '?' || c == '@' || c == '!' || c == '$' || c == '+' || c == '-' || c == '*' || c == '/'
+    || c == '=' || c == '<' || c == '>'
   );
 }
 int issymbol(int c) {

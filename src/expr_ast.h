@@ -56,7 +56,11 @@ Expr_Constants EXPR_CONSTANTS;
 Expr *make_expr(Expr_Kind kind);
 Expr *make_expr_symbol(const char *symbol, bool guarded);
 Expr *make_expr_list_opt(size_t count, Expr **items);
-#define make_expr_list(...) make_expr_list_opt((sizeof((Expr *[]){__VA_ARGS__}) / sizeof(Expr *)), ((Expr *[]){__VA_ARGS__}))
+#define make_expr_list(...)                           \
+  make_expr_list_opt(                                 \
+    sizeof((Expr *[]){__VA_ARGS__}) / sizeof(Expr *), \
+    (Expr *[]){__VA_ARGS__}                           \
+  )
 Exprs exprs_from_list(Expr *item);
 Expr *make_expr_quote(Expr *quote);
 Expr *make_expr_bool(expr_bool_t value);
@@ -176,54 +180,54 @@ Expr *make_expr_string(expr_string_t value) {
 
 void _print_expr(Expr *expr, size_t level) {
   switch (expr->kind) {
-  case EXPR_KIND_SYMBOL: {
-    if (expr->symbol.guarded) {
-      printf("|%s|", expr->symbol.name);
-    } else {
-      printf("%s", expr->symbol.name);
-    }
-  } break;
-  case EXPR_KIND_NIL: {
-    printf("()");
-  } break;
-  case EXPR_KIND_PAIR: {
-    printf("(");
-    Expr *it = expr;
-    _print_expr(it->pair.left, level + 1);
-    it = it->pair.right;
-    if (it == NULL) UNREACHABLE("empty pair element");
-    if (it->kind == EXPR_KIND_PAIR) {
-      while (true) {
-        printf(" ");
-        _print_expr(it->pair.left, level + 1);
-        it = it->pair.right;
-        if (it == NULL) UNREACHABLE("empty pair element");
-        if (it->kind != EXPR_KIND_PAIR) break;
+    case EXPR_KIND_SYMBOL: {
+      if (expr->symbol.guarded) {
+        printf("|%s|", expr->symbol.name);
+      } else {
+        printf("%s", expr->symbol.name);
       }
-    }
-    if (it->kind != EXPR_KIND_NIL) {
-      printf(" . ");
-      _print_expr(it->pair.right, level + 1);
-    }
-    printf(")");
-  } break;
-  case EXPR_KIND_QUOTE: {
-    printf("'");
-    _print_expr(expr->quote, level);
-  } break;
-  case EXPR_KIND_BOOL: {
-    if (expr->boolean) printf("true");
-    else printf("false");
-  } break;
-  case EXPR_KIND_INTEGER: {
-    printf("%ld", expr->integer);
-  } break;
-  case EXPR_KIND_REAL: {
-    printf("%f", expr->real);
-  } break;
-  case EXPR_KIND_STRING: {
-    printf("\"%s\"", expr->string);
-  } break;
+    } break;
+    case EXPR_KIND_NIL: {
+      printf("()");
+    } break;
+    case EXPR_KIND_PAIR: {
+      printf("(");
+      Expr *it = expr;
+      _print_expr(it->pair.left, level + 1);
+      it = it->pair.right;
+      if (it == NULL) UNREACHABLE("empty pair element");
+      if (it->kind == EXPR_KIND_PAIR) {
+        while (true) {
+          printf(" ");
+          _print_expr(it->pair.left, level + 1);
+          it = it->pair.right;
+          if (it == NULL) UNREACHABLE("empty pair element");
+          if (it->kind != EXPR_KIND_PAIR) break;
+        }
+      }
+      if (it->kind != EXPR_KIND_NIL) {
+        printf(" . ");
+        _print_expr(it->pair.right, level + 1);
+      }
+      printf(")");
+    } break;
+    case EXPR_KIND_QUOTE: {
+      printf("'");
+      _print_expr(expr->quote, level);
+    } break;
+    case EXPR_KIND_BOOL: {
+      if (expr->boolean) printf("true");
+      else printf("false");
+    } break;
+    case EXPR_KIND_INTEGER: {
+      printf("%ld", expr->integer);
+    } break;
+    case EXPR_KIND_REAL: {
+      printf("%f", expr->real);
+    } break;
+    case EXPR_KIND_STRING: {
+      printf("\"%s\"", expr->string);
+    } break;
   }
 }
 void print_expr(Expr *expr) {
@@ -234,37 +238,37 @@ void print_expr(Expr *expr) {
 void dump_expr_opt(Expr *expr, size_t current_indent, size_t next_indent) {
   if (current_indent) printf("%*c", (int)current_indent * 2, ' ');
   switch (expr->kind) {
-  case EXPR_KIND_NIL: {
-    printf("NIL\n");
-  } break;
-  case EXPR_KIND_SYMBOL: {
-    if (expr->symbol.guarded) {
-      printf("SYMBOL: |%s|\n", expr->symbol.name);
-    } else {
-      printf("SYMBOL: %s\n", expr->symbol.name);
-    }
-  } break;
-  case EXPR_KIND_PAIR: {
-    printf("PAIR:\n");
-    dump_expr_opt(expr->pair.left, next_indent, next_indent + 1);
-    dump_expr_opt(expr->pair.right, next_indent, next_indent + 1);
-  } break;
-  case EXPR_KIND_QUOTE: {
-    printf("QUOTE: ");
-    dump_expr_opt(expr->quote, 0, next_indent);
-  } break;
-  case EXPR_KIND_BOOL: {
-    printf("BOOL: %s\n", expr->boolean ? "true" : "false");
-  } break;
-  case EXPR_KIND_INTEGER: {
-    printf("INTEGER: %ld\n", expr->integer);
-  } break;
-  case EXPR_KIND_REAL: {
-    printf("REAL: %f\n", expr->real);
-  } break;
-  case EXPR_KIND_STRING: {
-    printf("STRING: \"%s\"\n", expr->string);
-  } break;
+    case EXPR_KIND_NIL: {
+      printf("NIL\n");
+    } break;
+    case EXPR_KIND_SYMBOL: {
+      if (expr->symbol.guarded) {
+        printf("SYMBOL: |%s|\n", expr->symbol.name);
+      } else {
+        printf("SYMBOL: %s\n", expr->symbol.name);
+      }
+    } break;
+    case EXPR_KIND_PAIR: {
+      printf("PAIR:\n");
+      dump_expr_opt(expr->pair.left, next_indent, next_indent + 1);
+      dump_expr_opt(expr->pair.right, next_indent, next_indent + 1);
+    } break;
+    case EXPR_KIND_QUOTE: {
+      printf("QUOTE: ");
+      dump_expr_opt(expr->quote, 0, next_indent);
+    } break;
+    case EXPR_KIND_BOOL: {
+      printf("BOOL: %s\n", expr->boolean ? "true" : "false");
+    } break;
+    case EXPR_KIND_INTEGER: {
+      printf("INTEGER: %ld\n", expr->integer);
+    } break;
+    case EXPR_KIND_REAL: {
+      printf("REAL: %f\n", expr->real);
+    } break;
+    case EXPR_KIND_STRING: {
+      printf("STRING: \"%s\"\n", expr->string);
+    } break;
   }
 }
 void dump_expr(Expr *expr) {
