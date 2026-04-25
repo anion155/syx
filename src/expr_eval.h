@@ -103,6 +103,9 @@ Expr_Value expr_builtin_sum(Expr_Env *env, Expr_Arguments arguments);
 
 
 void expr_eval_arguments(Expr_Env *env, Exprs *arguments);
+Expr_Value expr_eval_special_form(Expr_Env *env, Expr_Evaluator evaluator, Expr *arguments);
+Expr_Value expr_eval_builtin(Expr_Env *env, Expr_Evaluator evaluator, Expr *arguments);
+Expr_Value expr_eval_closure(Expr_Env *env, Expr_Closure *closure, Expr *arguments);
 Expr_Value expr_eval(Expr_Env *env, Expr_Value input);
 
 #endif // EXPR_EVAL_H
@@ -189,6 +192,43 @@ Expr_Arguments expr_arguments(Expr *expr) {
   }
   return arguments;
 }
+
+Expr_Value expr_eval_special_form(Expr_Env *env, Expr_Evaluator evaluator, Expr *arguments_expr) {
+  Expr_Arguments arguments = expr_arguments(arguments_expr);
+  Expr_Value result = evaluator(env, arguments);
+  da_free(arguments);
+  return result;
+}
+Expr_Value expr_eval_builtin(Expr_Env *env, Expr_Evaluator evaluator, Expr *arguments_expr) {
+  Expr_Arguments arguments = expr_arguments(arguments_expr);
+  da_foreach(Expr_Value, arg, &arguments) {
+    *arg = expr_eval(env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = arg->expr});
+  }
+  Expr_Value result = evaluator(env, arguments);
+  da_free(arguments);
+  return result;
+}
+Expr_Value expr_eval_closure(Expr_Env *env, Expr_Closure *closure, Expr *arguments) {
+  Expr_Env call_env = {.parent = closure->env, .symbols = {.hasheq = ht_cstr_hasheq}};
+  Expr *it = arguments;
+  expr_list_for_each(closure->arguments, name_expr) {
+    const char *name = name_expr->symbol.name;
+    Expr_Value value = {.kind = EXPR_VALUE_KIND_EXPR};
+    if (name_expr_it->kind == EXPR_KIND_NIL) {
+      value.expr = it;
+      expr_env_put_symbol(&call_env, name, value);
+      it = &EXPR_NIL;
+      break;
+    }
+    if (it->kind == EXPR_KIND_NIL) UNREACHABLE("Too few arguments");
+    value.expr = it->pair.left;
+    expr_env_put_symbol(&call_env, name, value);
+    it = it->pair.right;
+  }
+  if (it->kind != EXPR_KIND_NIL) UNREACHABLE("Too many arguments");
+  Expr_Value result = expr_eval(&call_env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = closure->body});
+  return result;
+}
 Expr_Value expr_eval(Expr_Env *env, Expr_Value input) {
   if (input.kind != EXPR_VALUE_KIND_EXPR) return input;
   if (input.expr->kind == EXPR_KIND_QUOTE) return (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = input.expr->quote};
@@ -200,45 +240,12 @@ Expr_Value expr_eval(Expr_Env *env, Expr_Value input) {
   if (input.expr->kind != EXPR_KIND_PAIR) return input;
   if (!input.expr->pair.left) return input;
   Expr_Value head = expr_eval(env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = input.expr->pair.left});
-  Expr *arguments_expr = input.expr->pair.right;
+  Expr *arguments = input.expr->pair.right;
   switch (head.kind) {
     case EXPR_VALUE_KIND_EXPR: UNREACHABLE("is not a procedure");
-    case EXPR_VALUE_KIND_SPECIAL_FORM: {
-      Expr_Arguments arguments = expr_arguments(arguments_expr);
-      Expr_Value result = head.special(env, arguments);
-      da_free(arguments);
-      return result;
-    }
-    case EXPR_VALUE_KIND_BUILTIN: {
-      Expr_Arguments arguments = expr_arguments(arguments_expr);
-      da_foreach(Expr_Value, arg, &arguments) {
-        *arg = expr_eval(env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = arg->expr});
-      }
-      Expr_Value result = head.special(env, arguments);
-      da_free(arguments);
-      return result;
-    }
-    case EXPR_VALUE_KIND_CLOSURE: {
-      Expr_Env call_env = {.parent = head.closure.env, .symbols = {.hasheq = ht_cstr_hasheq}};
-      Expr *it = arguments_expr;
-      expr_list_for_each(head.closure.arguments, name_expr) {
-        const char *name = name_expr->symbol.name;
-        Expr_Value value = {.kind = EXPR_VALUE_KIND_EXPR};
-        if (name_expr_it->kind == EXPR_KIND_NIL) {
-          value.expr = it;
-          expr_env_put_symbol(&call_env, name, value);
-          it = &EXPR_NIL;
-          break;
-        }
-        if (it->kind == EXPR_KIND_NIL) UNREACHABLE("Too few arguments");
-        value.expr = it->pair.left;
-        expr_env_put_symbol(&call_env, name, value);
-        it = it->pair.right;
-      }
-      if (it->kind != EXPR_KIND_NIL) UNREACHABLE("Too many arguments");
-      Expr_Value result = expr_eval(&call_env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = head.closure.body});
-      return result;
-    }
+    case EXPR_VALUE_KIND_SPECIAL_FORM: return expr_eval_special_form(env, &head.special, arguments);
+    case EXPR_VALUE_KIND_BUILTIN: return expr_eval_builtin(env, &head.builtin, arguments);
+    case EXPR_VALUE_KIND_CLOSURE: return expr_eval_closure(env, &head.closure, arguments);
   }
 }
 
