@@ -52,6 +52,7 @@ struct Expr_Env {
 void expr_env_put_symbol(Expr_Env *env, const char *name, Expr_Value value);
 void init_expr_global_env(Expr_Env *env);
 Expr_Env make_expr_env(Expr_Env *parent);
+void free_expr_env(Expr_Env *env);
 Expr_Value *expr_env_lookup(Expr_Env *env, const char *name);
 
 
@@ -179,6 +180,9 @@ void init_expr_global_env(Expr_Env *env) {
 Expr_Env make_expr_env(Expr_Env *parent) {
   return (Expr_Env){.parent = parent, .symbols = {.hasheq = ht_cstr_hasheq}};
 }
+void free_expr_env(Expr_Env *env) {
+  ht_free(&env->symbols);
+}
 Expr_Value *expr_env_lookup(Expr_Env *env, const char *name) {
   Expr_Value *item = NULL;
   while (env != NULL && item == NULL) {
@@ -232,6 +236,7 @@ Expr_Value expr_eval_closure(Expr_Env *env, Expr_Closure *closure, Expr *argumen
   }
   if (it->kind != EXPR_KIND_NIL) UNREACHABLE("Too many arguments");
   Expr_Value result = expr_eval(&call_env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = closure->body});
+  free_expr_env(&call_env);
   return result;
 }
 Expr_Value expr_eval(Expr_Env *env, Expr_Value input) {
