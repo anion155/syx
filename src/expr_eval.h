@@ -16,9 +16,14 @@ typedef struct Expr_Arguments {
 typedef Expr_Value (*Expr_Evaluator)(Expr_Env *env, Expr_Arguments arguments);
 typedef struct Expr_Closure {
   Expr_Env *env;
-  Exprs arguments;
+  Expr *arguments;
   Expr *body;
 } Expr_Closure;
+void fprint_closure_opt(FILE *f, Expr_Closure *closure, size_t indent);
+#define print_closure_opt(closure, indent) fprint_closure_opt(stdout, (closure), (indent))
+#define fprint_closure(f, closure) fprint_closure_opt(f, (closure), 0)
+#define print_closure(closure) print_closure_opt((closure), 0)
+
 typedef enum {
   EXPR_VALUE_KIND_EXPR,
   EXPR_VALUE_KIND_SPECIAL_FORM,
@@ -34,6 +39,11 @@ struct Expr_Value {
     Expr_Closure closure;
   };
 };
+void fprint_expr_value_opt(FILE * f, Expr_Value value, size_t indent);
+#define print_expr_value_opt(value, indent) fprint_expr_value_opt(stdout, (value), (indent))
+#define fprint_expr_value(f, value) fprint_expr_value_opt((f), (value), 0)
+#define print_expr_value(value) print_expr_value_opt((value), 0)
+
 typedef Ht(const char *, Expr_Value, Expr_Env_Symbols) Expr_Env_Symbols;
 struct Expr_Env {
   Expr_Env *parent;
@@ -98,6 +108,25 @@ Expr_Value expr_eval(Expr_Env *env, Expr_Value input);
 
 #include "expr_utils.h"
 
+void fprint_closure_opt(FILE *f, Expr_Closure *closure, size_t indent) {
+  if (indent) fprintf(f, "%*c", (int)indent, ' ');
+  fprintf(f, "(lambda ");
+  fprint_expr(f, closure->arguments);
+  fprintf(f, "\n");
+  fprintf(f, "%*c", (int)indent + 2 + 8, ' ');
+  fprint_expr(f, closure->body);
+  fprintf(f, ")");
+}
+
+void fprint_expr_value_opt(FILE *f, Expr_Value value, size_t indent) {
+  switch (value.kind) {
+    case EXPR_VALUE_KIND_EXPR: fprint_expr(f, value.expr); break;
+    case EXPR_VALUE_KIND_SPECIAL_FORM: UNREACHABLE("can not print special form");
+    case EXPR_VALUE_KIND_BUILTIN: UNREACHABLE("can not print builtin");
+    case EXPR_VALUE_KIND_CLOSURE: fprint_closure_opt(f, &value.closure, indent); break;
+  }
+}
+
 void expr_env_put_symbol(Expr_Env *env, const char *name, Expr_Value value) {
   Expr_Value *item = expr_env_lookup(env, name);
   if (item != NULL) {
@@ -119,8 +148,8 @@ void init_expr_global_env(Expr_Env *env) {
   expr_env_put_symbol(env, "lambda",        (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_lambda       });
   expr_env_put_symbol(env, "define",        (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_define       });
   expr_env_put_symbol(env, "set!",          (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_set_excl     });
-  expr_env_put_symbol(env, "begin",         (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_let          });
-  expr_env_put_symbol(env, "let",           (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_begin        });
+  expr_env_put_symbol(env, "begin",         (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_begin        });
+  expr_env_put_symbol(env, "let",           (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_let          });
   expr_env_put_symbol(env, "let*",          (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_let_star     });
   expr_env_put_symbol(env, "letrec",        (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_letrec       });
   expr_env_put_symbol(env, "and",           (Expr_Value){.kind = EXPR_VALUE_KIND_SPECIAL_FORM, .special = expr_evaluate_and          });
@@ -145,13 +174,10 @@ Expr_Value *expr_env_lookup(Expr_Env *env, const char *name) {
 }
 
 Expr_Arguments expr_arguments(Expr *expr) {
-  Exprs arguments_exprs = exprs_from_list(expr);
-  arguments_exprs.count -= 1;
-  if (arguments_exprs.items[arguments_exprs.count] != NULL) UNREACHABLE("malformed arguments list");
-  Expr_Arguments arguments = {.expr = expr};
-  da_reserve(&arguments, arguments_exprs.count);
-  da_foreach(Expr *, arg_expr, &arguments_exprs) {
-    da_append(&arguments, ((Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = arg_expr}));
+  Expr_Arguments arguments = {0, .expr = expr};
+  expr_list_for_each(expr, arg_expr) {
+    Expr_Value arg = {.kind = EXPR_VALUE_KIND_EXPR, .expr = arg_expr};
+    da_append(&arguments, arg);
   }
   return arguments;
 }
@@ -187,11 +213,17 @@ Expr_Value expr_eval(Expr_Env *env, Expr_Value input) {
       return result;
     }
     case EXPR_VALUE_KIND_CLOSURE: {
+      Expr_Arguments arguments = expr_arguments(input.expr->pair.right);
+      eval_expr_arguments(env, &arguments);
+      Expr_Env call_env = {.parent = head.closure.env};
+      size_t index = 0;
+      expr_list_for_each(head.closure.arguments, name) {
+        if (arguments.count < index + 1) UNREACHABLE("Incorrect amount of arguments");
+        expr_env_put_symbol(&call_env, name->symbol.name, arguments.items[index]);
+        index += 1;
+      }
+      da_free(arguments);
       TODO("closure evaluation");
-      // Expr_Arguments arguments = expr_arguments(input.expr->pair.right);
-      // eval_expr_arguments(env, &arguments);
-      // Expr_Value result = head.closure.evaluator(head.closure.env, arguments);
-      // da_free(arguments);
       // return result;
     }
   }
@@ -226,11 +258,10 @@ Expr_Value expr_evaluate_lambda(Expr_Env *env, Expr_Arguments arguments) {
   if (arguments_val.kind != EXPR_VALUE_KIND_EXPR) UNREACHABLE("Arguments expected to be a list");
   Expr_Value body_val = arguments.items[1];
   if (body_val.kind != EXPR_VALUE_KIND_EXPR) UNREACHABLE("Body expected to be a body");
-  return (Expr_Value){.kind = EXPR_VALUE_KIND_CLOSURE, .closure = {
-    .env = env,
-    .arguments = arguments_val.expr,
-    .body = body_val.expr
-  }};
+  return (Expr_Value){
+    .kind = EXPR_VALUE_KIND_CLOSURE,
+    .closure = {.env = env, .arguments = arguments_val.expr, .body = body_val.expr},
+  };
 }
 Expr_Value expr_evaluate_define(Expr_Env *env, Expr_Arguments arguments) {
   if (arguments.count != 2) UNREACHABLE("Incorrect amount of arguments");
@@ -242,11 +273,7 @@ Expr_Value expr_evaluate_define(Expr_Env *env, Expr_Arguments arguments) {
     if (arguments_expr->kind != EXPR_KIND_PAIR) UNREACHABLE("Arguments expected to be a list");
     name_val.expr = name_val.expr->pair.left;
     if (value_val.kind != EXPR_VALUE_KIND_EXPR) UNREACHABLE("Body expected to be a list");
-    value_val = expr_evaluate_lambda(env, expr_arguments(make_expr_list(
-      arguments_expr,
-      value_val.expr,
-      NULL
-    )));
+    value_val = expr_evaluate_lambda(env, expr_arguments(make_expr_list(arguments_expr, value_val.expr, NULL)));
   }
   if (name_val.expr->kind != EXPR_KIND_SYMBOL) UNREACHABLE("Symbol expression expected as name");
   expr_env_put_symbol(env, name_val.expr->symbol.name, value_val);
@@ -256,7 +283,11 @@ Expr_Value expr_evaluate_set_excl(Expr_Env *env, Expr_Arguments arguments) {
   UNUSED(env); UNUSED(arguments); TODO("expr_evaluate_set_excl");
 }
 Expr_Value expr_evaluate_begin(Expr_Env *env, Expr_Arguments arguments) {
-  UNUSED(env); UNUSED(arguments); TODO("expr_evaluate_begin");
+  da_foreach(Expr_Value, argument, &arguments) {
+    if (argument->kind != EXPR_VALUE_KIND_EXPR) UNREACHABLE("Every begin item supposed to be expressions");
+    *argument = expr_eval(env, *argument);
+  }
+  return arguments.items[arguments.count - 1];
 }
 Expr_Value expr_evaluate_let(Expr_Env *env, Expr_Arguments arguments) {
   UNUSED(env); UNUSED(arguments); TODO("expr_evaluate_let");

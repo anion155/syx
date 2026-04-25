@@ -36,12 +36,12 @@ int main(int argc, char **argv) {
     nob_sv_chop_left(&source, 1);
   }
   Expr_Parse_Result input = parse_expr(source);
-  print_expr(input.expr);
-  // dump_expr(input.expr);
+  print_expr(input.expr); printf("\n");
+  // dump_expr(input.expr); printf("\n");
   Expr_Env env={0};
   init_expr_global_env(&env);
   Expr_Value result = expr_eval(&env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = input.expr});
-  print_expr(result);
+  printf("= "); print_expr_value(result); printf("\n");
 
   return 0;
 }

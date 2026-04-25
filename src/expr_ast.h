@@ -61,7 +61,11 @@ Expr *make_expr_list_opt(size_t count, Expr **items);
     sizeof((Expr *[]){__VA_ARGS__}) / sizeof(Expr *), \
     (Expr *[]){__VA_ARGS__}                           \
   )
-Exprs exprs_from_list(Expr *item);
+#define expr_list_for_each(first, value, ...) for (            \
+  Expr *value##_ = (first), *value = value##_->pair.left;      \
+  value##_->kind == EXPR_KIND_PAIR;                            \
+  value##_ = value##_->pair.right, value = value##_->pair.left \
+)
 Expr *make_expr_quote(Expr *quote);
 Expr *make_expr_bool(expr_bool_t value);
 Expr *make_expr_integer(expr_int_t value);
@@ -75,8 +79,12 @@ Expr *make_expr_string(expr_string_t value);
     expr_string_t: make_expr_string(value)   \
   )
 
-void print_expr(Expr *expr);
-void dump_expr(Expr *expr);
+void fprint_expr(FILE *f, Expr *expr);
+#define print_expr(expr) fprint_expr(stdout, (expr))
+void fdump_expr_opt(FILE *f, Expr *expr, size_t current_indent, size_t next_indent);
+#define dump_expr_opt(expr) fdump_expr_opt(stdout, (expr), 0, 1)
+#define fdump_expr(f, expr) fdump_expr_opt((f), (expr), 0, 1)
+#define dump_expr(expr) dump_expr_opt((expr), 0, 1)
 
 #endif // EXPR_AST_H
 
@@ -133,27 +141,6 @@ Expr *make_expr_list_opt(size_t count, Expr **items) {
   }
   return expr;
 }
-Exprs exprs_from_list(Expr *item) {
-  Exprs exprs = {0};
-  Expr *it = item;
-  size_t size = 0;
-  while (it->kind == EXPR_KIND_PAIR) {
-    it = it->pair.right;
-    size += 1;
-  }
-  da_reserve(&exprs, size + 1);
-  it = item;
-  while (it->kind == EXPR_KIND_PAIR) {
-    da_append(&exprs, it->pair.left);
-    it = it->pair.right;
-  }
-  if (it->kind != EXPR_KIND_NIL) {
-    da_append(&exprs, it);
-  } else {
-    da_append(&exprs, NULL);
-  }
-  return exprs;
-}
 Expr *make_expr_quote(Expr *quote) {
   Expr *expr = make_expr(EXPR_KIND_QUOTE);
   expr->quote = quote;
@@ -178,101 +165,94 @@ Expr *make_expr_string(expr_string_t value) {
   return expr;
 }
 
-void _print_expr(Expr *expr, size_t level) {
+void fprint_expr(FILE *f, Expr *expr) {
   switch (expr->kind) {
     case EXPR_KIND_SYMBOL: {
       if (expr->symbol.guarded) {
-        printf("|%s|", expr->symbol.name);
+        fprintf(f, "|%s|", expr->symbol.name);
       } else {
-        printf("%s", expr->symbol.name);
+        fprintf(f, "%s", expr->symbol.name);
       }
     } break;
     case EXPR_KIND_NIL: {
-      printf("()");
+      fprintf(f, "()");
     } break;
     case EXPR_KIND_PAIR: {
-      printf("(");
+      fprintf(f, "(");
       Expr *it = expr;
-      _print_expr(it->pair.left, level + 1);
+      fprint_expr(f, it->pair.left);
       it = it->pair.right;
       if (it == NULL) UNREACHABLE("empty pair element");
       if (it->kind == EXPR_KIND_PAIR) {
         while (true) {
-          printf(" ");
-          _print_expr(it->pair.left, level + 1);
+          fprintf(f, " ");
+          fprint_expr(f, it->pair.left);
           it = it->pair.right;
           if (it == NULL) UNREACHABLE("empty pair element");
           if (it->kind != EXPR_KIND_PAIR) break;
         }
       }
       if (it->kind != EXPR_KIND_NIL) {
-        printf(" . ");
-        _print_expr(it->pair.right, level + 1);
+        fprintf(f, " . ");
+        fprint_expr(f, it->pair.right);
       }
-      printf(")");
+      fprintf(f, ")");
     } break;
     case EXPR_KIND_QUOTE: {
-      printf("'");
-      _print_expr(expr->quote, level);
+      fprintf(f, "'");
+      fprint_expr(f, expr->quote);
     } break;
     case EXPR_KIND_BOOL: {
-      if (expr->boolean) printf("true");
-      else printf("false");
+      if (expr->boolean) fprintf(f, "true");
+      else fprintf(f, "false");
     } break;
     case EXPR_KIND_INTEGER: {
-      printf("%ld", expr->integer);
+      fprintf(f, "%ld", expr->integer);
     } break;
     case EXPR_KIND_REAL: {
-      printf("%f", expr->real);
+      fprintf(f, "%f", expr->real);
     } break;
     case EXPR_KIND_STRING: {
-      printf("\"%s\"", expr->string);
+      fprintf(f, "\"%s\"", expr->string);
     } break;
   }
 }
-void print_expr(Expr *expr) {
-  _print_expr(expr, 0);
-  printf("\n");
-}
 
-void dump_expr_opt(Expr *expr, size_t current_indent, size_t next_indent) {
-  if (current_indent) printf("%*c", (int)current_indent * 2, ' ');
+void fdump_expr_opt(FILE *f, Expr *expr, size_t current_indent, size_t next_indent) {
+  if (current_indent) fprintf(f, "%*c", (int)current_indent, ' ');
   switch (expr->kind) {
     case EXPR_KIND_NIL: {
-      printf("NIL\n");
+      fprintf(f, "NIL\n");
     } break;
     case EXPR_KIND_SYMBOL: {
       if (expr->symbol.guarded) {
-        printf("SYMBOL: |%s|\n", expr->symbol.name);
+        fprintf(f, "SYMBOL: |%s|\n", expr->symbol.name);
       } else {
-        printf("SYMBOL: %s\n", expr->symbol.name);
+        fprintf(f, "SYMBOL: %s\n", expr->symbol.name);
       }
     } break;
     case EXPR_KIND_PAIR: {
-      printf("PAIR:\n");
-      dump_expr_opt(expr->pair.left, next_indent, next_indent + 1);
-      dump_expr_opt(expr->pair.right, next_indent, next_indent + 1);
+      fprintf(f, "PAIR:\n");
+      fdump_expr_opt(f, expr->pair.left, next_indent, next_indent + 2);
+      fdump_expr_opt(f, expr->pair.right, next_indent, next_indent + 2);
     } break;
     case EXPR_KIND_QUOTE: {
-      printf("QUOTE: ");
-      dump_expr_opt(expr->quote, 0, next_indent);
+      fprintf(f, "QUOTE: ");
+      fdump_expr_opt(f, expr->quote, 0, next_indent);
     } break;
     case EXPR_KIND_BOOL: {
-      printf("BOOL: %s\n", expr->boolean ? "true" : "false");
+      fprintf(f, "BOOL: %s\n", expr->boolean ? "true" : "false");
     } break;
     case EXPR_KIND_INTEGER: {
-      printf("INTEGER: %ld\n", expr->integer);
+      fprintf(f, "INTEGER: %ld\n", expr->integer);
     } break;
     case EXPR_KIND_REAL: {
-      printf("REAL: %f\n", expr->real);
+      fprintf(f, "REAL: %f\n", expr->real);
     } break;
     case EXPR_KIND_STRING: {
-      printf("STRING: \"%s\"\n", expr->string);
+      fprintf(f, "STRING: \"%s\"\n", expr->string);
     } break;
   }
-}
-void dump_expr(Expr *expr) {
-  dump_expr_opt(expr, 0, 1);
 }
 
 #endif // EXPR_AST_IMPLEMENTATION
