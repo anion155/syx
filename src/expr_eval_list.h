@@ -11,10 +11,18 @@ void expr_env_init_list(Expr_Env *env);
 #if defined(EXPR_EVAL_LIST_IMPLEMENTATION) && !defined(EXPR_EVAL_LIST_IMPLEMENTATION_C)
 #define EXPR_EVAL_LIST_IMPLEMENTATION_C
 
+/** Constructs a pair from two arguments */
+Expr_Value expr_builtin_list_cons(Expr_Env *env, Expr_Arguments arguments) {
+  UNUSED(env);
+  Expr_Value left_val = arguments.items[0];
+  Expr_Value right_val = arguments.items[1];
+  return (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = make_expr_pair(left_val.expr, right_val.expr)};
+}
+
 void expr_env_init_list(Expr_Env *env) {
   UNUSED(env);
   /** Builtins List */
-  // expr_env_put_symbol(env, "cons", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_list_cons});
+  expr_env_put_symbol(env, "cons", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_list_cons});
   // expr_env_put_symbol(env, "car", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_list_car});
   // expr_env_put_symbol(env, "list", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_list_list});
   // expr_env_put_symbol(env, "length", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_list_length});

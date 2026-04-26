@@ -206,7 +206,7 @@ void fprint_expr(FILE *f, Expr *expr) {
       }
       if (it->kind != EXPR_KIND_NIL) {
         fprintf(f, " . ");
-        fprint_expr(f, it->pair.right);
+        fprint_expr(f, it);
       }
       fprintf(f, ")");
     } break;
