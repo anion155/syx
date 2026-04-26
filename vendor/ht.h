@@ -527,7 +527,8 @@ static int ht__memcmp(const void *vl, const void *vr, size_t n);
 
 #endif // HT_H_
 
-#ifdef HT_IMPLEMENTATION
+#if defined(HT_IMPL) && !defined(HT_IMPL_C)
+#define HT_IMPL_C
 
 static void *ht__put(Ht__Abstract *ht, void *key, Ht__Layout l)
 {
