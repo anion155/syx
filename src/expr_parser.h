@@ -12,8 +12,8 @@ Expr_Parse_Result parse_expr(Nob_String_View source);
 
 #endif // EXPR_PARSER_H
 
-#ifdef EXPR_PARSER_IMPLEMENTATION
-#undef EXPR_PARSER_IMPLEMENTATION
+#if defined(EXPR_PARSER_IMPLEMENTATION) && !defined(EXPR_PARSER_IMPLEMENTATION_C)
+#define EXPR_PARSER_IMPLEMENTATION_C
 
 #include "expr_utils.h"
 

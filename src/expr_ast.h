@@ -100,8 +100,8 @@ void fdump_expr_opt(FILE *f, Expr *expr, size_t current_indent, size_t next_inde
 
 #endif // EXPR_AST_H
 
-#ifdef EXPR_AST_IMPLEMENTATION
-#undef EXPR_AST_IMPLEMENTATION
+#if defined(EXPR_AST_IMPLEMENTATION) && !defined(EXPR_AST_IMPLEMENTATION_C)
+#define EXPR_AST_IMPLEMENTATION_C
 
 #include <stdio.h>
 #include <nob.h>

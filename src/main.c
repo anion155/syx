@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
   print_expr(input.expr); printf("\n");
   // dump_expr(input.expr); printf("\n");
   Expr_Env env={0};
-  init_expr_global_env(&env);
+  expr_global_env_init(&env);
   Expr_Value result = expr_eval(&env, (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = input.expr});
   printf("= "); print_expr_value(result); printf("\n");
 

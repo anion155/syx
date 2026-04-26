@@ -24,8 +24,8 @@ Expr *expr_convert_to_string(Expr *expr);
 
 #endif // EXPR_UTILS_H
 
-#ifdef EXPR_UTILS_IMPLEMENTATION
-#undef EXPR_UTILS_IMPLEMENTATION
+#if defined(EXPR_UTILS_IMPLEMENTATION) && !defined(EXPR_UTILS_IMPLEMENTATION_C)
+#define EXPR_UTILS_IMPLEMENTATION_C
 
 expr_int_t parse_integer(String_View *sv) {
   bool is_negative = sv->data[0] == '-';
