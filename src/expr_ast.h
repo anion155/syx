@@ -7,8 +7,7 @@
 #include <rc.h>
 #include "expr_utils.h"
 
-typedef enum {
-  // s-expr primitives
+typedef enum : unsigned int {
   EXPR_KIND_NIL,
   EXPR_KIND_SYMBOL,
   EXPR_KIND_PAIR,
@@ -17,7 +16,6 @@ typedef enum {
   EXPR_KIND_REAL,
   EXPR_KIND_STRING,
   EXPR_KIND_QUOTE,
-  // language primitives
 } Expr_Kind;
 
 typedef struct Expr_Symbol {
@@ -26,15 +24,14 @@ typedef struct Expr_Symbol {
 } Expr_Symbol;
 
 typedef struct Expr Expr;
-typedef struct Expr_Pair {
-  Expr *left;
-  Expr *right;
-} Expr_Pair;
 struct Expr {
   Expr_Kind kind;
   union {
     Expr_Symbol symbol;
-    Expr_Pair pair;
+    struct Expr_Pair {
+      Expr *left;
+      Expr *right;
+    } pair;
     expr_bool_t boolean;
     expr_int_t integer;
     expr_real_t real;
@@ -61,6 +58,7 @@ struct Expr {
       : UNREACHABLE_EXPR("malformed list", NULL)    \
 )
 
+void expr_destructor(void *data);
 Expr *make_expr_nil();
 Expr *make_expr_symbol(String_View symbol);
 Expr *make_expr_symbol_n(char *symbol, size_t size);

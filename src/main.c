@@ -13,7 +13,9 @@
 #include "expr_print.h"
 #define EXPR_PARSER_IMPL
 #include "expr_parser.h"
-// #define EXPR_EVAL_IMPLEMENTATION
+#define EXPR_VALUE_IMPL
+#include "expr_value.h"
+// #define EXPR_EVAL_IMPL
 // #include "expr_eval.h"
 
 int main(int argc, char **argv) {
