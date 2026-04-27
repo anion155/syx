@@ -73,6 +73,11 @@ bool build(Context *ctx) {
   if (ctx->flags.debug) nob_cmd_append(&ctx->cmd, "-ggdb");
   // if (!ctx->flags.debug) nob_cmd_append(&ctx->cmd, "-fsanitize=address");
   nob_cc_inputs(&ctx->cmd, "-std=c23");
+  #ifdef __APPLE__
+    nob_cmd_append(&ctx->cmd, "-ledit");
+  #else
+    nob_cmd_append(&cmd, "-lreadline");
+  #endif
   nob_cc_inputs(&ctx->cmd, temp_sprintf("%s/main.c", ctx->paths.src));
   nob_cc_output(&ctx->cmd, temp_sprintf("%s/sexpr", ctx->paths.build));
   if (!cc_run(ctx)) return false;

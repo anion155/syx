@@ -1,6 +1,12 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#ifdef __APPLE__
+# include <editline/readline.h>
+#else
+# include <readline/readline.h>
+# include <readline/history.h>
+#endif
 
 #define NOB_IMPL
 #include <nob.h>
@@ -20,28 +26,27 @@
 #define SYX_EVAL_IMPL
 #include "syx_eval.h"
 
-#define SYXV_EXIT_RESULT_STORAGE "SYXV_EXIT_RESULT_STORAGE"
+#define SYXV_EXIT_QUIT_STORAGE "SYXV_EXIT_QUIT_STORAGE"
 
 int run(Syx_Env *env, char *source_cstr) {
   SExprs *input = parse_sexprs(source_cstr);
   da_foreach(SExpr *, input_expr, input) {
-    // dump_sexpr(*line); printf("\n");
-    // printf("> "); print_sexpr(*input_expr); printf("\n");
     SyxV *result = syx_eval(env, (SyxV *)*input_expr);
     print_syxv(result); printf("\n");
-    if (syx_env_lookup(env, SYXV_EXIT_RESULT_STORAGE) != NULL) break;
+    if (syx_env_lookup(env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
   }
-  SyxV **result = syx_env_lookup(env, SYXV_EXIT_RESULT_STORAGE);
-  if (!result) return -1;
+  rc_release(input);
+  SyxV **quit = syx_env_lookup(env, SYXV_EXIT_QUIT_STORAGE);
+  if (!quit) return -1;
   // TODO: support conversion
-  if ((*result)->kind != SYXV_KIND_INTEGER) return -1;
-  if ((*result)->integer < 0) return -1;
-  return (*result)->integer;
+  if ((*quit)->kind != SYXV_KIND_INTEGER) return -1;
+  if ((*quit)->integer < 0) return -1;
+  return (*quit)->integer;
 }
 
 SyxV *eval_quit(Syx_Env *env, Syx_Arguments arguments) {
   SyxV *result = arguments.count >= 1 ? arguments.items[0] : make_syxv_integer(0);
-  syx_env_put(syx_env_global(env), SYXV_EXIT_RESULT_STORAGE, result);
+  syx_env_put(syx_env_global(env), SYXV_EXIT_QUIT_STORAGE, result);
   return NULL;
 }
 
@@ -59,6 +64,8 @@ int main(int argc, char **argv) {
     flag_print_error(stderr);
     exit(1);
   }
+  argc = flag_rest_argc();
+  argv = flag_rest_argv();
 
   Syx_Env *env = make_global_syx_env();
   syx_env_put(env, "quit", make_syxv_builtin("quit", eval_quit));
@@ -69,12 +76,11 @@ int main(int argc, char **argv) {
   }
 
   printf("Syx Language REPL\n");
-  char line[4096];
-  while (1) {
-    printf("> ");
-    fflush(stdout);
-    if (!fgets(line, sizeof(line), stdin)) break;
-    int result = run(env, line);
+  char *line_ptr;
+  while ((line_ptr = readline("> ")) != NULL) {
+    if (*line_ptr) add_history(line_ptr);
+    int result = run(env, line_ptr);
+    free(line_ptr);
     if (result >= 0) return result;
   }
 
