@@ -9,6 +9,8 @@ int islineend(int c);
 int issymbol_special(int c);
 int issymbol(int c);
 
+void da_destructor(void *data);
+
 typedef bool sexpr_bool_t;
 typedef long long int sexpr_int_t;
 typedef long double sexpr_real_t;
@@ -54,6 +56,17 @@ int issymbol_special(int c) {
 }
 int issymbol(int c) {
   return c == '-' || issymbol_special(c) || isalnum(c);
+}
+
+struct Nob_Dynamic_Array__Abstract {
+  void **items;
+  size_t count;
+  size_t capacity;
+};
+void da_destructor(void *data) {
+  struct Nob_Dynamic_Array__Abstract *da = data;
+  da_foreach(void *, it, da) rc_release(*it);
+  da_free(*da);
 }
 
 bool parse_integer(String_View *sv, sexpr_int_t *result) {

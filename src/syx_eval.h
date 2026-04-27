@@ -27,6 +27,10 @@ SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_value
 SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_value);
 SyxV *syx_eval(Syx_Env *env, SyxV *input);
 
+#define SYX_EVAL_ARGUMENTS_CLAMP(env, min, ...)                   \
+  if (arguments->count < (min)) RUNTIME_ERROR("Too few arguments", env); \
+  if (arguments->count > (WITH_DEFAULT((min), __VA_ARGS__))) RUNTIME_ERROR("Too many arguments", env)
+
 #endif // SYX_EVAL_H
 
 #if defined(SYX_EVAL_IMPL) && !defined(SYX_EVAL_IMPL_C)
@@ -34,23 +38,23 @@ SyxV *syx_eval(Syx_Env *env, SyxV *input);
 
 #define SYX_VALUE_IMPL
 #include "syx_value.h"
-// #define SYX_EVAL_SPECIAL_FORMS_IMPLEMENTATION
-// #include "expr_eval_special_forms.h"
-// #define SYX_EVAL_ARITHMETIC_IMPLEMENTATION
+#define SYX_EVAL_SPECIALF_IMPL
+#include "syx_eval_specialf.h"
+// #define SYX_EVAL_ARITHMETIC_IMPL
 // #include "expr_eval_arithmetic.h"
-// #define SYX_EVAL_COMPARISON_IMPLEMENTATION
+// #define SYX_EVAL_COMPARISON_IMPL
 // #include "expr_eval_comparison.h"
-// #define SYX_EVAL_LIST_IMPLEMENTATION
+// #define SYX_EVAL_LIST_IMPL
 // #include "expr_eval_list.h"
-// #define SYX_EVAL_TYPE_PREDICATES_IMPLEMENTATION
+// #define SYX_EVAL_TYPE_PREDICATES_IMPL
 // #include "expr_eval_type_predicates.h"
-// #define SYX_EVAL_STRING_IMPLEMENTATION
+// #define SYX_EVAL_STRING_IMPL
 // #include "expr_eval_string.h"
-// #define SYX_EVAL_TYPE_CONVERSION_IMPLEMENTATION
+// #define SYX_EVAL_TYPE_CONVERSION_IMPL
 // #include "expr_eval_type_conversion.h"
-// #define SYX_EVAL_EQUALITY_IMPLEMENTATION
+// #define SYX_EVAL_EQUALITY_IMPL
 // #include "expr_eval_equality.h"
-// #define SYX_EVAL_IO_IMPLEMENTATION
+// #define SYX_EVAL_IO_IMPL
 // #include "expr_eval_io.h"
 
 SyxV *syxv_list_next(SyxV *list) {
@@ -74,6 +78,7 @@ SyxV *syxv_list_get_value(SyxV *list) {
 
 void syx_env_destructor(void *data) {
   Syx_Env *env = data;
+  ht_foreach(symbol, &env->symbols) rc_release(symbol);
   ht_free(&env->symbols);
   if (env->parent) rc_release(env->parent);
   free(env->description);
@@ -108,7 +113,7 @@ void syx_env_put(Syx_Env *env, const char *name, SyxV *value) {
   } else {
     item = ht_put(&env->symbols, name);
   }
-  *item = value;
+  *item = rc_acquire(value);
 }
 SyxV **syx_env_lookup(Syx_Env *env, const char *name) {
   SyxV **item = NULL;
@@ -120,40 +125,40 @@ SyxV **syx_env_lookup(Syx_Env *env, const char *name) {
 }
 Syx_Env *make_global_syx_env() {
   Syx_Env *env = make_syx_env(NULL, "<global>");
-//   expr_env_init_special_forms(env);
-//   expr_env_init_arithmetic(env);
-//   expr_env_init_comparison(env);
-//   expr_env_init_equality(env);
-//   expr_env_init_list(env);
-//   expr_env_init_string(env);
-//   expr_env_init_type_predicates(env);
-//   expr_env_init_type_conversion(env);
-//   expr_env_init_io(env);
+  syx_env_put_special_forms(env);
+//   syx_env_put_arithmetic(env);
+//   syx_env_put_comparison(env);
+//   syx_env_put_equality(env);
+//   syx_env_put_list(env);
+//   syx_env_put_string(env);
+//   syx_env_put_type_predicates(env);
+//   syx_env_put_type_conversion(env);
+//   syx_env_put_io(env);
   return env;
 }
 
-Syx_Arguments syx_arguments(Syx_Env *env, SyxV *value) {
-  Syx_Arguments arguments = {0};
+Syx_Arguments *make_syx_arguments(Syx_Env *env, SyxV *value) {
+  Syx_Arguments *arguments = rc_alloc(sizeof(Syx_Arguments), da_destructor);
   syxv_list_for_each(arg, value) {
     if (arg_it == arg) RUNTIME_ERROR("malformed arguments list", env);
-    if (arg) da_append(&arguments, arg);
+    if (arg) da_append(arguments, rc_acquire(arg));
   }
   return arguments;
 }
 
 SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments_value) {
-  Syx_Arguments arguments = syx_arguments(env, arguments_value);
+  Syx_Arguments *arguments = rc_acquire(make_syx_arguments(env, arguments_value));
   SyxV *result = specialf->eval(env, arguments);
   if (!result) result = make_syxv_nil();
-  da_free(arguments);
+  rc_release(arguments);
   return result;
 }
 SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_value) {
-  Syx_Arguments arguments = syx_arguments(env, arguments_value);
-  da_foreach(SyxV *, arg, &arguments) *arg = syx_eval(env, *arg);
+  Syx_Arguments *arguments = rc_acquire(make_syx_arguments(env, arguments_value));
+  da_foreach(SyxV *, arg, arguments) *arg = syx_eval(env, *arg);
   SyxV *result = builtin->eval(env, arguments);
   if (!result) result = make_syxv_nil();
-  da_free(arguments);
+  rc_release(arguments);
   return result;
 }
 SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_value) {

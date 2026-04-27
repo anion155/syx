@@ -15,7 +15,7 @@ typedef struct Syx_Arguments {
   size_t count;
   size_t capacity;
 } Syx_Arguments;
-typedef SyxV *(*Syx_Evaluator)(Syx_Env *env, Syx_Arguments arguments);
+typedef SyxV *(*Syx_Evaluator)(Syx_Env *env, Syx_Arguments *arguments);
 
 typedef struct Syx_SpecialF {
   char *name;

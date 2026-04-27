@@ -1,6 +1,7 @@
 #ifndef SEXPR_PARSER_H
 #define SEXPR_PARSER_H
 
+#include <rc.h>
 #include <nob.h>
 #include <ht.h>
 #include "sexpr_ast.h"
@@ -12,7 +13,6 @@ typedef struct SExprs {
   size_t count;
   size_t capacity;
 } SExprs;
-void sexprs_destructor(void *data);
 SExprs *parse_sexprs(const char *source);
 
 #endif // SEXPR_PARSER_H
@@ -160,15 +160,10 @@ SExpr *parse_sexpr(String_View *source) {
   return parse__sexpr(&ctx);
 }
 
-void sexprs_destructor(void *data) {
-  SExprs *exprs = data;
-  da_foreach(SExpr *, expr, exprs) rc_release(expr);
-  da_free(*exprs);
-}
 SExprs *parse_sexprs(const char *source) {
   String_View it = sv_from_cstr(source);
   SExpr_Parser_Context ctx = {.source = it, .it = &it, .line = it, .linenumber = 0};
-  SExprs *exprs = rc_alloc(sizeof(SExprs));
+  SExprs *exprs = rc_alloc(sizeof(SExprs), da_destructor);
   while (it.count) {
     chop_spaces(&ctx);
     if (!ctx.it->count) break;
