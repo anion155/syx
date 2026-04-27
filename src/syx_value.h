@@ -96,9 +96,9 @@ SyxV *make_syxv_list_opt(size_t count, SyxV **items);
     (SyxV *[]){__VA_ARGS__}                           \
   )
 
-SyxV *make_syxv_specialf(char *name, Syx_Evaluator eval);
-SyxV *make_syxv_builtin(char *name, Syx_Evaluator eval);
-SyxV *make_syxv_closure(char *name, SyxV *arguments, SyxV *body, Syx_Env *env);
+SyxV *make_syxv_specialf(const char *name, Syx_Evaluator eval);
+SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
+SyxV *make_syxv_closure(const char *name, SyxV *arguments_names_list, SyxV *body, Syx_Env *env);
 
 void fprint__syxv(FILE *f, SyxV *value, size_t indent);
 #define fprint_syxv(f, value, ...) fprint__syxv((f), (value), WITH_DEFAULT(0, __VA_ARGS__))
@@ -153,22 +153,22 @@ SyxV *make_syxv(SyxV_Kind kind) {
   value->kind = kind;
   return value;
 }
-SyxV *make_syxv_specialf(char *name, Syx_Evaluator eval) {
+SyxV *make_syxv_specialf(const char *name, Syx_Evaluator eval) {
   SyxV *value = make_syxv(SYXV_KIND_SPECIALF);
   value->specialf.name = strdup(name);
   value->specialf.eval = eval;
   return value;
 }
-SyxV *make_syxv_builtin(char *name, Syx_Evaluator eval) {
+SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval) {
   SyxV *value = make_syxv(SYXV_KIND_BUILTIN);
   value->builtin.name = strdup(name);
   value->builtin.eval = eval;
   return value;
 }
-SyxV *make_syxv_closure(char *name, SyxV *arguments, SyxV *body, Syx_Env *env) {
+SyxV *make_syxv_closure(const char *name, SyxV *arguments_names_list, SyxV *body, Syx_Env *env) {
   SyxV *value = make_syxv(SYXV_KIND_CLOSURE);
   value->closure.name = strdup(name);
-  value->closure.arguments = rc_acquire(arguments);
+  value->closure.arguments = rc_acquire(arguments_names_list);
   value->closure.body = rc_acquire(body);
   value->closure.env = rc_acquire(env);
   return value;
@@ -192,10 +192,11 @@ void fprint__syxv(FILE *f, SyxV *value, size_t indent) {
 
 void fprint__syx_closure(FILE *f, Syx_Closure *closure, size_t indent) {
   if (indent) fprintf(f, "%*c", (int)indent, ' ');
-  fprintf(f, "(#<%s>", closure->name);
+  fprintf(f, "(#<%s> ", closure->name);
   fprint_syxv(f, closure->arguments);
-  fprintf(f, "\n");
-  fprintf(f, "%*c", (int)indent + 2 + 8, ' ');
+  // fprintf(f, "\n");
+  // fprintf(f, "%*c", (int)indent + 2 + 8, ' ');
+  fprintf(f, " ");
   fprint_syxv(f, closure->body);
   fprintf(f, ")");
 }

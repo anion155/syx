@@ -43,15 +43,15 @@ struct SExpr {
 void sexpr_destructor(void *data);
 SExpr *make_sexpr_nil();
 SExpr *make_sexpr_symbol(String_View symbol);
-SExpr *make_sexpr_symbol_n(char *symbol, size_t size);
-SExpr *make_sexpr_symbol_ctrs(char *symbol);
+SExpr *make_sexpr_symbol_n(const char *symbol, size_t size);
+SExpr *make_sexpr_symbol_ctrs(const char *symbol);
 SExpr *make_sexpr_pair(SExpr *left, SExpr *right);
 SExpr *make_sexpr_bool(sexpr_bool_t value);
 SExpr *make_sexpr_integer(sexpr_int_t value);
 SExpr *make_sexpr_real(sexpr_real_t value);
 SExpr *make_sexpr_string(String_View value);
-SExpr *make_sexpr_string_n(sexpr_string_t value, size_t size);
-SExpr *make_sexpr_string_cstr(sexpr_string_t value);
+SExpr *make_sexpr_string_n(const sexpr_string_t value, size_t size);
+SExpr *make_sexpr_string_cstr(const sexpr_string_t value);
 SExpr *make_sexpr_quote(SExpr *quote);
 
 #define make_sexpr_value(value)                \
@@ -142,10 +142,10 @@ SExpr *make_sexpr_symbol(String_View symbol) {
   expr->symbol.guarded = guarded;
   return expr;
 }
-SExpr *make_sexpr_symbol_n(char *symbol, size_t size) {
+SExpr *make_sexpr_symbol_n(const char *symbol, size_t size) {
   return make_sexpr_symbol((String_View){.data = symbol, .count = size});
 }
-SExpr *make_sexpr_symbol_ctrs(char *symbol) {
+SExpr *make_sexpr_symbol_ctrs(const char *symbol) {
   return make_sexpr_symbol(sv_from_cstr(symbol));
 }
 SExpr *make_sexpr_pair(SExpr *left, SExpr *right) {
@@ -173,10 +173,10 @@ SExpr *make_sexpr_string(String_View value) {
   expr->string = strndup(value.data, value.count);
   return expr;
 }
-SExpr *make_sexpr_string_n(sexpr_string_t value, size_t size) {
+SExpr *make_sexpr_string_n(const sexpr_string_t value, size_t size) {
   return make_sexpr_string((String_View){.data = value, .count = size});
 }
-SExpr *make_sexpr_string_cstr(sexpr_string_t value) {
+SExpr *make_sexpr_string_cstr(const sexpr_string_t value) {
   return make_sexpr_string(sv_from_cstr(value));
 }
 SExpr *make_sexpr_quote(SExpr *quote) {

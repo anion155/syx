@@ -16,7 +16,7 @@ struct Syx_Env {
   char *description;
 };
 void syx_env_destructor(void *data);
-Syx_Env *make_syx_env(Syx_Env *parent, char *description);
+Syx_Env *make_syx_env(Syx_Env *parent, const char *description);
 Syx_Env *syx_env_global(Syx_Env *env);
 void syx_env_put(Syx_Env *env, const char *name, SyxV *value);
 SyxV **syx_env_lookup(Syx_Env *env, const char *name);
@@ -88,7 +88,7 @@ void syx_env_destructor(void *data) {
   if (env->parent) rc_release(env->parent);
   free(env->description);
 }
-Syx_Env *make_syx_env(Syx_Env *parent, char *description) {
+Syx_Env *make_syx_env(Syx_Env *parent, const char *description) {
   Syx_Env *env = rc_alloc(sizeof(Syx_Env), syx_env_destructor);
   env->parent = parent ? rc_acquire(parent) : NULL;
   env->symbols.hasheq = ht_cstr_hasheq;

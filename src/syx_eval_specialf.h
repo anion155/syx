@@ -10,7 +10,11 @@ void syx_env_put_special_forms(Syx_Env *env);
 #if defined(SYX_EVAL_SPECIALF_IMPL) && !defined(SYX_EVAL_SPECIALF_IMPL_C)
 #define SYX_EVAL_SPECIALF_IMPL_C
 
+#define NANOID_IMPL
+#include <nanoid.h>
+
 /** Special forms */
+
 /** quote - Returns argument unevaluated */
 SyxV *syx_special_form_quote(Syx_Env *env, Syx_Arguments *arguments) {
   SYX_EVAL_ARGUMENTS_CLAMP(env, 1);
@@ -28,15 +32,14 @@ SyxV *syx_special_form_if(Syx_Env *env, Syx_Arguments *arguments) {
 }
 /** lambda - Creates a closure and captures current environment */
 SyxV *syx_special_form_lambda(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_lambda"); UNUSED(env); UNUSED(arguments);
-  // Expr_Value arguments_val = arguments.items[0];
-  // if (arguments_val.kind != EXPR_VALUE_KIND_EXPR) RUNTIME_ERROR("Arguments expected to be a list");
-  // Expr_Value body_val = arguments.items[1];
-  // if (body_val.kind != EXPR_VALUE_KIND_EXPR) RUNTIME_ERROR("Body expected to be a body");
-  // return (Expr_Value){
-  //   .kind = EXPR_VALUE_KIND_CLOSURE,
-  //   .closure = {.env = env, .arguments = arguments_val.expr, .body = body_val.expr},
-  // };
+  SYX_EVAL_ARGUMENTS_CLAMP(env, 2, 3);
+  SyxV *argument_names_list = arguments->items[0];
+  SyxV *name_value = arguments->count == 3 ? arguments->items[1] : NULL;
+  SyxV *body_value = arguments->count == 2 ? arguments->items[1] : arguments->items[2];
+  const char *name;
+  if (name_value != NULL && name_value->kind == SYXV_KIND_SYMBOL) name = name_value->symbol.name;
+  else name = nanoid("closure-", 10);
+  return make_syxv_closure(name, argument_names_list, body_value, env);
 }
 /** define - Binds a name in the current environment */
 SyxV *syx_special_form_define(Syx_Env *env, Syx_Arguments *arguments) {
@@ -62,10 +65,6 @@ SyxV *syx_special_form_define(Syx_Env *env, Syx_Arguments *arguments) {
   // expr_env_put_symbol(env, name_val.expr->symbol.name, value_val);
   // return (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = &EXPR_NIL};
 }
-/** Mutates an existing binding */
-SyxV *syx_special_form_set_excl(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_set_excl"); UNUSED(env); UNUSED(arguments);
-}
 /** Evaluates expressions in order and returns last */
 SyxV *syx_special_form_begin(Syx_Env *env, Syx_Arguments *arguments) {
   TODO("syx_special_form_begin"); UNUSED(env); UNUSED(arguments);
@@ -75,85 +74,14 @@ SyxV *syx_special_form_begin(Syx_Env *env, Syx_Arguments *arguments) {
   // }
   // return arguments.items[arguments.count - 1];
 }
-/** Binds names in a new environment with all RHS evaluated in current env */
-SyxV *syx_special_form_let(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_let"); UNUSED(env); UNUSED(arguments);
-}
-/** Like let but each binding sees previous ones */
-SyxV *syx_special_form_let_star(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_let_star"); UNUSED(env); UNUSED(arguments);
-}
-/** Like let but bindings can refer to each other for mutual recursion */
-SyxV *syx_special_form_letrec(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_letrec"); UNUSED(env); UNUSED(arguments);
-}
-/** Evaluates left to right and stops at first falsy and returns last */
-SyxV *syx_special_form_and(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_and"); UNUSED(env); UNUSED(arguments);
-}
-/** Evaluates left to right and stops at first truthy and returns it */
-SyxV *syx_special_form_or(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_or"); UNUSED(env); UNUSED(arguments);
-}
-/** Chain of (test expr) clauses that evaluates first matching branch */
-SyxV *syx_special_form_cond(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_cond"); UNUSED(env); UNUSED(arguments);
-}
-/** If condition is true evaluates body else returns nil */
-SyxV *syx_special_form_when(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_when"); UNUSED(env); UNUSED(arguments);
-}
-/** If condition is false evaluates body else returns nil */
-SyxV *syx_special_form_unless(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_unless"); UNUSED(env); UNUSED(arguments);
-}
-/** Iterative loop with step expressions and exit condition */
-SyxV *syx_special_form_do(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_do"); UNUSED(env); UNUSED(arguments);
-}
-/** Wraps expression in a promise without evaluating it */
-SyxV *syx_special_form_delay(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_delay"); UNUSED(env); UNUSED(arguments);
-}
-/** Evaluates a delayed promise and caches result */
-SyxV *syx_special_form_force(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_force"); UNUSED(env); UNUSED(arguments);
-}
-/** Defines a macro transformation rule */
-SyxV *syx_special_form_define_syntax(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_define_syntax"); UNUSED(env); UNUSED(arguments);
-}
-/** Locally scoped macro definitions */
-SyxV *syx_special_form_let_syntax(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_let_syntax"); UNUSED(env); UNUSED(arguments);
-}
-/** Pattern-based macro expansion engine */
-SyxV *syx_special_form_syntax_rules(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_syntax_rules"); UNUSED(env); UNUSED(arguments);
-}
 
 void syx_env_put_special_forms(Syx_Env *env) {
   /** Special forms */
-  syx_env_put(env, "quote",         make_syxv_specialf("quote",         syx_special_form_quote        ));
-  syx_env_put(env, "if",            make_syxv_specialf("if",            syx_special_form_if           ));
-  syx_env_put(env, "lambda",        make_syxv_specialf("lambda",        syx_special_form_lambda       ));
-  syx_env_put(env, "define",        make_syxv_specialf("define",        syx_special_form_define       ));
-  syx_env_put(env, "set!",          make_syxv_specialf("set",           syx_special_form_set_excl     ));
-  syx_env_put(env, "begin",         make_syxv_specialf("begin",         syx_special_form_begin        ));
-  syx_env_put(env, "let",           make_syxv_specialf("let",           syx_special_form_let          ));
-  syx_env_put(env, "let*",          make_syxv_specialf("let",           syx_special_form_let_star     ));
-  syx_env_put(env, "letrec",        make_syxv_specialf("letrec",        syx_special_form_letrec       ));
-  syx_env_put(env, "and",           make_syxv_specialf("and",           syx_special_form_and          ));
-  syx_env_put(env, "or",            make_syxv_specialf("or",            syx_special_form_or           ));
-  syx_env_put(env, "cond",          make_syxv_specialf("cond",          syx_special_form_cond         ));
-  syx_env_put(env, "when",          make_syxv_specialf("when",          syx_special_form_when         ));
-  syx_env_put(env, "unless",        make_syxv_specialf("unless",        syx_special_form_unless       ));
-  syx_env_put(env, "do",            make_syxv_specialf("do",            syx_special_form_do           ));
-  syx_env_put(env, "delay",         make_syxv_specialf("delay",         syx_special_form_delay        ));
-  syx_env_put(env, "force",         make_syxv_specialf("force",         syx_special_form_force        ));
-  syx_env_put(env, "define-syntax", make_syxv_specialf("define-syntax", syx_special_form_define_syntax));
-  syx_env_put(env, "let-syntax",    make_syxv_specialf("let-syntax",    syx_special_form_let_syntax   ));
-  syx_env_put(env, "syntax-rules",  make_syxv_specialf("syntax-rules",  syx_special_form_syntax_rules ));
+  syx_env_put(env, "quote", make_syxv_specialf("quote", syx_special_form_quote));
+  syx_env_put(env, "if", make_syxv_specialf("if", syx_special_form_if));
+  syx_env_put(env, "lambda", make_syxv_specialf("lambda", syx_special_form_lambda));
+  syx_env_put(env, "define", make_syxv_specialf("define", syx_special_form_define));
+  syx_env_put(env, "begin", make_syxv_specialf("begin", syx_special_form_begin));
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL

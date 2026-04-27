@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stdio.h>
 #ifdef __APPLE__
 # include <editline/readline.h>
 #else
@@ -58,6 +59,7 @@ int main(int argc, char **argv) {
   UNUSED(ht__next);
   UNUSED(ht__reset);
   UNUSED(ht__free);
+  srand(time(NULL));
 
   char **command = flag_str("c", NULL, "Commands to run");
   if (!flag_parse(argc, argv)) {
