@@ -96,7 +96,7 @@ SyxV *syx_special_form_cond(Syx_Env *env, SyxVs *arguments) {
     SyxV *cond_syxv = (*argument)->pair.left;
     SyxV *cond_eval_syxv;
     if (cond_syxv->kind == SYXV_KIND_SYMBOL && strcmp(cond_syxv->symbol.name, "else") == 0) {
-      cond_eval_syxv = rc_acquire(make_syxv_nil());
+      cond_eval_syxv = rc_acquire(make_syxv_bool(true));
       goto evaluate_cdr;
     }
     cond_eval_syxv = rc_acquire(syx_eval(env, cond_syxv));
@@ -110,8 +110,21 @@ SyxV *syx_special_form_cond(Syx_Env *env, SyxVs *arguments) {
   evaluate_cdr:
     SyxV *value_syxv = (*argument)->pair.right;
     if (value_syxv->kind == SYXV_KIND_NIL) return rc_move(cond_eval_syxv);
+    if (value_syxv->kind != SYXV_KIND_PAIR) {
+      rc_release(cond_eval_syxv);
+      return syx_eval(env, value_syxv);
+    }
+    if (value_syxv->pair.left->kind == SYXV_KIND_SYMBOL && strcmp(value_syxv->pair.left->symbol.name, "=>") == 0) {
+      SyxV *right = value_syxv->pair.right;
+      if (right->kind == SYXV_KIND_PAIR && right->pair.right->kind == SYXV_KIND_NIL) {
+        SyxV *call = rc_acquire(make_syxv_list(right->pair.left, cond_eval_syxv, NULL));
+        SyxV *result = rc_acquire(syx_eval(env, call));
+        rc_release(call);
+        rc_release(cond_eval_syxv);
+        return rc_move(result);
+      }
+    }
     rc_release(cond_eval_syxv);
-    if (value_syxv->kind != SYXV_KIND_PAIR) return syx_eval(env, value_syxv);
     SyxVs *list = rc_acquire(make_syxvs(env, value_syxv));
     syxvs_eval(env, list);
     SyxV *result = rc_acquire(list->items[list->count - 1]);
@@ -120,6 +133,8 @@ SyxV *syx_special_form_cond(Syx_Env *env, SyxVs *arguments) {
   }
   return make_syxv_nil();
 }
+
+// syx_special_form_and
 
 void syx_env_define_special_forms(Syx_Env *env) {
   /** Special forms */
@@ -130,6 +145,7 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define(env, "begin", make_syxv_specialf("begin", syx_special_form_begin));
   syx_env_define(env, "set!", make_syxv_specialf("set!", syx_special_form_set_excl));
   syx_env_define(env, "cond", make_syxv_specialf("cond", syx_special_form_cond));
+  // syx_env_define(env, "and", make_syxv_specialf("and", syx_special_form_and));
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL
