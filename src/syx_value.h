@@ -11,13 +11,7 @@
 typedef struct SyxV SyxV;
 typedef struct Syx_Env Syx_Env;
 
-typedef struct SyxVs {
-  SyxV **items;
-  size_t count;
-  size_t capacity;
-} SyxVs;
-
-typedef SyxV *(*Syx_Evaluator)(Syx_Env *env, SyxVs *arguments);
+typedef SyxV *(*Syx_Evaluator)(Syx_Env *env, SyxV *arguments);
 
 typedef struct Syx_SpecialF {
   char *name;
@@ -32,7 +26,7 @@ typedef struct Syx_Builtin {
 typedef struct Syx_Closure {
   char *name;
   Syx_Env *env;
-  SyxV *arguments;
+  SyxV *defines;
   SyxV *body;
 } Syx_Closure;
 
@@ -103,7 +97,14 @@ SyxV *make_syxv_list_opt(size_t count, SyxV **items);
 
 SyxV *make_syxv_specialf(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
-SyxV *make_syxv_closure(const char *name, SyxV *arguments_names_list, SyxV *body, Syx_Env *env);
+SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env);
+
+SyxV *syxv_list_next(SyxV **list);
+bool syxv__list_for_each_next(SyxV **list, SyxV ***value, SyxV ***cdr);
+#define syxv_list_for_each(value, first, ...) \
+  for (                                       \
+      SyxV *value##_list = (first), **value;  \
+      syxv__list_for_each_next(&value##_list, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
 
 void fprint__syxv(FILE *f, SyxV *value, size_t indent);
 #define fprint_syxv(f, value, ...) fprint__syxv((f), (value), WITH_DEFAULT(0, __VA_ARGS__))
@@ -137,7 +138,7 @@ void syxv_destructor(void *data) {
     case SYXV_KIND_CLOSURE: {
       if (syxv->closure.name) free(syxv->closure.name);
       rc_release(syxv->closure.env);
-      rc_release(syxv->closure.arguments);
+      rc_release(syxv->closure.defines);
       rc_release(syxv->closure.body);
     } break;
   }
@@ -189,13 +190,35 @@ SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval) {
   return value;
 }
 
-SyxV *make_syxv_closure(const char *name, SyxV *arguments_names_list, SyxV *body, Syx_Env *env) {
+SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env) {
   SyxV *value = make_syxv(SYXV_KIND_CLOSURE);
   value->closure.name = name ? strdup(name) : NULL;
-  value->closure.arguments = rc_acquire(arguments_names_list);
+  value->closure.defines = rc_acquire(defines);
   value->closure.body = rc_acquire(body);
   value->closure.env = rc_acquire(env);
   return value;
+}
+
+SyxV *syxv_list_next(SyxV **list) {
+  if (!list) return NULL;
+  if ((*list)->kind != SYXV_KIND_PAIR) {
+    SyxV *value = (*list);
+    (*list) = NULL;
+    return value;
+  }
+  SyxV *value = (*list)->pair.left;
+  (*list) = (*list)->pair.right;
+  return value;
+}
+
+bool syxv__list_for_each_next(SyxV **list, SyxV ***value, SyxV ***cdr) {
+  if ((*list)->kind != SYXV_KIND_PAIR) {
+    if (cdr != NULL) (*cdr) = list;
+    return false;
+  }
+  (*value) = &(*list)->pair.left;
+  (*list) = (*list)->pair.right;
+  return true;
 }
 
 void fprint__syxv(FILE *f, SyxV *value, size_t indent) {
@@ -217,7 +240,7 @@ void fprint__syxv(FILE *f, SyxV *value, size_t indent) {
 void fprint__syx_closure(FILE *f, Syx_Closure *closure, size_t indent) {
   if (indent) fprintf(f, "%*c", (int)indent, ' ');
   fprintf(f, "(#<%s> ", closure->name);
-  fprint_syxv(f, closure->arguments);
+  fprint_syxv(f, closure->defines);
   // fprintf(f, "\n");
   // fprintf(f, "%*c", (int)indent + 2 + 8, ' ');
   fprintf(f, " ");
