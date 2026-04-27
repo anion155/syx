@@ -24,13 +24,24 @@ void syx_env_define(Syx_Env *env, const char *name, SyxV *value);
 void syx_env_set(Syx_Env *env, const char *name, SyxV *value);
 Syx_Env *make_global_syx_env();
 
-Syx_Arguments *make_syx_arguments(Syx_Env *env, SyxV *value);
-Syx_Arguments *eval_syx_arguments(Syx_Env *env, Syx_Arguments *arguments);
+SyxVs *make_syxvs(Syx_Env *env, SyxV *value);
+SyxVs *syxvs_eval(Syx_Env *env, SyxVs *syxvs);
 
 SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments_syxv);
 SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_syxv);
 SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_syxv);
 SyxV *syx_eval(Syx_Env *env, SyxV *input);
+SyxV *syx_eval_with_release(Syx_Env *env, SyxV *input);
+
+SyxV *syxv_list_next(SyxV *list);
+SyxV *syxv_list_get_value(SyxV *list);
+#define syxv_list_for_each(value, first) for ( \
+  SyxV *value##_it = (first),                  \
+    *value = syxv_list_get_value(value##_it);  \
+  value##_it != NULL;                          \
+  value##_it = syxv_list_next(value##_it),     \
+    value = syxv_list_get_value(value##_it)    \
+)
 
 SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value);
@@ -78,17 +89,10 @@ SyxV *syxv_list_get_value(SyxV *list) {
   if (list->kind == SYXV_KIND_NIL) return NULL;
   return list;
 }
-#define syxv_list_for_each(value, first) for ( \
-  SyxV *value##_it = (first),                  \
-    *value = syxv_list_get_value(value##_it);  \
-  value##_it != NULL;                          \
-  value##_it = syxv_list_next(value##_it),     \
-    value = syxv_list_get_value(value##_it)    \
-)
 
 void syx_env_destructor(void *data) {
   Syx_Env *env = data;
-  ht_foreach(symbol, &env->symbols) rc_release(symbol);
+  ht_foreach(symbol, &env->symbols) rc_release(*symbol);
   ht_free(&env->symbols);
   if (env->parent) rc_release(env->parent);
   free(env->description);
@@ -143,7 +147,7 @@ void syx_env_define(Syx_Env *env, const char *name, SyxV *value) {
 }
 void syx_env_set(Syx_Env *env, const char *name, SyxV *value) {
   SyxV **item = ensure_syxv_redefinable(env, name);
-  if (item == NULL) RUNTIME_ERROR("trying to redefine special form", env);
+  if (item == NULL) RUNTIME_ERROR("unbound symbol", env);
   *item = rc_acquire(value);
 }
 Syx_Env *make_global_syx_env() {
@@ -160,34 +164,31 @@ Syx_Env *make_global_syx_env() {
   return env;
 }
 
-Syx_Arguments *make_syx_arguments(Syx_Env *env, SyxV *value) {
-  Syx_Arguments *arguments = rc_alloc(sizeof(Syx_Arguments), da_destructor);
+SyxVs *make_syxvs(Syx_Env *env, SyxV *value) {
+  SyxVs *arguments = rc_alloc(sizeof(SyxVs), da_destructor);
   syxv_list_for_each(arg, value) {
     if (arg_it == arg) RUNTIME_ERROR("malformed arguments list", env);
     if (arg) da_append(arguments, rc_acquire(arg));
   }
   return arguments;
 }
-Syx_Arguments *eval_syx_arguments(Syx_Env *env, Syx_Arguments *arguments) {
-  da_foreach(SyxV *, argument, arguments) {
-    SyxV *unevaluated = *argument;
-    *argument = rc_acquire(syx_eval(env, unevaluated));
-    rc_release(unevaluated);
+SyxVs *syxvs_eval(Syx_Env *env, SyxVs *syxvs) {
+  da_foreach(SyxV *, argument, syxvs) {
+    *argument = syx_eval_with_release(env, *argument);
   }
-  return arguments;
+  return syxvs;
 }
 
 SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments_syxv) {
-  Syx_Arguments *arguments = rc_acquire(make_syx_arguments(env, arguments_syxv));
+  SyxVs *arguments = rc_acquire(make_syxvs(env, arguments_syxv));
   SyxV *result = specialf->eval(env, arguments);
   if (!result) result = make_syxv_nil();
   rc_release(arguments);
   return result;
 }
 SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_syxv) {
-  Syx_Arguments *arguments = rc_acquire(make_syx_arguments(env, arguments_syxv));
-  da_foreach(SyxV *, arg, arguments) *arg = syx_eval(env, *arg);
-  arguments = eval_syx_arguments(env, arguments);
+  SyxVs *arguments = rc_acquire(make_syxvs(env, arguments_syxv));
+  arguments = syxvs_eval(env, arguments);
   SyxV *result = builtin->eval(env, arguments);
   if (!result) result = make_syxv_nil();
   rc_release(arguments);
@@ -222,8 +223,9 @@ SyxV *syx_eval(Syx_Env *env, SyxV *input) {
   }
   if (input->kind != SYXV_KIND_PAIR) return input;
   if (!input->pair.left) return input;
-  SyxV *head = syx_eval(env, input->pair.left);
+  SyxV *head = rc_acquire(syx_eval(env, input->pair.left));
   SyxV *arguments = input->pair.right;
+  SyxV *result;
   switch (head->kind) {
     case SYXV_KIND_NIL:
     case SYXV_KIND_SYMBOL:
@@ -233,10 +235,19 @@ SyxV *syx_eval(Syx_Env *env, SyxV *input) {
     case SYXV_KIND_REAL:
     case SYXV_KIND_STRING:
     case SYXV_KIND_QUOTE: RUNTIME_ERROR("is not a procedure", env);
-    case SYXV_KIND_SPECIALF: return syx_eval_specialf(env, &head->specialf, arguments);
-    case SYXV_KIND_BUILTIN: return syx_eval_builtin(env, &head->builtin, arguments);
-    case SYXV_KIND_CLOSURE: return syx_eval_closure(env, &head->closure, arguments);
+    case SYXV_KIND_SPECIALF: result = syx_eval_specialf(env, &head->specialf, arguments); break;
+    case SYXV_KIND_BUILTIN: result = syx_eval_builtin(env, &head->builtin, arguments); break;
+    case SYXV_KIND_CLOSURE: result = syx_eval_closure(env, &head->closure, arguments); break;
   }
+  rc_release(head);
+  return result;
+}
+
+SyxV *syx_eval_with_release(Syx_Env *env, SyxV *value) {
+  SyxV *unevaluated = value;
+  value = rc_acquire(syx_eval(env, unevaluated));
+  rc_release(unevaluated);
+  return value;
 }
 
 SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value) {

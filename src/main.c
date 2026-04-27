@@ -46,7 +46,7 @@ int run(Syx_Env *env, char *source_cstr) {
   return quit->integer;
 }
 
-SyxV *eval_quit(Syx_Env *env, Syx_Arguments *arguments) {
+SyxV *eval_quit(Syx_Env *env, SyxVs *arguments) {
   SyxV *result = arguments->count >= 1 ? arguments->items[0] : make_syxv_integer(0);
   syx_env_define(syx_env_global(env), SYXV_EXIT_QUIT_STORAGE, result);
   return NULL;

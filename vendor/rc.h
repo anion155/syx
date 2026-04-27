@@ -37,6 +37,9 @@ void *rc__manage(void *data, size_t size, void (*destroy)(void *data));
 void *rc__acquire(void *data);
 #define rc_acquire(data) (__typeof__(data))rc__acquire((data))
 
+void *rc__move(void *data);
+#define rc_move(data) (__typeof__(data))rc__move((data))
+
 void rc_release(void *data);
 
 ptrdiff_t rc_count(void *data);
@@ -95,6 +98,13 @@ void *rc__acquire(void *data)
 {
     Rc *rc = (Rc*)data - 1;
     rc->count += 1;
+    return data;
+}
+
+void *rc__move(void *data)
+{
+    Rc *rc = (Rc*)data - 1;
+    rc->count -= 1;
     return data;
 }
 

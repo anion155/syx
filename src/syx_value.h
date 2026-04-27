@@ -10,12 +10,12 @@
 typedef struct SyxV SyxV;
 typedef struct Syx_Env Syx_Env;
 
-typedef struct Syx_Arguments {
+typedef struct SyxVs {
   SyxV **items;
   size_t count;
   size_t capacity;
-} Syx_Arguments;
-typedef SyxV *(*Syx_Evaluator)(Syx_Env *env, Syx_Arguments *arguments);
+} SyxVs;
+typedef SyxV *(*Syx_Evaluator)(Syx_Env *env, SyxVs *arguments);
 
 typedef struct Syx_SpecialF {
   char *name;
