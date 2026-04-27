@@ -22,6 +22,9 @@ void syx_env_put(Syx_Env *env, const char *name, SyxV *value);
 SyxV **syx_env_lookup(Syx_Env *env, const char *name);
 Syx_Env *make_global_syx_env();
 
+Syx_Arguments *make_syx_arguments(Syx_Env *env, SyxV *value);
+Syx_Arguments *eval_syx_arguments(Syx_Env *env, Syx_Arguments *arguments);
+
 SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments_syxv);
 SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_syxv);
 SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_syxv);
@@ -150,6 +153,14 @@ Syx_Arguments *make_syx_arguments(Syx_Env *env, SyxV *value) {
   }
   return arguments;
 }
+Syx_Arguments *eval_syx_arguments(Syx_Env *env, Syx_Arguments *arguments) {
+  da_foreach(SyxV *, argument, arguments) {
+    SyxV *unevaluated = *argument;
+    *argument = rc_acquire(syx_eval(env, unevaluated));
+    rc_release(unevaluated);
+  }
+  return arguments;
+}
 
 SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments_syxv) {
   Syx_Arguments *arguments = rc_acquire(make_syx_arguments(env, arguments_syxv));
@@ -161,6 +172,7 @@ SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments_sy
 SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_syxv) {
   Syx_Arguments *arguments = rc_acquire(make_syx_arguments(env, arguments_syxv));
   da_foreach(SyxV *, arg, arguments) *arg = syx_eval(env, *arg);
+  arguments = eval_syx_arguments(env, arguments);
   SyxV *result = builtin->eval(env, arguments);
   if (!result) result = make_syxv_nil();
   rc_release(arguments);

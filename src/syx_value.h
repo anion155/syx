@@ -113,8 +113,8 @@ void fprint__syxv(FILE *f, SyxV *value, size_t indent);
 #include "sexpr_ast.h"
 
 void syxv_destructor(void *data) {
-  SyxV *value = data;
-  switch (value->kind) {
+  SyxV *syxv = data;
+  switch (syxv->kind) {
     case SYXV_KIND_NIL:
     case SYXV_KIND_SYMBOL:
     case SYXV_KIND_PAIR:
@@ -123,13 +123,13 @@ void syxv_destructor(void *data) {
     case SYXV_KIND_REAL:
     case SYXV_KIND_STRING:
     case SYXV_KIND_QUOTE: UNREACHABLE("should not be called for s-expressions");
-    case SYXV_KIND_SPECIALF: free(value->specialf.name); break;
-    case SYXV_KIND_BUILTIN: free(value->builtin.name); break;
+    case SYXV_KIND_SPECIALF: free(syxv->specialf.name); break;
+    case SYXV_KIND_BUILTIN: free(syxv->builtin.name); break;
     case SYXV_KIND_CLOSURE: {
-      free(value->closure.name);
-      rc_release(value->closure.env);
-      rc_release(value->closure.arguments);
-      rc_release(value->closure.body);
+      free(syxv->closure.name);
+      rc_release(syxv->closure.env);
+      rc_release(syxv->closure.arguments);
+      rc_release(syxv->closure.body);
     } break;
   }
 }
@@ -149,7 +149,7 @@ SyxV *make_syxv_quote(SyxV *quote) { return (SyxV *)make_sexpr_quote((SExpr *)qu
 SyxV *make_syxv_list_opt(size_t count, SyxV **items) { return (SyxV *)make_sexpr_list_opt(count, (SExpr **)items); }
 
 SyxV *make_syxv(SyxV_Kind kind) {
-  SyxV *value = rc_alloc(sizeof(SyxV));
+  SyxV *value = rc_alloc(sizeof(SyxV), syxv_destructor);
   value->kind = kind;
   return value;
 }

@@ -75,6 +75,7 @@ int main(int argc, char **argv) {
 
   if (*command) {
     int result = run(env, *command);
+    rc_release(env);
     return result >= 0 ? result : 0;
   }
 
@@ -86,6 +87,7 @@ int main(int argc, char **argv) {
     free(line_ptr);
     if (result >= 0) return result;
   }
+  rc_release(env);
 
   return 0;
 }

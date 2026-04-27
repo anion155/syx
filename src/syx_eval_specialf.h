@@ -48,7 +48,11 @@ SyxV *syx_special_form_define(Syx_Env *env, Syx_Arguments *arguments) {
   SyxV *value_syxv = arguments->items[1];
   if (name_syxv->kind == SYXV_KIND_PAIR) {
     SyxV *arguments_syxv = name_syxv->pair.right;
-    if (arguments_syxv->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Argument names expected to be a list", env);
+    switch (arguments_syxv->kind) {
+      case SYXV_KIND_PAIR:
+      case SYXV_KIND_NIL: break;
+      default: RUNTIME_ERROR("Argument names expected to be a list", env);
+    }
     name_syxv = name_syxv->pair.left;
     value_syxv = make_syxv_closure(name_syxv->symbol.name, arguments_syxv, value_syxv, env);
   } else {
@@ -60,12 +64,8 @@ SyxV *syx_special_form_define(Syx_Env *env, Syx_Arguments *arguments) {
 }
 /** Evaluates expressions in order and returns last */
 SyxV *syx_special_form_begin(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_begin"); UNUSED(env); UNUSED(arguments);
-  // da_foreach(Expr_Value, argument, &arguments) {
-  //   if (argument->kind != EXPR_VALUE_KIND_EXPR) RUNTIME_ERROR("Every begin item supposed to be expressions");
-  //   *argument = expr_eval(env, *argument);
-  // }
-  // return arguments.items[arguments.count - 1];
+  arguments = eval_syx_arguments(env, arguments);
+  return arguments->items[arguments->count - 1];
 }
 
 void syx_env_put_special_forms(Syx_Env *env) {
