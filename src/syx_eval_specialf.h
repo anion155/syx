@@ -19,20 +19,20 @@ SyxV *syx_special_form_quote(Syx_Env *env, Syx_Arguments *arguments) {
 /** if - Evaluates condition then evaluates only one branch */
 SyxV *syx_special_form_if(Syx_Env *env, Syx_Arguments *arguments) {
   SYX_EVAL_ARGUMENTS_CLAMP(env, 2, 3);
-  SyxV *cond_value = syx_eval(env, arguments->items[0]);
+  SyxV *cond_value = syx_convert_to_bool(env, syx_eval(env, arguments->items[0]));
+  if (!cond_value) RUNTIME_ERROR("illegal if condition value", env);
+  if (cond_value->kind != SYXV_KIND_BOOL) RUNTIME_ERROR("illegal if condition value", env);
   SyxV *then_value = arguments->items[1];
   SyxV *else_value = arguments->items[2];
-  // TODO convert to bool
-  if (cond_value->kind != SYXV_KIND_BOOL) UNREACHABLE("illegal if condition value");
   return cond_value->boolean ? syx_eval(env, then_value) : syx_eval(env, else_value);
 }
 /** lambda - Creates a closure and captures current environment */
 SyxV *syx_special_form_lambda(Syx_Env *env, Syx_Arguments *arguments) {
   TODO("syx_special_form_lambda"); UNUSED(env); UNUSED(arguments);
   // Expr_Value arguments_val = arguments.items[0];
-  // if (arguments_val.kind != EXPR_VALUE_KIND_EXPR) UNREACHABLE("Arguments expected to be a list");
+  // if (arguments_val.kind != EXPR_VALUE_KIND_EXPR) RUNTIME_ERROR("Arguments expected to be a list");
   // Expr_Value body_val = arguments.items[1];
-  // if (body_val.kind != EXPR_VALUE_KIND_EXPR) UNREACHABLE("Body expected to be a body");
+  // if (body_val.kind != EXPR_VALUE_KIND_EXPR) RUNTIME_ERROR("Body expected to be a body");
   // return (Expr_Value){
   //   .kind = EXPR_VALUE_KIND_CLOSURE,
   //   .closure = {.env = env, .arguments = arguments_val.expr, .body = body_val.expr},
@@ -41,15 +41,15 @@ SyxV *syx_special_form_lambda(Syx_Env *env, Syx_Arguments *arguments) {
 /** define - Binds a name in the current environment */
 SyxV *syx_special_form_define(Syx_Env *env, Syx_Arguments *arguments) {
   TODO("syx_special_form_define"); UNUSED(env); UNUSED(arguments);
-  // if (arguments.count != 2) UNREACHABLE("Incorrect amount of arguments");
+  // if (arguments.count != 2) RUNTIME_ERROR("Incorrect amount of arguments");
   // Expr_Value name_val = arguments.items[0];
-  // if (name_val.kind != EXPR_VALUE_KIND_EXPR) UNREACHABLE("Name expected to be a symbol");
+  // if (name_val.kind != EXPR_VALUE_KIND_EXPR) RUNTIME_ERROR("Name expected to be a symbol");
   // Expr_Value value_val = arguments.items[1];
   // if (name_val.expr->kind == EXPR_KIND_PAIR) {
   //   Expr *arguments_expr = name_val.expr->pair.right;
-  //   if (arguments_expr->kind != EXPR_KIND_PAIR) UNREACHABLE("Arguments expected to be a list");
+  //   if (arguments_expr->kind != EXPR_KIND_PAIR) RUNTIME_ERROR("Arguments expected to be a list");
   //   name_val.expr = name_val.expr->pair.left;
-  //   if (value_val.kind != EXPR_VALUE_KIND_EXPR) UNREACHABLE("Body expected to be a list");
+  //   if (value_val.kind != EXPR_VALUE_KIND_EXPR) RUNTIME_ERROR("Body expected to be a list");
   //   value_val = expr_special_form_lambda(env, expr_arguments(make_expr_list(
   //     arguments_expr,
   //     value_val.expr,
@@ -58,7 +58,7 @@ SyxV *syx_special_form_define(Syx_Env *env, Syx_Arguments *arguments) {
   // } else {
   //   value_val = expr_eval(env, value_val);
   // }
-  // if (name_val.expr->kind != EXPR_KIND_SYMBOL) UNREACHABLE("Symbol expression expected as name");
+  // if (name_val.expr->kind != EXPR_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name");
   // expr_env_put_symbol(env, name_val.expr->symbol.name, value_val);
   // return (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = &EXPR_NIL};
 }
@@ -70,7 +70,7 @@ SyxV *syx_special_form_set_excl(Syx_Env *env, Syx_Arguments *arguments) {
 SyxV *syx_special_form_begin(Syx_Env *env, Syx_Arguments *arguments) {
   TODO("syx_special_form_begin"); UNUSED(env); UNUSED(arguments);
   // da_foreach(Expr_Value, argument, &arguments) {
-  //   if (argument->kind != EXPR_VALUE_KIND_EXPR) UNREACHABLE("Every begin item supposed to be expressions");
+  //   if (argument->kind != EXPR_VALUE_KIND_EXPR) RUNTIME_ERROR("Every begin item supposed to be expressions");
   //   *argument = expr_eval(env, *argument);
   // }
   // return arguments.items[arguments.count - 1];

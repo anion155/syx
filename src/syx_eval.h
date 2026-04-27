@@ -27,6 +27,11 @@ SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_value
 SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_value);
 SyxV *syx_eval(Syx_Env *env, SyxV *input);
 
+SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value);
+SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value);
+SyxV *syx_convert_to_real(Syx_Env *env, SyxV *value);
+SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value);
+
 #define SYX_EVAL_ARGUMENTS_CLAMP(env, min, ...)                   \
   if (arguments->count < (min)) RUNTIME_ERROR("Too few arguments", env); \
   if (arguments->count > (WITH_DEFAULT((min), __VA_ARGS__))) RUNTIME_ERROR("Too many arguments", env)
@@ -204,6 +209,78 @@ SyxV *syx_eval(Syx_Env *env, SyxV *input) {
     case SYXV_KIND_SPECIALF: return syx_eval_specialf(env, &head->specialf, arguments);
     case SYXV_KIND_BUILTIN: return syx_eval_builtin(env, &head->builtin, arguments);
     case SYXV_KIND_CLOSURE: return syx_eval_closure(env, &head->closure, arguments);
+  }
+}
+
+SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value) {
+  UNUSED(env);
+  switch (value->kind) {
+    case SYXV_KIND_NIL: return make_syxv_bool(false);
+    case SYXV_KIND_SYMBOL: return make_syxv_bool(true);
+    case SYXV_KIND_PAIR: return make_syxv_bool(true);
+    case SYXV_KIND_BOOL: return value;
+    case SYXV_KIND_INTEGER: return make_syxv_bool((sexpr_bool_t)value->integer);
+    case SYXV_KIND_REAL: return make_syxv_bool((sexpr_bool_t)value->real);
+    case SYXV_KIND_STRING: return make_syxv_bool(*value->string != 0);
+    case SYXV_KIND_QUOTE: return syx_convert_to_bool(env, value->quote);
+    case SYXV_KIND_SPECIALF: return make_syxv_bool(true);
+    case SYXV_KIND_BUILTIN: return make_syxv_bool(true);
+    case SYXV_KIND_CLOSURE: return make_syxv_bool(true);
+  }
+}
+SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value) {
+  switch (value->kind) {
+    case SYXV_KIND_NIL: return make_syxv_integer(0);
+    case SYXV_KIND_SYMBOL: return NULL;
+    case SYXV_KIND_PAIR: return NULL;
+    case SYXV_KIND_BOOL: return make_syxv_integer(value->boolean ? 1 : 0);
+    case SYXV_KIND_INTEGER: return value;
+    case SYXV_KIND_REAL: return make_syxv_integer((sexpr_int_t)value->real);
+    case SYXV_KIND_STRING: {
+      String_View sv = sv_from_cstr(value->string);
+      sexpr_int_t result = 0;
+      if (!parse_integer(&sv, &result)) return NULL;
+      return make_syxv_integer(result);
+    }
+    case SYXV_KIND_QUOTE: return syx_convert_to_integer(env, value->quote);
+    case SYXV_KIND_SPECIALF: return NULL;
+    case SYXV_KIND_BUILTIN: return NULL;
+    case SYXV_KIND_CLOSURE: return NULL;
+  }
+}
+SyxV *syx_convert_to_real(Syx_Env *env, SyxV *value) {
+  switch (value->kind) {
+    case SYXV_KIND_NIL: return make_syxv_real(0.0);
+    case SYXV_KIND_SYMBOL: return NULL;
+    case SYXV_KIND_PAIR: return NULL;
+    case SYXV_KIND_BOOL: return make_syxv_real(value->boolean ? 1.0 : 0.0);
+    case SYXV_KIND_INTEGER: return make_syxv_real((sexpr_real_t)value->integer);
+    case SYXV_KIND_REAL: return value;
+    case SYXV_KIND_STRING: {
+      String_View sv = sv_from_cstr(value->string);
+      sexpr_real_t result = 0;
+      if (!parse_real(&sv, &result)) return NULL;
+      return make_syxv_real(result);
+    }
+    case SYXV_KIND_QUOTE: return syx_convert_to_real(env, value->quote);
+    case SYXV_KIND_SPECIALF: return NULL;
+    case SYXV_KIND_BUILTIN: return NULL;
+    case SYXV_KIND_CLOSURE: return NULL;
+  }
+}
+SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value) {
+  switch (value->kind) {
+    case SYXV_KIND_NIL: return make_syxv_string_cstr("nil");
+    case SYXV_KIND_SYMBOL: return NULL;
+    case SYXV_KIND_PAIR: return NULL;
+    case SYXV_KIND_BOOL: return make_syxv_string_cstr(value->boolean ? "true" : "false");
+    case SYXV_KIND_INTEGER: return make_syxv_string(stringify_int(value->integer));
+    case SYXV_KIND_REAL: return make_syxv_string(stringify_real(value->integer));
+    case SYXV_KIND_STRING: return value;
+    case SYXV_KIND_QUOTE: return syx_convert_to_string(env, value->quote);
+    case SYXV_KIND_SPECIALF: return NULL;
+    case SYXV_KIND_BUILTIN: return NULL;
+    case SYXV_KIND_CLOSURE: return NULL;
   }
 }
 

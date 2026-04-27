@@ -37,12 +37,12 @@ int run(Syx_Env *env, char *source_cstr) {
     rc_release(result);
   }
   rc_release(input);
-  SyxV **quit = syx_env_lookup(env, SYXV_EXIT_QUIT_STORAGE);
+  SyxV **quit_ptr = syx_env_lookup(env, SYXV_EXIT_QUIT_STORAGE);
+  if (!quit_ptr) return -1;
+  SyxV *quit = syx_convert_to_integer(env, *quit_ptr);
   if (!quit) return -1;
-  // TODO: support conversion
-  if ((*quit)->kind != SYXV_KIND_INTEGER) return -1;
-  if ((*quit)->integer < 0) return -1;
-  return (*quit)->integer;
+  if (quit->integer < 0) return -1;
+  return quit->integer;
 }
 
 SyxV *eval_quit(Syx_Env *env, Syx_Arguments *arguments) {

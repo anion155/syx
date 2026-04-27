@@ -35,11 +35,6 @@ size_t stringify_real_n(sexpr_real_t value, size_t integer_width, size_t precisi
 String_View stringify__real(sexpr_real_t value, ssize_t precision);
 #define stringify_real(value, ...) stringify__real((value), WITH_DEFAULT(-MAX_REAL_FRACTIONAL_WIDTH, __VA_ARGS__))
 
-// Expr *expr_convert_to_bool(Expr *expr);
-// Expr *expr_convert_to_integer(Expr *expr);
-// Expr *expr_convert_to_real(Expr *expr);
-// Expr *expr_convert_to_string(Expr *expr);
-
 #endif // SEXPR_UTILS_H
 
 #if defined(SEXPR_UTILS_IMPL) && !defined(SEXPR_UTILS_IMPL_C)
@@ -185,61 +180,5 @@ String_View stringify__real(sexpr_real_t value, ssize_t precision) {
   stringify_real_n(value, int_width(value), _precision, string);
   return res;
 }
-
-// Expr *expr_convert_to_bool(Expr *expr) {
-//   switch (expr->kind) {
-//     case EXPR_KIND_NIL: return &EXPR_FALSE;
-//     case EXPR_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to bool");
-//     case EXPR_KIND_PAIR: UNREACHABLE("illegal conversion of pair to bool");
-//     case EXPR_KIND_QUOTE: UNREACHABLE("illegal conversion of quote to bool");
-//     case EXPR_KIND_BOOL: return expr;
-//     case EXPR_KIND_INTEGER: return make_expr_bool((sexpr_bool_t)expr->integer);
-//     case EXPR_KIND_REAL: return make_expr_bool((sexpr_bool_t)expr->real);
-//     case EXPR_KIND_STRING: return make_expr_bool(expr->string != NULL);
-//   }
-// }
-
-// Expr *expr_convert_to_integer(Expr *expr) {
-//   switch (expr->kind) {
-//     case EXPR_KIND_NIL: return make_expr_integer(0);
-//     case EXPR_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to integer number");
-//     case EXPR_KIND_PAIR: UNREACHABLE("illegal conversion of pair to integer number");
-//     case EXPR_KIND_QUOTE: UNREACHABLE("illegal conversion of quote to integer number");
-//     case EXPR_KIND_BOOL: return make_expr_integer(expr->boolean ? 1 : 0);
-//     case EXPR_KIND_INTEGER: return expr;
-//     case EXPR_KIND_REAL: return make_expr_integer((sexpr_int_t)expr->real);
-//     case EXPR_KIND_STRING: {
-//       String_View sv = sv_from_cstr(expr->string);
-//       return make_expr_integer(parse_integer(&sv));
-//     }
-//   }
-// }
-// Expr *expr_convert_to_real(Expr *expr) {
-//   switch (expr->kind) {
-//     case EXPR_KIND_NIL: return make_expr_real(0);
-//     case EXPR_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to real number");
-//     case EXPR_KIND_PAIR: UNREACHABLE("illegal conversion of pair to real number");
-//     case EXPR_KIND_QUOTE: UNREACHABLE("illegal conversion of quote to real number");
-//     case EXPR_KIND_BOOL: return make_expr_real(expr->boolean ? 1 : 0);
-//     case EXPR_KIND_INTEGER: return make_expr_real((sexpr_real_t)expr->integer);
-//     case EXPR_KIND_REAL: return expr;
-//     case EXPR_KIND_STRING: {
-//       String_View sv = sv_from_cstr(expr->string);
-//       return make_expr_real(parse_real(&sv));
-//     }
-//   }
-// }
-// Expr *expr_convert_to_string(Expr *expr) {
-//   switch (expr->kind) {
-//     case EXPR_KIND_NIL: return make_expr_string("nil");
-//     case EXPR_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to string");
-//     case EXPR_KIND_PAIR: UNREACHABLE("illegal conversion of pair to string");
-//     case EXPR_KIND_QUOTE: UNREACHABLE("illegal conversion of quote to string");
-//     case EXPR_KIND_BOOL: return make_expr_string(expr->boolean ? "true" : "false");
-//     case EXPR_KIND_INTEGER: return make_expr_string(stringify_int(expr->integer).data);
-//     case EXPR_KIND_REAL: return make_expr_string(stringify_real(expr->real, -1).data);
-//     case EXPR_KIND_STRING: return expr;
-//   }
-// }
 
 #endif // SEXPR_UTILS_IMPL
