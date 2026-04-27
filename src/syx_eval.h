@@ -22,9 +22,9 @@ void syx_env_put(Syx_Env *env, const char *name, SyxV *value);
 SyxV **syx_env_lookup(Syx_Env *env, const char *name);
 Syx_Env *make_global_syx_env();
 
-SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments_value);
-SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_value);
-SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_value);
+SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments_syxv);
+SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_syxv);
+SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_syxv);
 SyxV *syx_eval(Syx_Env *env, SyxV *input);
 
 SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value);
@@ -151,28 +151,28 @@ Syx_Arguments *make_syx_arguments(Syx_Env *env, SyxV *value) {
   return arguments;
 }
 
-SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments_value) {
-  Syx_Arguments *arguments = rc_acquire(make_syx_arguments(env, arguments_value));
+SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments_syxv) {
+  Syx_Arguments *arguments = rc_acquire(make_syx_arguments(env, arguments_syxv));
   SyxV *result = specialf->eval(env, arguments);
   if (!result) result = make_syxv_nil();
   rc_release(arguments);
   return result;
 }
-SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_value) {
-  Syx_Arguments *arguments = rc_acquire(make_syx_arguments(env, arguments_value));
+SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_syxv) {
+  Syx_Arguments *arguments = rc_acquire(make_syx_arguments(env, arguments_syxv));
   da_foreach(SyxV *, arg, arguments) *arg = syx_eval(env, *arg);
   SyxV *result = builtin->eval(env, arguments);
   if (!result) result = make_syxv_nil();
   rc_release(arguments);
   return result;
 }
-SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_value) {
+SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_syxv) {
   Syx_Env *call_env = rc_acquire(make_syx_env(closure->env, closure->name));
-  SyxV *it = arguments_value;
-  syxv_list_for_each(name_value, closure->arguments) {
-    if (!name_value) continue;
-    const char *name = name_value->symbol.name;
-    if (name_value->kind == SYXV_KIND_NIL) {
+  SyxV *it = arguments_syxv;
+  syxv_list_for_each(name_syxv, closure->arguments) {
+    if (!name_syxv) continue;
+    const char *name = name_syxv->symbol.name;
+    if (name_syxv->kind == SYXV_KIND_NIL) {
       syx_env_put(call_env, name, it);
       it = make_syxv_nil();
       break;

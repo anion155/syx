@@ -23,47 +23,40 @@ SyxV *syx_special_form_quote(Syx_Env *env, Syx_Arguments *arguments) {
 /** if - Evaluates condition then evaluates only one branch */
 SyxV *syx_special_form_if(Syx_Env *env, Syx_Arguments *arguments) {
   SYX_EVAL_ARGUMENTS_CLAMP(env, 2, 3);
-  SyxV *cond_value = syx_convert_to_bool(env, syx_eval(env, arguments->items[0]));
-  if (!cond_value) RUNTIME_ERROR("illegal if condition value", env);
-  if (cond_value->kind != SYXV_KIND_BOOL) RUNTIME_ERROR("illegal if condition value", env);
-  SyxV *then_value = arguments->items[1];
-  SyxV *else_value = arguments->items[2];
-  return cond_value->boolean ? syx_eval(env, then_value) : syx_eval(env, else_value);
+  SyxV *cond_syxv = syx_convert_to_bool(env, syx_eval(env, arguments->items[0]));
+  if (!cond_syxv) RUNTIME_ERROR("illegal if condition value", env);
+  if (cond_syxv->kind != SYXV_KIND_BOOL) RUNTIME_ERROR("illegal if condition value", env);
+  SyxV *then_syxv = arguments->items[1];
+  SyxV *else_syxv = arguments->items[2];
+  return cond_syxv->boolean ? syx_eval(env, then_syxv) : syx_eval(env, else_syxv);
 }
 /** lambda - Creates a closure and captures current environment */
 SyxV *syx_special_form_lambda(Syx_Env *env, Syx_Arguments *arguments) {
   SYX_EVAL_ARGUMENTS_CLAMP(env, 2, 3);
   SyxV *argument_names_list = arguments->items[0];
-  SyxV *name_value = arguments->count == 3 ? arguments->items[1] : NULL;
-  SyxV *body_value = arguments->count == 2 ? arguments->items[1] : arguments->items[2];
+  SyxV *name_syxv = arguments->count == 3 ? arguments->items[1] : NULL;
+  SyxV *body_syxv = arguments->count == 2 ? arguments->items[1] : arguments->items[2];
   const char *name;
-  if (name_value != NULL && name_value->kind == SYXV_KIND_SYMBOL) name = name_value->symbol.name;
+  if (name_syxv != NULL && name_syxv->kind == SYXV_KIND_SYMBOL) name = name_syxv->symbol.name;
   else name = nanoid("closure-", 10);
-  return make_syxv_closure(name, argument_names_list, body_value, env);
+  return make_syxv_closure(name, argument_names_list, body_syxv, env);
 }
 /** define - Binds a name in the current environment */
 SyxV *syx_special_form_define(Syx_Env *env, Syx_Arguments *arguments) {
-  TODO("syx_special_form_define"); UNUSED(env); UNUSED(arguments);
-  // if (arguments.count != 2) RUNTIME_ERROR("Incorrect amount of arguments");
-  // Expr_Value name_val = arguments.items[0];
-  // if (name_val.kind != EXPR_VALUE_KIND_EXPR) RUNTIME_ERROR("Name expected to be a symbol");
-  // Expr_Value value_val = arguments.items[1];
-  // if (name_val.expr->kind == EXPR_KIND_PAIR) {
-  //   Expr *arguments_expr = name_val.expr->pair.right;
-  //   if (arguments_expr->kind != EXPR_KIND_PAIR) RUNTIME_ERROR("Arguments expected to be a list");
-  //   name_val.expr = name_val.expr->pair.left;
-  //   if (value_val.kind != EXPR_VALUE_KIND_EXPR) RUNTIME_ERROR("Body expected to be a list");
-  //   value_val = expr_special_form_lambda(env, expr_arguments(make_expr_list(
-  //     arguments_expr,
-  //     value_val.expr,
-  //     NULL
-  //   )));
-  // } else {
-  //   value_val = expr_eval(env, value_val);
-  // }
-  // if (name_val.expr->kind != EXPR_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name");
-  // expr_env_put_symbol(env, name_val.expr->symbol.name, value_val);
-  // return (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = &EXPR_NIL};
+  SYX_EVAL_ARGUMENTS_CLAMP(env, 2);
+  SyxV *name_syxv = arguments->items[0];
+  SyxV *value_syxv = arguments->items[1];
+  if (name_syxv->kind == SYXV_KIND_PAIR) {
+    SyxV *arguments_syxv = name_syxv->pair.right;
+    if (arguments_syxv->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Argument names expected to be a list", env);
+    name_syxv = name_syxv->pair.left;
+    value_syxv = make_syxv_closure(name_syxv->symbol.name, arguments_syxv, value_syxv, env);
+  } else {
+    value_syxv = syx_eval(env, value_syxv);
+  }
+  if (name_syxv->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", env);
+  syx_env_put(env, name_syxv->symbol.name, value_syxv);
+  return make_syxv_nil();
 }
 /** Evaluates expressions in order and returns last */
 SyxV *syx_special_form_begin(Syx_Env *env, Syx_Arguments *arguments) {
