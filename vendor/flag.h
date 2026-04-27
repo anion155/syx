@@ -175,7 +175,8 @@ void flag_c_print_options(void *c, FILE *stream);
 
 //////////////////////////////
 
-#ifdef FLAG_IMPLEMENTATION
+#if defined(FLAG_IMPL) && !defined(FLAG_IMPL_C)
+#define FLAG_IMPL_C
 
 typedef enum {
     FLAG_BOOL = 0,
@@ -960,7 +961,7 @@ void flag_print_error(FILE *stream)
     flag_c_print_error(&flag_global_context, stream);
 }
 
-#endif // FLAG_IMPLEMENTATION
+#endif // FLAG_IMPL
 
 /*
    Revision history:

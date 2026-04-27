@@ -60,7 +60,8 @@ void jim_object_end(Jim *jim);
 
 #endif // JIM_H_
 
-#ifdef JIM_IMPLEMENTATION
+#if defined(JIM_IMPL) && !defined(JIM_IMPL_C)
+#define JIM_IMPL_C
 
 static void jim_scope_push(Jim *jim, Jim_Scope_Kind kind)
 {
@@ -342,4 +343,4 @@ void jim_object_end(Jim *jim)
     jim_element_end(jim);
 }
 
-#endif // JIM_IMPLEMENTATION
+#endif // JIM_IMPL

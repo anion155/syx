@@ -4,11 +4,11 @@
 #include <mach-o/dyld.h>
 #endif
 
-#define FLAG_IMPLEMENTATION
+#define FLAG_IMPL
 #include "./vendor/flag.h"
-#define NOB_IMPLEMENTATION
+#define NOB_IMPL
 #include "./vendor/nob.h"
-#define JIM_IMPLEMENTATION
+#define JIM_IMPL
 #include "./vendor/jim.h"
 
 typedef struct Context {

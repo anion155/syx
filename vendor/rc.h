@@ -25,6 +25,12 @@ void *rc__realloc(const void *data, size_t size);
 void *rc__manage_copy(const void *data, size_t size, void (*destroy)(void *data));
 #define rc_manage_copy(data, size, ...) rc__manage_copy((data), (size), WITH_DEFAULT(NULL, __VA_ARGS__))
 
+char *rc__manage_strndup(const char *data, size_t size, void (*destroy)(void *data));
+#define rc_manage_strndup(data, size, ...) rc__manage_strndup((data), (size), WITH_DEFAULT(NULL, __VA_ARGS__))
+
+char *rc__manage_strdup(const char *data, void (*destroy)(void *data));
+#define rc_manage_strdup(data, ...) rc__manage_strdup((data), WITH_DEFAULT(NULL, __VA_ARGS__))
+
 void *rc__manage(void *data, size_t size, void (*destroy)(void *data));
 #define rc_manage(data, size, ...) (__typeof__(data))rc__manage((data), (size), WITH_DEFAULT(NULL, __VA_ARGS__))
 
@@ -64,6 +70,18 @@ void *rc__manage_copy(const void *data, size_t size, void (*destroy)(void *data)
     rc->destroy = destroy;
     memcpy(rc + 1, data, size);
     return rc + 1;
+}
+
+char *rc__manage_strndup(const char *data, size_t size, void (*destroy)(void *data))
+{
+    char *name = rc__manage_copy(data, (size + 1) * sizeof(char), destroy);
+    name[size] = 0;
+    return name;
+}
+
+char *rc__manage_strdup(const char *data, void (*destroy)(void *data))
+{
+    return rc__manage_strndup(data, strlen(data), destroy);
 }
 
 void *rc__manage(void *data, size_t size, void (*destroy)(void *data))

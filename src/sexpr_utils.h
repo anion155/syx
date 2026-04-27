@@ -1,46 +1,36 @@
-#ifndef EXPR_UTILS_H
-#define EXPR_UTILS_H
+#ifndef SEXPR_UTILS_H
+#define SEXPR_UTILS_H
 
 #include <nob.h>
 #include <ht.h>
 #include <magic.h>
 
-#define EXPR_TOKEN_LIST_START '('
-#define EXPR_TOKEN_LIST_END   ')'
-#define EXPR_TOKEN_QUOTES     '\''
-#define EXPR_TOKEN_DQUOTES    '"'
-#define EXPR_TOKEN_ESCAPE     '\\'
-#define EXPR_TOKEN_HYPHEN     '-'
-#define EXPR_TOKEN_DOT        '.'
-#define EXPR_TOKEN_DIGIT_0    '0'
-#define EXPR_TOKEN_GUARD      '|'
-
 int islineend(int c);
 int issymbol_special(int c);
 int issymbol(int c);
 
-typedef bool expr_bool_t;
-typedef long long int expr_int_t;
-typedef long double expr_real_t;
-typedef char * expr_string_t;
+typedef bool sexpr_bool_t;
+typedef long long int sexpr_int_t;
+typedef long double sexpr_real_t;
+typedef char * sexpr_string_t;
 
-bool parse_integer(String_View *sv, expr_int_t *result);
-bool parse_fractions(String_View *sv, expr_real_t *result);
-bool parse_real(String_View *sv, expr_real_t *result);
+bool parse_integer(String_View *sv, sexpr_int_t *result);
+bool parse_fractions(String_View *sv, sexpr_real_t *result);
+bool parse_real(String_View *sv, sexpr_real_t *result);
 
-size_t int_width(expr_int_t value);
-void stringify_int_n(expr_int_t value, size_t length, char *string);
-String_View stringify_int(expr_int_t value);
+size_t int_width(sexpr_int_t value);
+void stringify_int_n(sexpr_int_t value, size_t length, char *string);
+String_View stringify_int(sexpr_int_t value);
 
 #define REAL_MINIMAL_DIFFERENCE 1e-9
 #define MAX_REAL_FRACTIONAL_WIDTH 15
 
-size_t real_fraction_width(expr_real_t value);
-size_t real__precision(expr_real_t value, ssize_t precision);
+size_t real_fraction_width(sexpr_real_t value);
+size_t real__precision(sexpr_real_t value, ssize_t precision);
 #define real_precision(value, ...) real__precision((value), WITH_DEFAULT(-MAX_REAL_FRACTIONAL_WIDTH, __VA_ARGS__))
-size_t real_width(expr_real_t value, size_t precision);
-size_t stringify_real_n(expr_real_t value, size_t integer_width, size_t precision, char *string);
-String_View stringify__real(expr_real_t value, ssize_t precision);
+size_t real_width(sexpr_real_t value, size_t precision);
+size_t stringify_real_n(sexpr_real_t value, size_t integer_width, size_t precision, char *string);
+String_View stringify__real(sexpr_real_t value, ssize_t precision);
 #define stringify_real(value, ...) stringify__real((value), WITH_DEFAULT(-MAX_REAL_FRACTIONAL_WIDTH, __VA_ARGS__))
 
 // Expr *expr_convert_to_bool(Expr *expr);
@@ -48,10 +38,10 @@ String_View stringify__real(expr_real_t value, ssize_t precision);
 // Expr *expr_convert_to_real(Expr *expr);
 // Expr *expr_convert_to_string(Expr *expr);
 
-#endif // EXPR_UTILS_H
+#endif // SEXPR_UTILS_H
 
-#if defined(EXPR_UTILS_IMPL) && !defined(EXPR_UTILS_IMPL_C)
-#define EXPR_UTILS_IMPL_C
+#if defined(SEXPR_UTILS_IMPL) && !defined(SEXPR_UTILS_IMPL_C)
+#define SEXPR_UTILS_IMPL_C
 
 int islineend(int c) {
   return (c == '\n' || c == '\r');
@@ -63,10 +53,10 @@ int issymbol_special(int c) {
   );
 }
 int issymbol(int c) {
-  return c == EXPR_TOKEN_HYPHEN || issymbol_special(c) || isalnum(c);
+  return c == '-' || issymbol_special(c) || isalnum(c);
 }
 
-bool parse_integer(String_View *sv, expr_int_t *result) {
+bool parse_integer(String_View *sv, sexpr_int_t *result) {
   bool is_negative = sv->data[0] == '-';
   if (is_negative) sv_chop_left(sv, 1);
   if (!sv->count) return false;
@@ -82,11 +72,11 @@ bool parse_integer(String_View *sv, expr_int_t *result) {
   if (is_negative) *result *= -1;
   return true;
 }
-bool parse_fractions(String_View *sv, expr_real_t *result) {
+bool parse_fractions(String_View *sv, sexpr_real_t *result) {
   if (sv->data[0] != '.') return false;
   sv_chop_left(sv, 1);
-  expr_int_t fractional_part = 0;
-  expr_int_t exponent = 1;
+  sexpr_int_t fractional_part = 0;
+  sexpr_int_t exponent = 1;
   size_t i = 0;
   while (i < sv->count && isdigit(sv->data[i])) {
     fractional_part = fractional_part * 10 + (sv->data[i] - '0');
@@ -96,14 +86,14 @@ bool parse_fractions(String_View *sv, expr_real_t *result) {
   if (i == 0) return false;
   sv->count -= i;
   sv->data  += i;
-  *result = (expr_real_t)fractional_part / (expr_real_t)exponent;
+  *result = (sexpr_real_t)fractional_part / (sexpr_real_t)exponent;
   return true;
 }
-bool parse_real(String_View *sv, expr_real_t *result) {
-  expr_int_t integer_part = 0;
+bool parse_real(String_View *sv, sexpr_real_t *result) {
+  sexpr_int_t integer_part = 0;
   if (!parse_integer(sv, &integer_part)) return false;
   if (sv->data[0] != '.') {
-    *result = (expr_real_t)integer_part;
+    *result = (sexpr_real_t)integer_part;
     return true;
   }
   if (!parse_fractions(sv, result)) return false;
@@ -112,22 +102,22 @@ bool parse_real(String_View *sv, expr_real_t *result) {
   return true;
 }
 
-size_t int_width(expr_int_t value) {
+size_t int_width(sexpr_int_t value) {
   size_t size = 0;
-  for (expr_int_t it = value; it != 0; it = it / 10) size += 1;
+  for (sexpr_int_t it = value; it != 0; it = it / 10) size += 1;
   if (value == 0) size = 1;
   else if (value < 0) size += 1;
   return size;
 }
 
-void stringify_int_n(expr_int_t value, size_t length, char *string) {
+void stringify_int_n(sexpr_int_t value, size_t length, char *string) {
   if (value < 0) string[0] = '-';
-  for (struct { size_t index; expr_int_t it; } s = {0, value}; s.index < length; s.index += 1, s.it /= 10) {
+  for (struct { size_t index; sexpr_int_t it; } s = {0, value}; s.index < length; s.index += 1, s.it /= 10) {
     string[length - s.index - 1] = '0' + (value < 0 ? -(s.it % 10) : s.it % 10);
   }
 }
 
-String_View stringify_int(expr_int_t value) {
+String_View stringify_int(sexpr_int_t value) {
   size_t length = int_width(value);
   char *string = malloc(length + 1);
   String_View result = {.data = string, .count = length};
@@ -135,46 +125,46 @@ String_View stringify_int(expr_int_t value) {
   return result;
 }
 
-size_t real_fraction_width(expr_real_t value) {
-  value -= (expr_int_t)value;
+size_t real_fraction_width(sexpr_real_t value) {
+  value -= (sexpr_int_t)value;
   size_t width = 0;
   while (value > REAL_MINIMAL_DIFFERENCE && width < MAX_REAL_FRACTIONAL_WIDTH) {
     value *= 10;
-    value -= (expr_int_t)value;
+    value -= (sexpr_int_t)value;
     width++;
     if (value < REAL_MINIMAL_DIFFERENCE || value > (1.0 - REAL_MINIMAL_DIFFERENCE)) break;
   }
   return width;
 }
-size_t real__precision(expr_real_t value, ssize_t precision) {
+size_t real__precision(sexpr_real_t value, ssize_t precision) {
   if (precision >= 0) return precision;
   size_t fractional_width = real_fraction_width(value);
   size_t exponenta = -precision;
   return fractional_width > exponenta ? exponenta : fractional_width;
 }
-size_t real_width(expr_real_t value, size_t precision) {
+size_t real_width(sexpr_real_t value, size_t precision) {
   size_t integer_width = int_width(value);
   if (precision == 0) return integer_width;
   return integer_width + 1 + precision;
 }
-size_t stringify_real_n(expr_real_t value, size_t integer_width, size_t precision, char *string) {
+size_t stringify_real_n(sexpr_real_t value, size_t integer_width, size_t precision, char *string) {
   if (precision == 0) {
-    stringify_int_n((expr_int_t)value + 0.5, integer_width, string);
+    stringify_int_n((sexpr_int_t)value + 0.5, integer_width, string);
     return integer_width;
   }
   size_t width = integer_width + 1 + precision;
   stringify_int_n(value, integer_width, string);
   string[integer_width] = '.';
   string[width] = 0;
-  expr_int_t exponent = 1;
+  sexpr_int_t exponent = 1;
   for (size_t index = 0; index < precision; index += 1) exponent *= 10;
-  expr_int_t fractions = (expr_int_t)(value * exponent + 0.5);
+  sexpr_int_t fractions = (sexpr_int_t)(value * exponent + 0.5);
   stringify_int_n(fractions, precision, string + integer_width + 1);
   return width;
 }
-String_View stringify__real(expr_real_t value, ssize_t precision) {
-  if (precision == 0) return stringify_int((expr_int_t)value + 0.5);
-  // if ((value - (expr_int_t)value) == 0 && precision < 0) return stringify_int((expr_int_t)value);
+String_View stringify__real(sexpr_real_t value, ssize_t precision) {
+  if (precision == 0) return stringify_int((sexpr_int_t)value + 0.5);
+  // if ((value - (sexpr_int_t)value) == 0 && precision < 0) return stringify_int((sexpr_int_t)value);
   size_t _precision = real__precision(value, precision);
   String_View res = {.count = real_width(value, _precision)};
   char *string = malloc(res.count + 1);
@@ -190,8 +180,8 @@ String_View stringify__real(expr_real_t value, ssize_t precision) {
 //     case EXPR_KIND_PAIR: UNREACHABLE("illegal conversion of pair to bool");
 //     case EXPR_KIND_QUOTE: UNREACHABLE("illegal conversion of quote to bool");
 //     case EXPR_KIND_BOOL: return expr;
-//     case EXPR_KIND_INTEGER: return make_expr_bool((expr_bool_t)expr->integer);
-//     case EXPR_KIND_REAL: return make_expr_bool((expr_bool_t)expr->real);
+//     case EXPR_KIND_INTEGER: return make_expr_bool((sexpr_bool_t)expr->integer);
+//     case EXPR_KIND_REAL: return make_expr_bool((sexpr_bool_t)expr->real);
 //     case EXPR_KIND_STRING: return make_expr_bool(expr->string != NULL);
 //   }
 // }
@@ -204,7 +194,7 @@ String_View stringify__real(expr_real_t value, ssize_t precision) {
 //     case EXPR_KIND_QUOTE: UNREACHABLE("illegal conversion of quote to integer number");
 //     case EXPR_KIND_BOOL: return make_expr_integer(expr->boolean ? 1 : 0);
 //     case EXPR_KIND_INTEGER: return expr;
-//     case EXPR_KIND_REAL: return make_expr_integer((expr_int_t)expr->real);
+//     case EXPR_KIND_REAL: return make_expr_integer((sexpr_int_t)expr->real);
 //     case EXPR_KIND_STRING: {
 //       String_View sv = sv_from_cstr(expr->string);
 //       return make_expr_integer(parse_integer(&sv));
@@ -218,7 +208,7 @@ String_View stringify__real(expr_real_t value, ssize_t precision) {
 //     case EXPR_KIND_PAIR: UNREACHABLE("illegal conversion of pair to real number");
 //     case EXPR_KIND_QUOTE: UNREACHABLE("illegal conversion of quote to real number");
 //     case EXPR_KIND_BOOL: return make_expr_real(expr->boolean ? 1 : 0);
-//     case EXPR_KIND_INTEGER: return make_expr_real((expr_real_t)expr->integer);
+//     case EXPR_KIND_INTEGER: return make_expr_real((sexpr_real_t)expr->integer);
 //     case EXPR_KIND_REAL: return expr;
 //     case EXPR_KIND_STRING: {
 //       String_View sv = sv_from_cstr(expr->string);
@@ -239,4 +229,4 @@ String_View stringify__real(expr_real_t value, ssize_t precision) {
 //   }
 // }
 
-#endif // EXPR_UTILS_IMPL
+#endif // SEXPR_UTILS_IMPL
