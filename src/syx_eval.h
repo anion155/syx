@@ -1,20 +1,23 @@
 #ifndef SYX_EVAL_H
 #define SYX_EVAL_H
 
-#include <nob.h>
 #include <ht.h>
-#include <rc.h>
 #include <magic.h>
+#include <nob.h>
+#include <rc.h>
+
 #include "syx_value.h"
 
 #define RUNTIME_ERROR(message, env) UNREACHABLE((UNUSED(env), (message)))
 
 typedef Ht(const char *, SyxV *) Syx_Env_Symbols;
+
 struct Syx_Env {
   Syx_Env *parent;
   Syx_Env_Symbols symbols;
   char *description;
 };
+
 void syx_env_destructor(void *data);
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description);
 Syx_Env *syx_env_global(Syx_Env *env);
@@ -36,21 +39,24 @@ SyxV *syx_eval_with_release(Syx_Env *env, SyxV *input);
 SyxV *syxv_list_next(SyxV *list);
 SyxV *syxv_list_get_value(SyxV *list);
 #define syxv_list_for_each(value, first) for ( \
-  SyxV *value##_it = (first),                  \
+    SyxV *value##_it = (first),                \
     *value = syxv_list_get_value(value##_it);  \
-  value##_it != NULL;                          \
-  value##_it = syxv_list_next(value##_it),     \
-    value = syxv_list_get_value(value##_it)    \
-)
+    value##_it != NULL;                        \
+    value##_it = syxv_list_next(value##_it),   \
+    value = syxv_list_get_value(value##_it))
 
 SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_real(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value);
 
-#define SYX_EVAL_ARGUMENTS_CLAMP(env, min, ...)                   \
-  if (arguments->count < (min)) RUNTIME_ERROR("Too few arguments", env); \
-  if (arguments->count > (WITH_DEFAULT((min), __VA_ARGS__))) RUNTIME_ERROR("Too many arguments", env)
+#define SYX_EVAL_ARGUMENTS_MIN(env, min, ...) \
+  if (arguments->count < (min)) RUNTIME_ERROR("Too few arguments", env)
+#define SYX_EVAL_ARGUMENTS_MAX(env, max, ...) \
+  if (arguments->count > (max)) RUNTIME_ERROR("Too many arguments", env)
+#define SYX_EVAL_ARGUMENTS_CLAMP(env, min, ...) \
+  SYX_EVAL_ARGUMENTS_MIN((env), (min));         \
+  SYX_EVAL_ARGUMENTS_MAX((env), (WITH_DEFAULT((min), __VA_ARGS__)))
 
 #endif // SYX_EVAL_H
 
@@ -61,6 +67,7 @@ SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value);
 #include "syx_value.h"
 #define SYX_EVAL_SPECIALF_IMPL
 #include "syx_eval_specialf.h"
+
 // #define SYX_EVAL_ARITHMETIC_IMPL
 // #include "expr_eval_arithmetic.h"
 // #define SYX_EVAL_COMPARISON_IMPL
@@ -83,6 +90,7 @@ SyxV *syxv_list_next(SyxV *list) {
   if (list->kind == SYXV_KIND_NIL) return NULL;
   return make_syxv_nil();
 }
+
 SyxV *syxv_list_get_value(SyxV *list) {
   if (list == NULL) return NULL;
   if (list->kind == SYXV_KIND_PAIR) return list->pair.left;
@@ -95,19 +103,23 @@ void syx_env_destructor(void *data) {
   ht_foreach(symbol, &env->symbols) rc_release(*symbol);
   ht_free(&env->symbols);
   if (env->parent) rc_release(env->parent);
-  free(env->description);
+  if (env->description) free(env->description);
 }
+
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description) {
   Syx_Env *env = rc_alloc(sizeof(Syx_Env), syx_env_destructor);
   env->parent = parent ? rc_acquire(parent) : NULL;
   env->symbols.hasheq = ht_cstr_hasheq;
-  env->description = strdup(description);
+  env->description = description ? strdup(description) : NULL;
   return env;
 }
+
 Syx_Env *syx_env_global(Syx_Env *env) {
-  while (env->parent != NULL) env = env->parent;
+  while (env->parent != NULL)
+    env = env->parent;
   return env;
 }
+
 SyxV **syx_env_lookup(Syx_Env *env, const char *name) {
   SyxV **item = NULL;
   while (env != NULL && item == NULL) {
@@ -116,11 +128,13 @@ SyxV **syx_env_lookup(Syx_Env *env, const char *name) {
   }
   return item;
 }
+
 SyxV *syx_env_lookup_get(Syx_Env *env, const char *name) {
   SyxV **item = syx_env_lookup(env, name);
   if (item == NULL) return NULL;
   return *item;
 }
+
 SyxV **ensure_syxv_redefinable(Syx_Env *env, const char *name) {
   SyxV **item = syx_env_lookup(env, name);
   if (item != NULL) {
@@ -140,27 +154,49 @@ SyxV **ensure_syxv_redefinable(Syx_Env *env, const char *name) {
   }
   return item;
 }
+
 void syx_env_define(Syx_Env *env, const char *name, SyxV *value) {
   SyxV **item = ensure_syxv_redefinable(env, name);
   if (item == NULL) item = ht_put(&env->symbols, name);
   *item = rc_acquire(value);
+  switch (value->kind) {
+    case SYXV_KIND_NIL: break;
+    case SYXV_KIND_SYMBOL: break;
+    case SYXV_KIND_PAIR: break;
+    case SYXV_KIND_BOOL: break;
+    case SYXV_KIND_INTEGER: break;
+    case SYXV_KIND_REAL: break;
+    case SYXV_KIND_STRING: break;
+    case SYXV_KIND_QUOTE: break;
+    case SYXV_KIND_SPECIALF: {
+      if (!value->specialf.name) value->specialf.name = strdup(name);
+    } break;
+    case SYXV_KIND_BUILTIN: {
+      if (!value->builtin.name) value->builtin.name = strdup(name);
+    } break;
+    case SYXV_KIND_CLOSURE: {
+      if (!value->closure.name) value->closure.name = strdup(name);
+    } break;
+  }
 }
+
 void syx_env_set(Syx_Env *env, const char *name, SyxV *value) {
   SyxV **item = ensure_syxv_redefinable(env, name);
   if (item == NULL) RUNTIME_ERROR("unbound symbol", env);
   *item = rc_acquire(value);
 }
+
 Syx_Env *make_global_syx_env() {
   Syx_Env *env = make_syx_env(NULL, "<global>");
   syx_env_define_special_forms(env);
-//   syx_env_define_arithmetic(env);
-//   syx_env_define_comparison(env);
-//   syx_env_define_equality(env);
-//   syx_env_define_list(env);
-//   syx_env_define_string(env);
-//   syx_env_define_type_predicates(env);
-//   syx_env_define_type_conversion(env);
-//   syx_env_define_io(env);
+  //   syx_env_define_arithmetic(env);
+  //   syx_env_define_comparison(env);
+  //   syx_env_define_equality(env);
+  //   syx_env_define_list(env);
+  //   syx_env_define_string(env);
+  //   syx_env_define_type_predicates(env);
+  //   syx_env_define_type_conversion(env);
+  //   syx_env_define_io(env);
   return env;
 }
 
@@ -172,6 +208,7 @@ SyxVs *make_syxvs(Syx_Env *env, SyxV *value) {
   }
   return arguments;
 }
+
 SyxVs *syxvs_eval(Syx_Env *env, SyxVs *syxvs) {
   da_foreach(SyxV *, argument, syxvs) {
     *argument = syx_eval_with_release(env, *argument);
@@ -186,6 +223,7 @@ SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments_sy
   rc_release(arguments);
   return result;
 }
+
 SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_syxv) {
   SyxVs *arguments = rc_acquire(make_syxvs(env, arguments_syxv));
   arguments = syxvs_eval(env, arguments);
@@ -194,6 +232,7 @@ SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments_syxv)
   rc_release(arguments);
   return result;
 }
+
 SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_syxv) {
   Syx_Env *call_env = rc_acquire(make_syx_env(closure->env, closure->name));
   SyxV *it = arguments_syxv;
@@ -214,6 +253,7 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_syxv)
   rc_release(call_env);
   return result;
 }
+
 SyxV *syx_eval(Syx_Env *env, SyxV *input) {
   if (input->kind == SYXV_KIND_QUOTE) return input->quote;
   if (input->kind == SYXV_KIND_SYMBOL) {
@@ -266,6 +306,7 @@ SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_CLOSURE: return make_syxv_bool(true);
   }
 }
+
 SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_NIL: return make_syxv_integer(0);
@@ -286,6 +327,7 @@ SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_CLOSURE: return NULL;
   }
 }
+
 SyxV *syx_convert_to_real(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_NIL: return make_syxv_real(0.0);
@@ -306,6 +348,7 @@ SyxV *syx_convert_to_real(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_CLOSURE: return NULL;
   }
 }
+
 SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_NIL: return make_syxv_string_cstr("nil");
