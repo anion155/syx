@@ -3,7 +3,7 @@
 
 #include "syx_eval.h"
 
-void syx_env_put_special_forms(Syx_Env *env);
+void syx_env_define_special_forms(Syx_Env *env);
 
 #endif // SYX_EVAL_SPECIALF_H
 
@@ -59,7 +59,7 @@ SyxV *syx_special_form_define(Syx_Env *env, Syx_Arguments *arguments) {
     value_syxv = syx_eval(env, value_syxv);
   }
   if (name_syxv->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", env);
-  syx_env_put(env, name_syxv->symbol.name, value_syxv);
+  syx_env_define(env, name_syxv->symbol.name, value_syxv);
   return make_syxv_nil();
 }
 /** Evaluates expressions in order and returns last */
@@ -68,13 +68,13 @@ SyxV *syx_special_form_begin(Syx_Env *env, Syx_Arguments *arguments) {
   return arguments->items[arguments->count - 1];
 }
 
-void syx_env_put_special_forms(Syx_Env *env) {
+void syx_env_define_special_forms(Syx_Env *env) {
   /** Special forms */
-  syx_env_put(env, "quote", make_syxv_specialf("quote", syx_special_form_quote));
-  syx_env_put(env, "if", make_syxv_specialf("if", syx_special_form_if));
-  syx_env_put(env, "lambda", make_syxv_specialf("lambda", syx_special_form_lambda));
-  syx_env_put(env, "define", make_syxv_specialf("define", syx_special_form_define));
-  syx_env_put(env, "begin", make_syxv_specialf("begin", syx_special_form_begin));
+  syx_env_define(env, "quote", make_syxv_specialf("quote", syx_special_form_quote));
+  syx_env_define(env, "if", make_syxv_specialf("if", syx_special_form_if));
+  syx_env_define(env, "lambda", make_syxv_specialf("lambda", syx_special_form_lambda));
+  syx_env_define(env, "define", make_syxv_specialf("define", syx_special_form_define));
+  syx_env_define(env, "begin", make_syxv_specialf("begin", syx_special_form_begin));
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL

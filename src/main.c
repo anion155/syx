@@ -34,13 +34,13 @@ int run(Syx_Env *env, char *source_cstr) {
   da_foreach(SExpr *, input_expr, input) {
     SyxV *result = rc_acquire(syx_eval(env, (SyxV *)*input_expr));
     print_syxv(result); printf("\n");
-    if (syx_env_lookup(env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
+    if (syx_env_lookup_get(env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
     rc_release(result);
   }
   rc_release(input);
-  SyxV **quit_ptr = syx_env_lookup(env, SYXV_EXIT_QUIT_STORAGE);
-  if (!quit_ptr) return -1;
-  SyxV *quit = syx_convert_to_integer(env, *quit_ptr);
+  SyxV *quit = syx_env_lookup_get(env, SYXV_EXIT_QUIT_STORAGE);
+  if (!quit) return -1;
+  quit = syx_convert_to_integer(env, quit);
   if (!quit) return -1;
   if (quit->integer < 0) return -1;
   return quit->integer;
@@ -48,7 +48,7 @@ int run(Syx_Env *env, char *source_cstr) {
 
 SyxV *eval_quit(Syx_Env *env, Syx_Arguments *arguments) {
   SyxV *result = arguments->count >= 1 ? arguments->items[0] : make_syxv_integer(0);
-  syx_env_put(syx_env_global(env), SYXV_EXIT_QUIT_STORAGE, result);
+  syx_env_define(syx_env_global(env), SYXV_EXIT_QUIT_STORAGE, result);
   return NULL;
 }
 
@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
   argv = flag_rest_argv();
 
   Syx_Env *env = rc_acquire(make_global_syx_env());
-  syx_env_put(env, "quit", make_syxv_builtin("quit", eval_quit));
+  syx_env_define(env, "quit", make_syxv_builtin("quit", eval_quit));
 
   if (*command) {
     int result = run(env, *command);

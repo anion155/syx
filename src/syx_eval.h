@@ -18,8 +18,10 @@ struct Syx_Env {
 void syx_env_destructor(void *data);
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description);
 Syx_Env *syx_env_global(Syx_Env *env);
-void syx_env_put(Syx_Env *env, const char *name, SyxV *value);
 SyxV **syx_env_lookup(Syx_Env *env, const char *name);
+SyxV *syx_env_lookup_get(Syx_Env *env, const char *name);
+void syx_env_define(Syx_Env *env, const char *name, SyxV *value);
+void syx_env_set(Syx_Env *env, const char *name, SyxV *value);
 Syx_Env *make_global_syx_env();
 
 Syx_Arguments *make_syx_arguments(Syx_Env *env, SyxV *value);
@@ -102,7 +104,20 @@ Syx_Env *syx_env_global(Syx_Env *env) {
   while (env->parent != NULL) env = env->parent;
   return env;
 }
-void syx_env_put(Syx_Env *env, const char *name, SyxV *value) {
+SyxV **syx_env_lookup(Syx_Env *env, const char *name) {
+  SyxV **item = NULL;
+  while (env != NULL && item == NULL) {
+    item = ht_find(&env->symbols, name);
+    env = env->parent;
+  }
+  return item;
+}
+SyxV *syx_env_lookup_get(Syx_Env *env, const char *name) {
+  SyxV **item = syx_env_lookup(env, name);
+  if (item == NULL) return NULL;
+  return *item;
+}
+SyxV **ensure_syxv_redefinable(Syx_Env *env, const char *name) {
   SyxV **item = syx_env_lookup(env, name);
   if (item != NULL) {
     switch ((*item)->kind) {
@@ -118,30 +133,30 @@ void syx_env_put(Syx_Env *env, const char *name, SyxV *value) {
       case SYXV_KIND_BUILTIN: RUNTIME_ERROR("trying to redefine builtin", env);
       case SYXV_KIND_CLOSURE: break;
     }
-  } else {
-    item = ht_put(&env->symbols, name);
-  }
-  *item = rc_acquire(value);
-}
-SyxV **syx_env_lookup(Syx_Env *env, const char *name) {
-  SyxV **item = NULL;
-  while (env != NULL && item == NULL) {
-    item = ht_find(&env->symbols, name);
-    env = env->parent;
   }
   return item;
 }
+void syx_env_define(Syx_Env *env, const char *name, SyxV *value) {
+  SyxV **item = ensure_syxv_redefinable(env, name);
+  if (item == NULL) item = ht_put(&env->symbols, name);
+  *item = rc_acquire(value);
+}
+void syx_env_set(Syx_Env *env, const char *name, SyxV *value) {
+  SyxV **item = ensure_syxv_redefinable(env, name);
+  if (item == NULL) RUNTIME_ERROR("trying to redefine special form", env);
+  *item = rc_acquire(value);
+}
 Syx_Env *make_global_syx_env() {
   Syx_Env *env = make_syx_env(NULL, "<global>");
-  syx_env_put_special_forms(env);
-//   syx_env_put_arithmetic(env);
-//   syx_env_put_comparison(env);
-//   syx_env_put_equality(env);
-//   syx_env_put_list(env);
-//   syx_env_put_string(env);
-//   syx_env_put_type_predicates(env);
-//   syx_env_put_type_conversion(env);
-//   syx_env_put_io(env);
+  syx_env_define_special_forms(env);
+//   syx_env_define_arithmetic(env);
+//   syx_env_define_comparison(env);
+//   syx_env_define_equality(env);
+//   syx_env_define_list(env);
+//   syx_env_define_string(env);
+//   syx_env_define_type_predicates(env);
+//   syx_env_define_type_conversion(env);
+//   syx_env_define_io(env);
   return env;
 }
 
@@ -185,12 +200,12 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_syxv)
     if (!name_syxv) continue;
     const char *name = name_syxv->symbol.name;
     if (name_syxv->kind == SYXV_KIND_NIL) {
-      syx_env_put(call_env, name, it);
+      syx_env_define(call_env, name, it);
       it = make_syxv_nil();
       break;
     }
     if (it->kind == SYXV_KIND_NIL) RUNTIME_ERROR("Too few arguments", env);
-    syx_env_put(call_env, name, it->pair.left);
+    syx_env_define(call_env, name, it->pair.left);
     it = it->pair.right;
   }
   if (it->kind != SYXV_KIND_NIL) RUNTIME_ERROR("Too many arguments", env);
@@ -201,9 +216,9 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments_syxv)
 SyxV *syx_eval(Syx_Env *env, SyxV *input) {
   if (input->kind == SYXV_KIND_QUOTE) return input->quote;
   if (input->kind == SYXV_KIND_SYMBOL) {
-    SyxV **item = syx_env_lookup(env, input->symbol.name);
+    SyxV *item = syx_env_lookup_get(env, input->symbol.name);
     if (item == NULL) RUNTIME_ERROR("unbound symbol", env);
-    return *item;
+    return item;
   }
   if (input->kind != SYXV_KIND_PAIR) return input;
   if (!input->pair.left) return input;
