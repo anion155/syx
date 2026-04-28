@@ -203,7 +203,11 @@ SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments) {
 }
 
 SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments) {
-  TODO("evaluate arguments");
+  SyxV **last_argument = NULL;
+  syxv_list_for_each(argument, arguments, &last_argument) {
+    *argument = syx_eval_with_release(env, *argument);
+  }
+  if ((*last_argument)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("Invalid arguments list", env);
   SyxV *result = builtin->eval(env, arguments);
   if (!result) result = make_syxv_nil();
   rc_release(arguments);
