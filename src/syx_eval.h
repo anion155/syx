@@ -196,7 +196,6 @@ SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments) {
   if ((*last_argument)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("Invalid arguments list", env);
   SyxV *result = builtin->eval(env, arguments);
   if (!result) result = make_syxv_nil();
-  rc_release(arguments);
   return result;
 }
 

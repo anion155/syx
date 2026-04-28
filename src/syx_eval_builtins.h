@@ -13,12 +13,26 @@ void syx_env_define_builtins(Syx_Env *env);
 
 /** Builtins */
 
-/** Returns first argument unevaluated */
+/** Takes exactly 2 arguments and returns a pair (left . right). */
 SyxV *syx_builtin_cons(Syx_Env *env, SyxV *arguments) {
   UNUSED(env);
   SyxV *left = syxv_list_next_safe(&arguments);
   SyxV *right = syxv_list_next_safe(&arguments);
   return make_syxv_pair(left, right);
+}
+
+/** Returns the left element of a pair. */
+SyxV *syx_builtin_car(Syx_Env *env, SyxV *arguments) {
+  SyxV *list = syxv_list_next_safe(&arguments);
+  if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Pair expected as car argument", env);
+  return list->pair.left;
+}
+
+/** Returns the right element of a pair. */
+SyxV *syx_builtin_cdr(Syx_Env *env, SyxV *arguments) {
+  SyxV *list = syxv_list_next_safe(&arguments);
+  if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Pair expected as car argument", env);
+  return list->pair.right;
 }
 
 // Expr_Value expr__builtin_arithmetic_sum_upgrade_real(Expr_Env *env, Expr_Arguments arguments, expr_int_t integer_value) {
@@ -56,6 +70,8 @@ SyxV *syx_builtin_cons(Syx_Env *env, SyxV *arguments) {
 void syx_env_define_builtins(Syx_Env *env) {
   /** Builtins */
   syx_env_define_cstr(env, "cons", make_syxv_builtin(NULL, syx_builtin_cons));
+  syx_env_define_cstr(env, "car", make_syxv_builtin(NULL, syx_builtin_car));
+  syx_env_define_cstr(env, "cdr", make_syxv_builtin(NULL, syx_builtin_cdr));
   // expr_env_put_symbol(env, "+", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_arithmetic_sum});
   // expr_env_put_symbol(env, "-", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_arithmetic_sub});
   // expr_env_put_symbol(env, "*", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_arithmetic_mul});
