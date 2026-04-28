@@ -41,16 +41,13 @@ int run(Syx_Env *env, char *source_cstr) {
   rc_release(input);
   SyxV *quit = syx_env_lookup_get(env, SYXV_EXIT_QUIT_STORAGE);
   if (!quit) return -1;
-  quit = syx_convert_to_integer(env, quit);
-  if (!quit) return -1;
-  if (quit->integer < 0) return -1;
-  return quit->integer;
+  return syx_convert_to_integer_v(env, quit);
 }
 
 SyxV *eval_quit(Syx_Env *env, SyxV *arguments) {
   SyxV *result = syxv_list_next(&arguments);
   if (result->kind == SYXV_KIND_NIL) result = make_syxv_integer(0);
-  syx_env_define(syx_env_global(env), SYXV_EXIT_QUIT_STORAGE, result);
+  syx_env_define_cstr(syx_env_global(env), SYXV_EXIT_QUIT_STORAGE, result);
   return NULL;
 }
 
@@ -72,12 +69,12 @@ int main(int argc, char **argv) {
   argc = flag_rest_argc();
   argv = flag_rest_argv();
 
-  Syx_Env *env = rc_acquire(make_global_syx_env());
-  syx_env_define(env, "quit", make_syxv_builtin("quit", eval_quit));
+  Syx_Env *global_env = rc_acquire(make_global_syx_env());
+  syx_env_define_cstr(global_env, "quit", make_syxv_builtin("quit", eval_quit));
 
   if (*command) {
-    int result = run(env, *command);
-    rc_release(env);
+    int result = run(global_env, *command);
+    rc_release(global_env);
     return result >= 0 ? result : 0;
   }
 
@@ -85,11 +82,11 @@ int main(int argc, char **argv) {
   char *line_ptr;
   while ((line_ptr = readline("> ")) != NULL) {
     if (*line_ptr) add_history(line_ptr);
-    int result = run(env, line_ptr);
+    int result = run(global_env, line_ptr);
     free(line_ptr);
     if (result >= 0) return result;
   }
-  rc_release(env);
+  rc_release(global_env);
 
   return 0;
 }

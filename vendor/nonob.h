@@ -22,7 +22,7 @@ struct Context {
   Jim cdb_jim;
   void (*usage)(FILE *stream);
   bool flag_help;
-  bool flag_cdb;
+  bool flag_ccjson;
   struct ContextFlags flags;
   int argc;
   char **argv;
@@ -69,7 +69,7 @@ char *get_exe_path() {
 void initialize_context() {
   ctx.root = dirname(get_exe_path());
 
-  flag_bool_var(&ctx.flag_cdb, "cdb", false, "Creates compile_commands.json");
+  flag_bool_var(&ctx.flag_ccjson, "ccjson", false, "Creates compile_commands.json");
   flag_bool_var(&ctx.flag_help, "help", false, "Print this help to stdout and exit with 0");
 }
 
@@ -86,11 +86,11 @@ void flags_parse() {
   ctx.argc = flag_rest_argc();
   ctx.argv = flag_rest_argv();
 
-  if (ctx.flag_cdb) jim_array_begin(&ctx.cdb_jim);
+  if (ctx.flag_ccjson) jim_array_begin(&ctx.cdb_jim);
 }
 
 void deinitialize_context() {
-  if (ctx.flag_cdb) {
+  if (ctx.flag_ccjson) {
     jim_array_end(&ctx.cdb_jim);
     nob_write_entire_file(
         temp_sprintf("%s/compile_commands.json", ctx.root),
@@ -106,7 +106,7 @@ void default_usage(FILE *stream) {
 }
 
 void append_cmd_to_cdb() {
-  if (!ctx.flag_cdb) return;
+  if (!ctx.flag_ccjson) return;
   jim_object_begin(&ctx.cdb_jim);
 
   /** The working directory of the compilation. All paths specified in the

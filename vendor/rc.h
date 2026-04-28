@@ -40,7 +40,7 @@ void *rc__acquire(void *data);
 void *rc__move(void *data);
 #define rc_move(data) (__typeof__(data))rc__move((data))
 
-void rc_release(void *data);
+void rc_release(const void *data);
 
 ptrdiff_t rc_count(void *data);
 
@@ -108,7 +108,7 @@ void *rc__move(void *data)
     return data;
 }
 
-void rc_release(void *data)
+void rc_release(const void *data)
 {
     Rc *rc = (Rc*)data - 1;
     rc->count -= 1;

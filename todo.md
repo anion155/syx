@@ -1,11 +1,8 @@
+
 For a minimal but usable Lisp you need:
 Special forms:
-
- <!-- - set! — mutate an existing binding (vs define which creates) -->
- <!-- - cond — can be a macro over if but painful without it -->
-<!-- - and / or — short-circuiting, must be special forms not builtins -->
-
-- let / let\* — can be sugar over lambda but very annoying without
+- cond — can be a macro over if but painful without it
+- and / or — short-circuiting, must be special forms not builtins
 
 Builtins:
 

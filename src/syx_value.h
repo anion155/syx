@@ -27,7 +27,7 @@ typedef struct Syx_Closure {
   char *name;
   Syx_Env *env;
   SyxV *defines;
-  SyxV *body;
+  SyxV *forms;
 } Syx_Closure;
 
 void fprint__syx_closure(FILE *f, Syx_Closure *closure, size_t indent);
@@ -139,7 +139,7 @@ void syxv_destructor(void *data) {
       if (syxv->closure.name) free(syxv->closure.name);
       rc_release(syxv->closure.env);
       rc_release(syxv->closure.defines);
-      rc_release(syxv->closure.body);
+      rc_release(syxv->closure.forms);
     } break;
   }
 }
@@ -190,17 +190,17 @@ SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval) {
   return value;
 }
 
-SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env) {
+SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *forms, Syx_Env *env) {
   SyxV *value = make_syxv(SYXV_KIND_CLOSURE);
   value->closure.name = name ? strdup(name) : NULL;
   value->closure.defines = rc_acquire(defines);
-  value->closure.body = rc_acquire(body);
+  value->closure.forms = rc_acquire(forms);
   value->closure.env = rc_acquire(env);
   return value;
 }
 
 SyxV *syxv_list_next(SyxV **list) {
-  if (!list) return NULL;
+  if (!(*list)) return make_syxv_nil();
   if ((*list)->kind != SYXV_KIND_PAIR) {
     SyxV *value = (*list);
     (*list) = NULL;
@@ -244,7 +244,7 @@ void fprint__syx_closure(FILE *f, Syx_Closure *closure, size_t indent) {
   // fprintf(f, "\n");
   // fprintf(f, "%*c", (int)indent + 2 + 8, ' ');
   fprintf(f, " ");
-  fprint_syxv(f, closure->body);
+  fprint_syxv(f, closure->forms);
   fprintf(f, ")");
 }
 

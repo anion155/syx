@@ -29,6 +29,7 @@ SyxV *syx_special_form_begin(Syx_Env *env, SyxV *arguments) {
 /** Creates a closure that captures current environment. */
 SyxV *syx_special_form_lambda(Syx_Env *env, SyxV *arguments) {
   SyxV *defines = syxv_list_next(&arguments);
+  if (defines->kind == SYXV_KIND_NIL) RUNTIME_ERROR("malformed lambda arguments definitions expected", env);
   SyxV **rest_define = NULL;
   syxv_list_for_each(define, defines, &rest_define) {
     if ((*define)->kind == SYXV_KIND_SYMBOL) continue;
@@ -44,9 +45,9 @@ SyxV *syx_special_form_lambda(Syx_Env *env, SyxV *arguments) {
   if ((*rest_define)->kind != SYXV_KIND_NIL) {
     if ((*rest_define)->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("malformed lambda rest argument", env);
   }
-  SyxV *body = arguments;
-  if (body->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed lambda body", env);
-  return make_syxv_closure(NULL, defines, body, env);
+  SyxV *forms = arguments;
+  if (forms->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed lambda body", env);
+  return make_syxv_closure(NULL, defines, forms, env);
 }
 
 /** Binds a name in the current environment. */
@@ -57,20 +58,21 @@ SyxV *syx_special_form_define(Syx_Env *env, SyxV *arguments) {
     SyxV *pair = rc_acquire(make_syxv_pair(name_s->pair.right, arguments));
     value = syx_special_form_lambda(env, pair);
     rc_release(pair);
+  } else if (name_s->kind != SYXV_KIND_SYMBOL) {
+    RUNTIME_ERROR("Symbol expression expected as name", env);
   } else {
-    if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", env);
     value = syx_eval(env, syxv_list_next(&arguments));
   }
-  syx_env_define(env, name_s->symbol.name, value);
+  syx_env_define(env, &name_s->symbol, value);
   return make_syxv_nil();
 }
 
 /** Mutate an existing binding or creates new one in current environment. */
-SyxV *syx_special_form_set_excl(Syx_Env *env, SyxV *arguments) {
+SyxV *syx_special_form_set(Syx_Env *env, SyxV *arguments) {
   SyxV *name_s = syxv_list_next(&arguments);
   if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", env);
   SyxV *value = syx_eval(env, syxv_list_next(&arguments));
-  syx_env_set(env, name_s->symbol.name, value);
+  syx_env_set(env, &name_s->symbol, value);
   return make_syxv_nil();
 }
 
@@ -78,6 +80,7 @@ SyxV *syx_special_form_set_excl(Syx_Env *env, SyxV *arguments) {
 SyxV *syx_special_form_let(Syx_Env *env, SyxV *arguments) {
   Syx_Env *body_env = rc_acquire(make_syx_env(env, "let"));
   SyxV *bindings = syxv_list_next(&arguments);
+  if (bindings->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("List of definitions expected", env);
   SyxV **last_binding = NULL;
   syxv_list_for_each(binding, bindings, &last_binding) {
     if ((*binding)->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed let definition, list expected", env);
@@ -94,118 +97,84 @@ SyxV *syx_special_form_let(Syx_Env *env, SyxV *arguments) {
   syxv_list_for_each(binding, bindings) {
     SyxV *name = (*binding)->pair.left;
     SyxV *value = (*binding)->pair.right;
-    syx_env_define(body_env, name->symbol.name, value);
+    syx_env_define(body_env, &name->symbol, value);
   }
   return syx_eval_forms_list(body_env, arguments);
 }
 
-// /** Evaluates left to right, returns first falsy value or last value if all truthy */
-// SyxV *syx_special_form_and(Syx_Env *env, SyxVs *arguments) {
-//   da_foreach(SyxV *, argument, arguments) {
-//     SyxV *evaluated = rc_acquire(syx_eval(env, *argument));
-//     SyxV *cond = rc_acquire(syx_convert_to_bool(env, evaluated));
-//     if (!cond->boolean) {
-//       rc_release(cond);
-//       return evaluated;
-//     }
-//     rc_release(cond);
-//     rc_release(*argument);
-//     *argument = evaluated;
-//   }
-//   return arguments->items[arguments->count - 1];
-// }
+bool syx_special_form_and_reduce(Syx_Env *env, SyxV *evaluated) {
+  return !syx_convert_to_bool_v(env, evaluated);
+}
 
-// /** Evaluates left to right, returns first truthy value or last value if all falsy */
-// SyxV *syx_special_form_or(Syx_Env *env, SyxVs *arguments) {
-//   da_foreach(SyxV *, argument, arguments) {
-//     SyxV *evaluated = rc_acquire(syx_eval(env, *argument));
-//     SyxV *cond = rc_acquire(syx_convert_to_bool(env, evaluated));
-//     if (cond->boolean) {
-//       rc_release(cond);
-//       return evaluated;
-//     }
-//     rc_release(cond);
-//     rc_release(*argument);
-//     *argument = evaluated;
-//   }
-//   return arguments->items[arguments->count - 1];
-// }
+/** Evaluates left to right, returns first falsy value or last value if all truthy */
+SyxV *syx_special_form_and(Syx_Env *env, SyxV *arguments) {
+  return syx_eval_forms_list(env, arguments, .should_stop = syx_special_form_and_reduce, .default_result = make_syxv_nil());
+}
 
-// /** if - Evaluates condition then evaluates only one branch */
-// SyxV *syx_special_form_if(Syx_Env *env, SyxVs *arguments) {
-//   SYX_EVAL_ARGUMENTS_CLAMP(env, 2, 3);
-//   SyxV *cond_eval = rc_acquire(syx_eval(env, arguments->items[0]));
-//   SyxV *cond_bool = rc_acquire(syx_convert_to_bool(env, cond_eval));
-//   rc_release(cond_eval);
-//   if (!cond_bool) RUNTIME_ERROR("illegal if condition value", env);
-//   SyxV *then_body = arguments->items[1];
-//   SyxV *else_body = arguments->items[2];
-//   if (cond_bool->boolean) {
-//     rc_release(cond_bool);
-//     return syx_eval(env, then_body);
-//   } else {
-//     rc_release(cond_bool);
-//     return syx_eval(env, else_body);
-//   }
-// }
+bool syx_special_form_or_reduce(Syx_Env *env, SyxV *evaluated) {
+  return syx_convert_to_bool_v(env, evaluated);
+}
 
-// /** Multi-branch conditional */
-// SyxV *syx_special_form_cond(Syx_Env *env, SyxVs *arguments) {
-//   da_foreach(SyxV *, argument, arguments) {
-//     if ((*argument)->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Pair expected as every argument of cond", env);
-//     SyxV *cond_uneval = (*argument)->pair.left;
-//     SyxV *cond_evaluated;
-//     if (cond_uneval->kind == SYXV_KIND_SYMBOL && strcmp(cond_uneval->symbol.name, "else") == 0) {
-//       cond_evaluated = rc_acquire(make_syxv_bool(true));
-//       goto evaluate_cdr;
-//     }
-//     cond_evaluated = rc_acquire(syx_eval(env, cond_uneval));
-//     SyxV *cond_bool = rc_acquire(syx_convert_to_bool(env, cond_evaluated));
-//     if (!cond_bool->boolean) {
-//       rc_release(cond_evaluated);
-//       rc_release(cond_bool);
-//       continue;
-//     }
-//     rc_release(cond_bool);
-//   evaluate_cdr:
-//     SyxV *value = (*argument)->pair.right;
-//     if (value->kind == SYXV_KIND_NIL) return rc_move(cond_evaluated);
-//     if (value->kind != SYXV_KIND_PAIR) {
-//       rc_release(cond_evaluated);
-//       return syx_eval(env, value);
-//     }
-//     if (value->pair.left->kind == SYXV_KIND_SYMBOL && strcmp(value->pair.left->symbol.name, "=>") == 0) {
-//       SyxV *right = value->pair.right;
-//       if (right->kind == SYXV_KIND_PAIR && right->pair.right->kind == SYXV_KIND_NIL) {
-//         SyxV *call = rc_acquire(make_syxv_list(right->pair.left, cond_evaluated, NULL));
-//         SyxV *result = rc_acquire(syx_eval(env, call));
-//         rc_release(call);
-//         rc_release(cond_evaluated);
-//         return rc_move(result);
-//       }
-//     }
-//     rc_release(cond_evaluated);
-//     SyxVs *list = rc_acquire(make_syxvs(env, value));
-//     syxvs_eval(env, list);
-//     SyxV *result = rc_acquire(list->items[list->count - 1]);
-//     rc_release(list);
-//     return rc_move(result);
-//   }
-//   return make_syxv_nil();
-// }
+/** Evaluates left to right, returns first truthy value or last value if all falsy */
+SyxV *syx_special_form_or(Syx_Env *env, SyxV *arguments) {
+  return syx_eval_forms_list(env, arguments, .should_stop = syx_special_form_or_reduce, .default_result = make_syxv_nil());
+}
+
+/** if - Evaluates condition then evaluates only one branch */
+SyxV *syx_special_form_if(Syx_Env *env, SyxV *arguments) {
+  SyxV *result = rc_acquire(syx_eval(env, syxv_list_next(&arguments)));
+  bool cond = syx_convert_to_bool_v(env, result);
+  SyxV *then_body = syxv_list_next(&arguments);
+  SyxV *else_body = syxv_list_next(&arguments);
+  if (cond) return syx_eval(env, then_body);
+  else return syx_eval(env, else_body);
+}
+
+/** Multi-branch conditional */
+SyxV *syx_special_form_cond(Syx_Env *env, SyxV *arguments) {
+  SyxV *result = NULL;
+  SyxV **last_branch = NULL;
+  syxv_list_for_each(branch, arguments, &last_branch) {
+    if ((*branch)->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed cond branch, list expected", env);
+    if ((*branch)->pair.left->kind == SYXV_KIND_SYMBOL && strcmp((*branch)->pair.left->symbol.name, "else") == 0) {
+      return syx_eval_forms_list(env, (*branch)->pair.right);
+    }
+    if (result) rc_release(result);
+    result = rc_acquire(syx_eval(env, (*branch)->pair.left));
+    bool cond = syx_convert_to_bool_v(env, result);
+    if (!cond) continue;
+    SyxV *right = (*branch)->pair.right;
+    if (right->kind == SYXV_KIND_NIL) return rc_move(result);
+    if (right->pair.left->kind == SYXV_KIND_SYMBOL && strcmp(right->pair.left->symbol.name, "=>") == 0) {
+      SyxV *apply_right = right->pair.right;
+      if (apply_right->kind == SYXV_KIND_PAIR && apply_right->pair.right->kind == SYXV_KIND_NIL) {
+        SyxV *call = rc_acquire(make_syxv_list(apply_right->pair.left, result, NULL));
+        SyxV *call_result = rc_acquire(syx_eval(env, call));
+        rc_release(call);
+        rc_release(result);
+        return rc_move(call_result);
+      }
+    }
+    rc_release(result);
+    return syx_eval_forms_list(env, right);
+  }
+  if ((*last_branch)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("malformed cond branches list", env);
+  if (result == NULL) RUNTIME_ERROR("cond empty branches list", env);
+  return result;
+}
 
 void syx_env_define_special_forms(Syx_Env *env) {
   /** Special forms */
-  syx_env_define(env, "quote", make_syxv_specialf(NULL, syx_special_form_quote));
-  syx_env_define(env, "begin", make_syxv_specialf(NULL, syx_special_form_begin));
-  syx_env_define(env, "lambda", make_syxv_specialf(NULL, syx_special_form_lambda));
-  syx_env_define(env, "define", make_syxv_specialf(NULL, syx_special_form_define));
-  syx_env_define(env, "set!", make_syxv_specialf(NULL, syx_special_form_set_excl));
-  syx_env_define(env, "let", make_syxv_specialf(NULL, syx_special_form_let));
-  // syx_env_define(env, "and", make_syxv_specialf(NULL, syx_special_form_and));
-  // syx_env_define(env, "or", make_syxv_specialf(NULL, syx_special_form_or));
-  // syx_env_define(env, "if", make_syxv_specialf(NULL, syx_special_form_if));
-  // syx_env_define(env, "cond", make_syxv_specialf(NULL, syx_special_form_cond));
+  syx_env_define_cstr(env, "quote", make_syxv_specialf(NULL, syx_special_form_quote));
+  syx_env_define_cstr(env, "begin", make_syxv_specialf(NULL, syx_special_form_begin));
+  syx_env_define_cstr(env, "lambda", make_syxv_specialf(NULL, syx_special_form_lambda));
+  syx_env_define_cstr(env, "define", make_syxv_specialf(NULL, syx_special_form_define));
+  syx_env_define_cstr(env, "set", make_syxv_specialf(NULL, syx_special_form_set));
+  syx_env_define_cstr(env, "let", make_syxv_specialf(NULL, syx_special_form_let));
+  syx_env_define_cstr(env, "and", make_syxv_specialf(NULL, syx_special_form_and));
+  syx_env_define_cstr(env, "or", make_syxv_specialf(NULL, syx_special_form_or));
+  syx_env_define_cstr(env, "if", make_syxv_specialf(NULL, syx_special_form_if));
+  syx_env_define_cstr(env, "cond", make_syxv_specialf(NULL, syx_special_form_cond));
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL

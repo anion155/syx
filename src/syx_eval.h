@@ -23,8 +23,10 @@ Syx_Env *make_syx_env(Syx_Env *parent, const char *description);
 Syx_Env *syx_env_global(Syx_Env *env);
 SyxV **syx_env_lookup(Syx_Env *env, const char *name);
 SyxV *syx_env_lookup_get(Syx_Env *env, const char *name);
-void syx_env_define(Syx_Env *env, const char *name, SyxV *value);
-void syx_env_set(Syx_Env *env, const char *name, SyxV *value);
+void syx_env_define(Syx_Env *env, SExpr_Symbol *symbol, SyxV *value);
+void syx_env_define_cstr(Syx_Env *env, const char *name, SyxV *value);
+void syx_env_set(Syx_Env *env, SExpr_Symbol *symbol, SyxV *value);
+void syx_env_set_cstr(Syx_Env *env, const char *name, SyxV *value);
 Syx_Env *make_global_syx_env();
 
 SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments);
@@ -32,11 +34,22 @@ SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments);
 SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments);
 SyxV *syx_eval(Syx_Env *env, SyxV *input);
 SyxV *syx_eval_with_release(Syx_Env *env, SyxV *input);
-SyxV *syx_eval_forms_list(Syx_Env *env, SyxV *forms_list);
 
+typedef struct {
+  bool (*should_stop)(Syx_Env *env, SyxV *evaluated);
+  SyxV *default_result;
+} Syx_Eval_Forms_List_Opt;
+
+SyxV *syx__eval_forms_list_opt(Syx_Env *env, SyxV *forms_list, Syx_Eval_Forms_List_Opt opt);
+#define syx_eval_forms_list(env, forms_list, ...) syx__eval_forms_list_opt((env), (forms_list), (Syx_Eval_Forms_List_Opt){__VA_ARGS__})
+
+bool syx_convert_to_bool_v(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value);
+sexpr_int_t syx_convert_to_integer_v(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value);
+sexpr_real_t syx_convert_to_real_v(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_real(Syx_Env *env, SyxV *value);
+String_View syx_convert_to_string_v(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value);
 
 #endif // SYX_EVAL_H
@@ -68,7 +81,10 @@ SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value);
 
 void syx_env_destructor(void *data) {
   Syx_Env *env = data;
-  ht_foreach(symbol, &env->symbols) rc_release(*symbol);
+  ht_foreach(symbol, &env->symbols) {
+    rc_release(ht_key(&env->symbols, symbol));
+    rc_release(*symbol);
+  }
   ht_free(&env->symbols);
   if (env->parent) rc_release(env->parent);
   if (env->description) free(env->description);
@@ -138,15 +154,31 @@ void syxv_update_name(SyxV *value, const char *name) {
   }
 }
 
-void syx_env_define(Syx_Env *env, const char *name, SyxV *value) {
+void syx_env_define(Syx_Env *env, SExpr_Symbol *symbol, SyxV *value) {
+  rc_acquire(symbol->name);
+  ensure_syxv_redefinable(env, symbol->name);
+  *ht_find_or_put(&env->symbols, symbol->name) = rc_acquire(value);
+  syxv_update_name(value, symbol->name);
+}
+
+void syx_env_define_cstr(Syx_Env *env, const char *name, SyxV *value) {
+  SyxV **item = ht_find(&env->symbols, name);
+  if (item == NULL) name = rc_manage_strdup(name);
   ensure_syxv_redefinable(env, name);
   *ht_find_or_put(&env->symbols, name) = rc_acquire(value);
   syxv_update_name(value, name);
 }
 
-void syx_env_set(Syx_Env *env, const char *name, SyxV *value) {
+void syx_env_set(Syx_Env *env, SExpr_Symbol *symbol, SyxV *value) {
+  rc_acquire(symbol->name);
+  SyxV **item = ensure_syxv_redefinable(env, symbol->name);
+  if (item == NULL) item = ht_put(&env->symbols, symbol->name);
+  *item = rc_acquire(value);
+}
+
+void syx_env_set_cstr(Syx_Env *env, const char *name, SyxV *value) {
   SyxV **item = ensure_syxv_redefinable(env, name);
-  if (item == NULL) item = ht_put(&env->symbols, name);
+  if (item == NULL) item = ht_put(&env->symbols, rc_manage_strdup(name));
   *item = rc_acquire(value);
 }
 
@@ -183,29 +215,30 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
   SyxV *it = arguments;
   SyxV **last_name = NULL;
   syxv_list_for_each(name_v, closure->defines, &last_name) {
-    const char *name;
+    SExpr_Symbol *symbol;
     if ((*name_v)->kind == SYXV_KIND_PAIR) {
-      name = (*name_v)->pair.left->symbol.name;
+      symbol = &(*name_v)->pair.left->symbol;
     } else {
-      name = (*name_v)->symbol.name;
+      symbol = &(*name_v)->symbol;
     }
   continue_same_param:
-    if (ht_find(&call_env->symbols, name)) continue;
+    if (ht_find(&call_env->symbols, symbol->name)) continue;
     if (it->kind == SYXV_KIND_NIL) TODO("Implement smaller arguemnts passed or currying");
     if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", env);
     if (it->pair.left->kind == SYXV_KIND_SYMBOL && it->pair.left->symbol.name[0] == ':') {
+      TODO("redone named param binding");
       const char *named_param = it->pair.left->symbol.name + 1;
       it = it->pair.right;
       if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", env);
-      syx_env_define(call_env, named_param, syx_eval(env, it->pair.left));
+      syx_env_define_cstr(call_env, named_param, syx_eval(env, it->pair.left));
       it = it->pair.right;
       goto continue_same_param;
     }
-    syx_env_define(call_env, name, syx_eval(env, it->pair.left));
+    syx_env_define(call_env, symbol, syx_eval(env, it->pair.left));
     it = it->pair.right;
   }
   if ((*last_name)->kind != SYXV_KIND_NIL) {
-    const char *name = (*last_name)->symbol.name;
+    SExpr_Symbol *symbol = &(*last_name)->symbol;
     SyxV *rest = it;
     SyxV **last_argument = NULL;
     syxv_list_for_each(argument, rest, &last_argument) {
@@ -214,16 +247,16 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
     if ((*last_argument)->kind != SYXV_KIND_NIL) {
       *last_argument = syx_eval_with_release(env, *last_argument);
     }
-    syx_env_define(call_env, name, rest);
+    syx_env_define(call_env, symbol, rest);
   }
   syxv_list_for_each(name_v, closure->defines) {
     if ((*name_v)->kind != SYXV_KIND_PAIR) continue;
     const char *name = (*name_v)->pair.left->symbol.name;
-    SyxV **value = syx_env_lookup(call_env, name);
+    SyxV **value = ht_find(&call_env->symbols, name);
     if (value != NULL) continue;
     (*value) = rc_acquire(syx_eval(env, (*name_v)->pair.right));
   }
-  SyxV *result = syx_eval_forms_list(call_env, closure->body);
+  SyxV *result = syx_eval_forms_list(call_env, closure->forms);
   rc_release(call_env);
   return result;
 }
@@ -264,64 +297,105 @@ SyxV *syx_eval_with_release(Syx_Env *env, SyxV *value) {
   return value;
 }
 
-SyxV *syx_eval_forms_list(Syx_Env *env, SyxV *forms_list) {
+SyxV *syx__eval_forms_list_opt(Syx_Env *env, SyxV *forms_list, Syx_Eval_Forms_List_Opt opt) {
   SyxV *result = NULL;
+  if (opt.default_result) result = rc_acquire(opt.default_result);
   SyxV **last_form = NULL;
   syxv_list_for_each(form, forms_list, &last_form) {
     if (result) rc_release(result);
-    result = syx_eval(env, *form);
-    // TODO: implement return by checking if result is (return <value>)
+    result = rc_acquire(syx_eval(env, *form));
+    if (opt.should_stop != NULL && opt.should_stop(env, result)) return rc_move(result);
   }
   if ((*last_form)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("maulformed forms list", env);
   if (result == NULL) RUNTIME_ERROR("empty forms list", env);
-  return result;
+  return rc_move(result);
+}
+
+bool syx_convert_to_bool_v(Syx_Env *env, SyxV *value) {
+  switch (value->kind) {
+    case SYXV_KIND_NIL: return (false);
+    case SYXV_KIND_SYMBOL: return (true);
+    case SYXV_KIND_PAIR: return (true);
+    case SYXV_KIND_BOOL: return value->boolean;
+    case SYXV_KIND_INTEGER: return ((sexpr_bool_t)value->integer);
+    case SYXV_KIND_REAL: return ((sexpr_bool_t)value->real);
+    case SYXV_KIND_STRING: return (*value->string != 0);
+    case SYXV_KIND_QUOTE: return syx_convert_to_bool_v(env, value->quote);
+    case SYXV_KIND_SPECIALF: return (true);
+    case SYXV_KIND_BUILTIN: return (true);
+    case SYXV_KIND_CLOSURE: return (true);
+  }
 }
 
 SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value) {
-  UNUSED(env);
+  if (value->kind == SYXV_KIND_BOOL) return value;
+  return make_syxv_bool(syx_convert_to_bool_v(env, value));
+}
+
+sexpr_int_t syx_convert_to_integer_v(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
-    case SYXV_KIND_NIL: return make_syxv_bool(false);
-    case SYXV_KIND_SYMBOL: return make_syxv_bool(true);
-    case SYXV_KIND_PAIR: return make_syxv_bool(true);
-    case SYXV_KIND_BOOL: return value;
-    case SYXV_KIND_INTEGER: return make_syxv_bool((sexpr_bool_t)value->integer);
-    case SYXV_KIND_REAL: return make_syxv_bool((sexpr_bool_t)value->real);
-    case SYXV_KIND_STRING: return make_syxv_bool(*value->string != 0);
-    case SYXV_KIND_QUOTE: return syx_convert_to_bool(env, value->quote);
-    case SYXV_KIND_SPECIALF: return make_syxv_bool(true);
-    case SYXV_KIND_BUILTIN: return make_syxv_bool(true);
-    case SYXV_KIND_CLOSURE: return make_syxv_bool(true);
+    case SYXV_KIND_NIL: return 0;
+    case SYXV_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to integer number");
+    case SYXV_KIND_PAIR: UNREACHABLE("illegal conversion of pair to integer number");
+    case SYXV_KIND_BOOL: return value->boolean ? 1 : 0;
+    case SYXV_KIND_INTEGER: return value->integer;
+    case SYXV_KIND_REAL: return (sexpr_int_t)value->real;
+    case SYXV_KIND_STRING: {
+      String_View sv = sv_from_cstr(value->string);
+      sexpr_int_t result = 0;
+      if (!parse_integer(&sv, &result)) UNREACHABLE("illegal conversion of string to integer number");
+      return result;
+    }
+    case SYXV_KIND_QUOTE: return syx_convert_to_integer_v(env, value->quote);
+    case SYXV_KIND_SPECIALF: UNREACHABLE("illegal conversion of special form to integer number");
+    case SYXV_KIND_BUILTIN: UNREACHABLE("illegal conversion of builtin function to integer number");
+    case SYXV_KIND_CLOSURE: UNREACHABLE("illegal conversion of closure to integer number");
   }
 }
 
 SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
-    case SYXV_KIND_NIL: return make_syxv_integer(0);
     case SYXV_KIND_SYMBOL: return NULL;
     case SYXV_KIND_PAIR: return NULL;
-    case SYXV_KIND_BOOL: return make_syxv_integer(value->boolean ? 1 : 0);
     case SYXV_KIND_INTEGER: return value;
-    case SYXV_KIND_REAL: return make_syxv_integer((sexpr_int_t)value->real);
     case SYXV_KIND_STRING: {
       String_View sv = sv_from_cstr(value->string);
       sexpr_int_t result = 0;
       if (!parse_integer(&sv, &result)) return NULL;
       return make_syxv_integer(result);
     }
-    case SYXV_KIND_QUOTE: return syx_convert_to_integer(env, value->quote);
     case SYXV_KIND_SPECIALF: return NULL;
     case SYXV_KIND_BUILTIN: return NULL;
     case SYXV_KIND_CLOSURE: return NULL;
+    default: return make_syxv_integer(syx_convert_to_integer_v(env, value));
+  }
+}
+
+sexpr_real_t syx_convert_to_real_v(Syx_Env *env, SyxV *value) {
+  switch (value->kind) {
+    case SYXV_KIND_NIL: return 0.0;
+    case SYXV_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to real number");
+    case SYXV_KIND_PAIR: UNREACHABLE("illegal conversion of pair to real number");
+    case SYXV_KIND_BOOL: return value->boolean ? 1.0 : 0.0;
+    case SYXV_KIND_INTEGER: return (sexpr_real_t)value->integer;
+    case SYXV_KIND_REAL: return value->real;
+    case SYXV_KIND_STRING: {
+      String_View sv = sv_from_cstr(value->string);
+      sexpr_real_t result = 0;
+      if (!parse_real(&sv, &result)) UNREACHABLE("illegal conversion of string to real number");
+      return result;
+    }
+    case SYXV_KIND_QUOTE: return syx_convert_to_real_v(env, value->quote);
+    case SYXV_KIND_SPECIALF: UNREACHABLE("illegal conversion of special form to real number");
+    case SYXV_KIND_BUILTIN: UNREACHABLE("illegal conversion of builtin function to real number");
+    case SYXV_KIND_CLOSURE: UNREACHABLE("illegal conversion of closure to real number");
   }
 }
 
 SyxV *syx_convert_to_real(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
-    case SYXV_KIND_NIL: return make_syxv_real(0.0);
     case SYXV_KIND_SYMBOL: return NULL;
     case SYXV_KIND_PAIR: return NULL;
-    case SYXV_KIND_BOOL: return make_syxv_real(value->boolean ? 1.0 : 0.0);
-    case SYXV_KIND_INTEGER: return make_syxv_real((sexpr_real_t)value->integer);
     case SYXV_KIND_REAL: return value;
     case SYXV_KIND_STRING: {
       String_View sv = sv_from_cstr(value->string);
@@ -329,26 +403,38 @@ SyxV *syx_convert_to_real(Syx_Env *env, SyxV *value) {
       if (!parse_real(&sv, &result)) return NULL;
       return make_syxv_real(result);
     }
-    case SYXV_KIND_QUOTE: return syx_convert_to_real(env, value->quote);
     case SYXV_KIND_SPECIALF: return NULL;
     case SYXV_KIND_BUILTIN: return NULL;
     case SYXV_KIND_CLOSURE: return NULL;
+    default: return make_syxv_real(syx_convert_to_real_v(env, value));
+  }
+}
+
+String_View syx_convert_to_string_v(Syx_Env *env, SyxV *value) {
+  switch (value->kind) {
+    case SYXV_KIND_NIL: return sv_from_cstr("nil");
+    case SYXV_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to string");
+    case SYXV_KIND_PAIR: UNREACHABLE("illegal conversion of pair to string");
+    case SYXV_KIND_BOOL: return sv_from_cstr(value->boolean ? "true" : "false");
+    case SYXV_KIND_INTEGER: return stringify_int(value->integer);
+    case SYXV_KIND_REAL: return stringify_real(value->integer);
+    case SYXV_KIND_STRING: return sv_from_cstr(value->string);
+    case SYXV_KIND_QUOTE: return syx_convert_to_string_v(env, value->quote);
+    case SYXV_KIND_SPECIALF: UNREACHABLE("illegal conversion of special form to string");
+    case SYXV_KIND_BUILTIN: UNREACHABLE("illegal conversion of builtin function to string");
+    case SYXV_KIND_CLOSURE: UNREACHABLE("illegal conversion of closure to string");
   }
 }
 
 SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
-    case SYXV_KIND_NIL: return make_syxv_string_cstr("nil");
     case SYXV_KIND_SYMBOL: return NULL;
     case SYXV_KIND_PAIR: return NULL;
-    case SYXV_KIND_BOOL: return make_syxv_string_cstr(value->boolean ? "true" : "false");
-    case SYXV_KIND_INTEGER: return make_syxv_string(stringify_int(value->integer));
-    case SYXV_KIND_REAL: return make_syxv_string(stringify_real(value->integer));
     case SYXV_KIND_STRING: return value;
-    case SYXV_KIND_QUOTE: return syx_convert_to_string(env, value->quote);
     case SYXV_KIND_SPECIALF: return NULL;
     case SYXV_KIND_BUILTIN: return NULL;
     case SYXV_KIND_CLOSURE: return NULL;
+    default: return make_syxv_string(syx_convert_to_string_v(env, value));
   }
 }
 

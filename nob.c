@@ -8,8 +8,9 @@ struct ContextPaths {
 };
 
 struct ContextFlags {
-  bool run;
   bool debug;
+  bool run;
+  bool clear;
   bool watch;
 };
 
@@ -29,14 +30,20 @@ int main(int argc, char **argv) {
   ctx.paths.build = temp_sprintf("%s/build", ctx.root);
   ctx.paths.output = temp_sprintf("%s/syx", ctx.paths.build);
 
-  flag_bool_var(&ctx.flags.run, "run", false, "Run result, when provided arguments after '--'");
   flag_bool_var(&ctx.flags.debug, "g", false, "Build with debugger support");
-  flag_bool_var(&ctx.flags.watch, "w", false, "Watch for changes and rebuild");
+  flag_bool_var(&ctx.flags.run, "r", false, "Run result, when provided arguments after '--'");
+  flag_bool_var(&ctx.flags.clear, "c", false, "Clear terminal");
+  flag_bool_var(&ctx.flags.watch, "w", false, "Re run app on input files changes, imply '-r' and '-c'");
   flags_parse();
 
   if (ctx.flags.watch) return watch_and_rebuild();
 
   if (!nob_mkdir_if_not_exists(ctx.paths.build)) goto fail;
+
+  if (ctx.flags.clear) {
+    nob_cmd_append(&ctx.cmd, "clear");
+    if (!nob_cmd_run(&ctx.cmd)) goto fail;
+  }
 
   nob_cc(&ctx.cmd);
   nob_cc_flags(&ctx.cmd);
