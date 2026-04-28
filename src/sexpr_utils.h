@@ -1,9 +1,9 @@
 #ifndef SEXPR_UTILS_H
 #define SEXPR_UTILS_H
 
-#include <nob.h>
 #include <ht.h>
 #include <magic.h>
+#include <nob.h>
 
 int islineend(int c);
 int issymbol_special(int c);
@@ -14,7 +14,7 @@ void da_destructor(void *data);
 typedef bool sexpr_bool_t;
 typedef long long int sexpr_int_t;
 typedef long double sexpr_real_t;
-typedef char * sexpr_string_t;
+typedef char *sexpr_string_t;
 
 bool parse_integer(String_View *sv, sexpr_int_t *result);
 bool parse_fractions(String_View *sv, sexpr_real_t *result);
@@ -31,7 +31,7 @@ size_t real_fraction_width(sexpr_real_t value);
 size_t real__precision(sexpr_real_t value, ssize_t precision);
 #define real_precision(value, ...) real__precision((value), WITH_DEFAULT(-MAX_REAL_FRACTIONAL_WIDTH, __VA_ARGS__))
 size_t real_width(sexpr_real_t value, size_t precision);
-size_t stringify_real_n(sexpr_real_t value, size_t integer_width, size_t precision, char *string);
+void stringify_real_n(sexpr_real_t value, size_t integer_width, size_t precision, char *string);
 String_View stringify__real(sexpr_real_t value, ssize_t precision);
 #define stringify_real(value, ...) stringify__real((value), WITH_DEFAULT(-MAX_REAL_FRACTIONAL_WIDTH, __VA_ARGS__))
 
@@ -43,12 +43,12 @@ String_View stringify__real(sexpr_real_t value, ssize_t precision);
 int islineend(int c) {
   return (c == '\n' || c == '\r');
 }
+
 int issymbol_special(int c) {
   return (
-       c == '#' || c == '?' || c == '@' || c == '!' || c == '$' || c == '+' || c == '-' || c == '*' || c == '/'
-    || c == '=' || c == '<' || c == '>'
-  );
+      c == '#' || c == '?' || c == '@' || c == '!' || c == '$' || c == '+' || c == '-' || c == '*' || c == '/' || c == '=' || c == '<' || c == '>');
 }
+
 int issymbol(int c) {
   return c == '-' || issymbol_special(c) || isalnum(c);
 }
@@ -58,6 +58,7 @@ struct Nob_Dynamic_Array__Abstract {
   size_t count;
   size_t capacity;
 };
+
 void da_destructor(void *data) {
   struct Nob_Dynamic_Array__Abstract *da = data;
   da_foreach(void *, it, da) rc_release(*it);
@@ -76,10 +77,11 @@ bool parse_integer(String_View *sv, sexpr_int_t *result) {
     if (i >= sv->count) break;
   }
   sv->count -= i;
-  sv->data  += i;
+  sv->data += i;
   if (is_negative) *result *= -1;
   return true;
 }
+
 bool parse_fractions(String_View *sv, sexpr_real_t *result) {
   if (sv->data[0] != '.') return false;
   sv_chop_left(sv, 1);
@@ -91,12 +93,12 @@ bool parse_fractions(String_View *sv, sexpr_real_t *result) {
     exponent *= 10;
     i += 1;
   }
-  if (i == 0) return false;
   sv->count -= i;
-  sv->data  += i;
+  sv->data += i;
   *result = (sexpr_real_t)fractional_part / (sexpr_real_t)exponent;
   return true;
 }
+
 bool parse_real(String_View *sv, sexpr_real_t *result) {
   sexpr_int_t integer_part = 0;
   if (!parse_integer(sv, &integer_part)) return false;
@@ -112,14 +114,19 @@ bool parse_real(String_View *sv, sexpr_real_t *result) {
 
 size_t int_width(sexpr_int_t value) {
   size_t size = 0;
-  for (sexpr_int_t it = value; it != 0; it = it / 10) size += 1;
+  for (sexpr_int_t it = value; it != 0; it = it / 10)
+    size += 1;
   if (value == 0) size = 1;
   else if (value < 0) size += 1;
   return size;
 }
 
 void stringify_int_n(sexpr_int_t value, size_t length, char *string) {
-  if (value < 0) string[0] = '-';
+  if (value < 0) {
+    length -= 1;
+    string[0] = '-';
+    string += 1;
+  }
   for (struct { size_t index; sexpr_int_t it; } s = {0, value}; s.index < length; s.index += 1, s.it /= 10) {
     string[length - s.index - 1] = '0' + (value < 0 ? -(s.it % 10) : s.it % 10);
   }
@@ -134,45 +141,53 @@ String_View stringify_int(sexpr_int_t value) {
 }
 
 size_t real_fraction_width(sexpr_real_t value) {
+  if (value < 0) value *= -1;
   value -= (sexpr_int_t)value;
   size_t width = 0;
-  while (value > REAL_MINIMAL_DIFFERENCE && width < MAX_REAL_FRACTIONAL_WIDTH) {
+  while (width < MAX_REAL_FRACTIONAL_WIDTH) {
+    if (value < REAL_MINIMAL_DIFFERENCE) break;
+    if (value > 1.0 - REAL_MINIMAL_DIFFERENCE) break;
     value *= 10;
     value -= (sexpr_int_t)value;
     width++;
-    if (value < REAL_MINIMAL_DIFFERENCE || value > (1.0 - REAL_MINIMAL_DIFFERENCE)) break;
   }
   return width;
 }
+
 size_t real__precision(sexpr_real_t value, ssize_t precision) {
   if (precision >= 0) return precision;
   size_t fractional_width = real_fraction_width(value);
   size_t exponenta = -precision;
   return fractional_width > exponenta ? exponenta : fractional_width;
 }
+
 size_t real_width(sexpr_real_t value, size_t precision) {
   size_t integer_width = int_width(value);
   if (precision == 0) return integer_width;
   return integer_width + 1 + precision;
 }
-size_t stringify_real_n(sexpr_real_t value, size_t integer_width, size_t precision, char *string) {
+
+void stringify_real_n(sexpr_real_t value, size_t integer_width, size_t precision, char *string) {
+  sexpr_real_t round_const = value < 0 ? -0.5 : 0.5;
   if (precision == 0) {
-    stringify_int_n((sexpr_int_t)value + 0.5, integer_width, string);
-    return integer_width;
+    stringify_int_n((sexpr_int_t)value + round_const, integer_width, string);
+    return;
   }
   size_t width = integer_width + 1 + precision;
   stringify_int_n(value, integer_width, string);
   string[integer_width] = '.';
   string[width] = 0;
   sexpr_int_t exponent = 1;
-  for (size_t index = 0; index < precision; index += 1) exponent *= 10;
-  sexpr_int_t fractions = (sexpr_int_t)(value * exponent + 0.5);
+  for (size_t index = 0; index < precision; index += 1)
+    exponent *= 10;
+  sexpr_int_t fractions = (sexpr_int_t)((value < 0 ? -value : value) * exponent + 0.5);
   stringify_int_n(fractions, precision, string + integer_width + 1);
-  return width;
+  return;
 }
+
 String_View stringify__real(sexpr_real_t value, ssize_t precision) {
-  if (precision == 0) return stringify_int((sexpr_int_t)value + 0.5);
-  // if ((value - (sexpr_int_t)value) == 0 && precision < 0) return stringify_int((sexpr_int_t)value);
+  sexpr_real_t round_const = value < 0 ? -0.5 : 0.5;
+  if (precision == 0) return stringify_int((sexpr_int_t)value + round_const);
   size_t _precision = real__precision(value, precision);
   String_View res = {.count = real_width(value, _precision)};
   char *string = malloc(res.count + 1);

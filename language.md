@@ -82,8 +82,8 @@ Defin new variable bindings and then set them on new environment and execute a s
 <!-- ### cons
 Takes exactly 2 arguments and returns a pair (left . right). -->
 
-<!-- ### car
-Returns the left element of a pair. -->
+<!-- ### car / cdr
+Returns the left / right element of a pair. -->
 
-<!-- ### cdr
-Returns the right element of a pair. -->
+<!-- ### Arithmetics +, -, *, /
+Sequentially applies all arguments. -->

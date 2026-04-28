@@ -35,7 +35,7 @@ SyxV *syx_builtin_cdr(Syx_Env *env, SyxV *arguments) {
   return list->pair.right;
 }
 
-// Expr_Value expr__builtin_arithmetic_sum_upgrade_real(Expr_Env *env, Expr_Arguments arguments, expr_int_t integer_value) {
+// SyxV *syx__builtin_summ_upgrade_real(Expr_Env *env, Expr_Arguments arguments, expr_int_t integer_value) {
 //   UNUSED(env);
 //   expr_real_t value = integer_value;
 //   da_foreach(Expr_Value, argument, &arguments) {
@@ -46,36 +46,107 @@ SyxV *syx_builtin_cdr(Syx_Env *env, SyxV *arguments) {
 //   return (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = make_expr_real(value)};
 // }
 
-// /** Sum of all arguments */
-// Expr_Value expr_builtin_arithmetic_sum(Expr_Env *env, Expr_Arguments arguments) {
-//   expr_int_t value = 0;
-//   size_t index = 0;
-//   da_foreach(Expr_Value, argument, &arguments) {
-//     if (argument->kind != EXPR_VALUE_KIND_EXPR) UNREACHABLE("Every argument supposed to be value");
-//     if (argument->expr->kind == EXPR_KIND_REAL) {
-//       return expr__builtin_arithmetic_sum_upgrade_real(env, (Expr_Arguments){
-//                                                                 .items = arguments.items + index,
-//                                                                 .count = arguments.count - index,
-//                                                                 .capacity = 0,
-//                                                             },
-//                                                        value);
-//     }
-//     argument->expr = expr_convert_to_integer(argument->expr);
-//     value += argument->expr->integer;
-//     index += 1;
-//   }
-//   return (Expr_Value){.kind = EXPR_VALUE_KIND_EXPR, .expr = make_expr_integer(value)};
-// }
+SyxV *syx__builtin_summ_upgrade_real(Syx_Env *env, SyxV *arguments, sexpr_int_t integer_value) {
+  sexpr_real_t value = integer_value;
+  SyxV **last_argument = NULL;
+  syxv_list_for_each(argument, arguments, &last_argument) {
+    value += syx_convert_to_real_v(env, *argument);
+  }
+  if ((*last_argument)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("list arguments expected", env);
+  return make_syxv_real(value);
+}
+
+/** Sum of all arguments. */
+SyxV *syx_builtin_summ(Syx_Env *env, SyxV *arguments) {
+  sexpr_int_t value = 0;
+  SyxV **last_argument = NULL;
+  syxv_list_for_each(argument, arguments, &last_argument) {
+    if ((*argument)->kind == SYXV_KIND_REAL) return syx__builtin_summ_upgrade_real(env, argument_list, value);
+    value += syx_convert_to_integer_v(env, *argument);
+  }
+  if ((*last_argument)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("list arguments expected", env);
+  return make_syxv_integer(value);
+}
+
+SyxV *syx__builtin_sub_upgrade_real(Syx_Env *env, SyxV *arguments, sexpr_real_t initial_value) {
+  sexpr_real_t value = initial_value;
+  SyxV **last_argument = NULL;
+  syxv_list_for_each(argument, arguments, &last_argument) {
+    value -= syx_convert_to_real_v(env, *argument);
+  }
+  if ((*last_argument)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("list arguments expected", env);
+  return make_syxv_real(value);
+}
+
+/** Subtracts all arguments from first. */
+SyxV *syx_builtin_sub(Syx_Env *env, SyxV *arguments) {
+  SyxV *first = syxv_list_next(&arguments);
+  if (first->kind == SYXV_KIND_REAL) return syx__builtin_sub_upgrade_real(env, arguments, first->real);
+  sexpr_int_t value = syx_convert_to_integer_v(env, first);
+  SyxV **last_argument = NULL;
+  syxv_list_for_each(argument, arguments, &last_argument) {
+    if ((*argument)->kind == SYXV_KIND_REAL) return syx__builtin_sub_upgrade_real(env, argument_list, value);
+    value -= syx_convert_to_integer_v(env, *argument);
+  }
+  if ((*last_argument)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("list arguments expected", env);
+  return make_syxv_integer(value);
+}
+
+SyxV *syx__builtin_mul_upgrade_real(Syx_Env *env, SyxV *arguments, sexpr_int_t integer_value) {
+  sexpr_real_t value = integer_value;
+  SyxV **last_argument = NULL;
+  syxv_list_for_each(argument, arguments, &last_argument) {
+    value *= syx_convert_to_real_v(env, *argument);
+  }
+  if ((*last_argument)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("list arguments expected", env);
+  return make_syxv_real(value);
+}
+
+/** Multiplies all arguments. */
+SyxV *syx_builtin_mul(Syx_Env *env, SyxV *arguments) {
+  sexpr_int_t value = 1;
+  SyxV **last_argument = NULL;
+  syxv_list_for_each(argument, arguments, &last_argument) {
+    if ((*argument)->kind == SYXV_KIND_REAL) return syx__builtin_mul_upgrade_real(env, argument_list, value);
+    value *= syx_convert_to_integer_v(env, *argument);
+  }
+  if ((*last_argument)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("list arguments expected", env);
+  return make_syxv_integer(value);
+}
+
+SyxV *syx__builtin_div_upgrade_real(Syx_Env *env, SyxV *arguments, sexpr_real_t initial_value) {
+  sexpr_real_t value = initial_value;
+  SyxV **last_argument = NULL;
+  syxv_list_for_each(argument, arguments, &last_argument) {
+    value /= syx_convert_to_real_v(env, *argument);
+  }
+  if ((*last_argument)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("list arguments expected", env);
+  return make_syxv_real(value);
+}
+
+/** Divide first argument by every next sequentialy. */
+SyxV *syx_builtin_div(Syx_Env *env, SyxV *arguments) {
+  SyxV *first = syxv_list_next(&arguments);
+  if (first->kind == SYXV_KIND_REAL) return syx__builtin_div_upgrade_real(env, arguments, first->real);
+  sexpr_int_t value = syx_convert_to_integer_v(env, first);
+  SyxV **last_argument = NULL;
+  syxv_list_for_each(argument, arguments, &last_argument) {
+    if ((*argument)->kind == SYXV_KIND_REAL) return syx__builtin_div_upgrade_real(env, argument_list, value);
+    value /= syx_convert_to_integer_v(env, *argument);
+  }
+  if ((*last_argument)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("list arguments expected", env);
+  return make_syxv_integer(value);
+}
 
 void syx_env_define_builtins(Syx_Env *env) {
   /** Builtins */
   syx_env_define_cstr(env, "cons", make_syxv_builtin(NULL, syx_builtin_cons));
   syx_env_define_cstr(env, "car", make_syxv_builtin(NULL, syx_builtin_car));
   syx_env_define_cstr(env, "cdr", make_syxv_builtin(NULL, syx_builtin_cdr));
-  // expr_env_put_symbol(env, "+", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_arithmetic_sum});
-  // expr_env_put_symbol(env, "-", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_arithmetic_sub});
-  // expr_env_put_symbol(env, "*", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_arithmetic_mul});
-  // expr_env_put_symbol(env, "/", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_arithmetic_div});
+  syx_env_define_cstr(env, "+", make_syxv_builtin(NULL, syx_builtin_summ));
+  syx_env_define_cstr(env, "-", make_syxv_builtin(NULL, syx_builtin_sub));
+  syx_env_define_cstr(env, "*", make_syxv_builtin(NULL, syx_builtin_mul));
+  syx_env_define_cstr(env, "/", make_syxv_builtin(NULL, syx_builtin_div));
   // expr_env_put_symbol(env, "mod", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_arithmetic_mod});
   // expr_env_put_symbol(env, "expt", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_arithmetic_expt});
   // expr_env_put_symbol(env, "abs", (Expr_Value){.kind = EXPR_VALUE_KIND_BUILTIN, .special = expr_builtin_arithmetic_abs});
