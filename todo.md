@@ -1,9 +1,4 @@
 
-For a minimal but usable Lisp you need:
-Special forms:
-- cond — can be a macro over if but painful without it
-- and / or — short-circuiting, must be special forms not builtins
-
 Builtins:
 
 - cons, car, cdr — list construction and access, fundamental

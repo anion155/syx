@@ -100,6 +100,7 @@ SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env);
 
 SyxV *syxv_list_next(SyxV **list);
+SyxV *syxv_list_next_safe(SyxV **list);
 bool syxv__list_for_each_next(SyxV **list, SyxV ***value, SyxV ***cdr);
 #define syxv_list_for_each(value, first, ...) \
   for (                                       \
@@ -200,7 +201,7 @@ SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *forms, Syx_Env *e
 }
 
 SyxV *syxv_list_next(SyxV **list) {
-  if (!(*list)) return make_syxv_nil();
+  if (!(*list)) return NULL;
   if ((*list)->kind != SYXV_KIND_PAIR) {
     SyxV *value = (*list);
     (*list) = NULL;
@@ -209,6 +210,12 @@ SyxV *syxv_list_next(SyxV **list) {
   SyxV *value = (*list)->pair.left;
   (*list) = (*list)->pair.right;
   return value;
+}
+
+SyxV *syxv_list_next_safe(SyxV **list) {
+  SyxV *item = syxv_list_next(list);
+  if (!item) return make_syxv_nil();
+  return item;
 }
 
 bool syxv__list_for_each_next(SyxV **list, SyxV ***value, SyxV ***cdr) {

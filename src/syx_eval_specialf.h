@@ -18,7 +18,7 @@ void syx_env_define_special_forms(Syx_Env *env);
 /** Returns first argument unevaluated */
 SyxV *syx_special_form_quote(Syx_Env *env, SyxV *arguments) {
   UNUSED(env);
-  return syxv_list_next(&arguments);
+  return syxv_list_next_safe(&arguments);
 }
 
 /** Evaluates forms in order and returns last result. */
@@ -28,7 +28,7 @@ SyxV *syx_special_form_begin(Syx_Env *env, SyxV *arguments) {
 
 /** Creates a closure that captures current environment. */
 SyxV *syx_special_form_lambda(Syx_Env *env, SyxV *arguments) {
-  SyxV *defines = syxv_list_next(&arguments);
+  SyxV *defines = syxv_list_next_safe(&arguments);
   if (defines->kind == SYXV_KIND_NIL) RUNTIME_ERROR("malformed lambda arguments definitions expected", env);
   SyxV **rest_define = NULL;
   syxv_list_for_each(define, defines, &rest_define) {
@@ -52,7 +52,7 @@ SyxV *syx_special_form_lambda(Syx_Env *env, SyxV *arguments) {
 
 /** Binds a name in the current environment. */
 SyxV *syx_special_form_define(Syx_Env *env, SyxV *arguments) {
-  SyxV *name_s = syxv_list_next(&arguments);
+  SyxV *name_s = syxv_list_next_safe(&arguments);
   SyxV *value;
   if (name_s->kind == SYXV_KIND_PAIR) {
     SyxV *pair = rc_acquire(make_syxv_pair(name_s->pair.right, arguments));
@@ -61,7 +61,7 @@ SyxV *syx_special_form_define(Syx_Env *env, SyxV *arguments) {
   } else if (name_s->kind != SYXV_KIND_SYMBOL) {
     RUNTIME_ERROR("Symbol expression expected as name", env);
   } else {
-    value = syx_eval(env, syxv_list_next(&arguments));
+    value = syx_eval(env, syxv_list_next_safe(&arguments));
   }
   syx_env_define(env, &name_s->symbol, value);
   return make_syxv_nil();
@@ -69,9 +69,9 @@ SyxV *syx_special_form_define(Syx_Env *env, SyxV *arguments) {
 
 /** Mutate an existing binding or creates new one in current environment. */
 SyxV *syx_special_form_set(Syx_Env *env, SyxV *arguments) {
-  SyxV *name_s = syxv_list_next(&arguments);
+  SyxV *name_s = syxv_list_next_safe(&arguments);
   if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", env);
-  SyxV *value = syx_eval(env, syxv_list_next(&arguments));
+  SyxV *value = syx_eval(env, syxv_list_next_safe(&arguments));
   syx_env_set(env, &name_s->symbol, value);
   return make_syxv_nil();
 }
@@ -79,7 +79,7 @@ SyxV *syx_special_form_set(Syx_Env *env, SyxV *arguments) {
 /** Create new variable bindings in parallel on new environment and execute a series of forms in that environment. */
 SyxV *syx_special_form_let(Syx_Env *env, SyxV *arguments) {
   Syx_Env *body_env = rc_acquire(make_syx_env(env, "let"));
-  SyxV *bindings = syxv_list_next(&arguments);
+  SyxV *bindings = syxv_list_next_safe(&arguments);
   if (bindings->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("List of definitions expected", env);
   SyxV **last_binding = NULL;
   syxv_list_for_each(binding, bindings, &last_binding) {
@@ -122,10 +122,10 @@ SyxV *syx_special_form_or(Syx_Env *env, SyxV *arguments) {
 
 /** if - Evaluates condition then evaluates only one branch */
 SyxV *syx_special_form_if(Syx_Env *env, SyxV *arguments) {
-  SyxV *result = rc_acquire(syx_eval(env, syxv_list_next(&arguments)));
+  SyxV *result = rc_acquire(syx_eval(env, syxv_list_next_safe(&arguments)));
   bool cond = syx_convert_to_bool_v(env, result);
-  SyxV *then_body = syxv_list_next(&arguments);
-  SyxV *else_body = syxv_list_next(&arguments);
+  SyxV *then_body = syxv_list_next_safe(&arguments);
+  SyxV *else_body = syxv_list_next_safe(&arguments);
   if (cond) return syx_eval(env, then_body);
   else return syx_eval(env, else_body);
 }

@@ -45,18 +45,38 @@ Binds value to a name in the current environment.
 Can contain shorthand version of lambda definition:
 `(define (<name> ...<arguments-names-list>) ...<value>) >= nil`
 
-### set!
+### set
 Mutate an existing binding or creates new one in current environment.
-`(set! <name> <value>) >= nil`
+`(set <name> <value>) >= nil`
 
 ### let
 Create new variable bindings in parallel on new environment and execute a series of forms in that environment.
 `(let (...(<name> <value>)) ...<forms>) >= nil`
 
-### let*
+<!-- ### let*
 Create new variable bindings sequentially on new environment and execute a series of forms in that environment.
-`(let* (...(<name> <value>)) ...<forms>) >= nil`
+`(let* (...(<name> <value>)) ...<forms>) >= nil` -->
 
-### letrec
+<!-- ### letrec
 Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
-`(letrec (...(<name> <value>)) ...<forms>) >= nil`
+`(letrec (...(<name> <value>)) ...<forms>) >= nil` -->
+
+<!-- ### and
+Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
+`(letrec (...(<name> <value>)) ...<forms>) >= nil` -->
+
+<!-- ### or
+Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
+`(letrec (...(<name> <value>)) ...<forms>) >= nil` -->
+
+<!-- ### if
+Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
+`(letrec (...(<name> <value>)) ...<forms>) >= nil` -->
+
+<!-- ### cond
+Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
+`(letrec (...(<name> <value>)) ...<forms>) >= nil` -->
+
+## Builtins
+
+<!-- ### cons -->

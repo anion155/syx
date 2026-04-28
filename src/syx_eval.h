@@ -61,23 +61,8 @@ SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value);
 #include "syx_value.h"
 #define SYX_EVAL_SPECIALF_IMPL
 #include "syx_eval_specialf.h"
-
-// #define SYX_EVAL_ARITHMETIC_IMPL
-// #include "expr_eval_arithmetic.h"
-// #define SYX_EVAL_COMPARISON_IMPL
-// #include "expr_eval_comparison.h"
-// #define SYX_EVAL_LIST_IMPL
-// #include "expr_eval_list.h"
-// #define SYX_EVAL_TYPE_PREDICATES_IMPL
-// #include "expr_eval_type_predicates.h"
-// #define SYX_EVAL_STRING_IMPL
-// #include "expr_eval_string.h"
-// #define SYX_EVAL_TYPE_CONVERSION_IMPL
-// #include "expr_eval_type_conversion.h"
-// #define SYX_EVAL_EQUALITY_IMPL
-// #include "expr_eval_equality.h"
-// #define SYX_EVAL_IO_IMPL
-// #include "expr_eval_io.h"
+#define SYX_EVAL_BUILTINS_IMPL
+#include "syx_eval_builtins.h"
 
 void syx_env_destructor(void *data) {
   Syx_Env *env = data;
@@ -185,6 +170,7 @@ void syx_env_set_cstr(Syx_Env *env, const char *name, SyxV *value) {
 Syx_Env *make_global_syx_env() {
   Syx_Env *env = make_syx_env(NULL, "<global>");
   syx_env_define_special_forms(env);
+  syx_env_define_builtins(env);
   //   syx_env_define_arithmetic(env);
   //   syx_env_define_comparison(env);
   //   syx_env_define_equality(env);
