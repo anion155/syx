@@ -406,7 +406,7 @@ String_View syx_convert_to_string_v(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_PAIR: UNREACHABLE("illegal conversion of pair to string");
     case SYXV_KIND_BOOL: return sv_from_cstr(value->boolean ? "true" : "false");
     case SYXV_KIND_INTEGER: return stringify_int(value->integer);
-    case SYXV_KIND_REAL: return stringify_real(value->integer);
+    case SYXV_KIND_REAL: return stringify_real(value->real);
     case SYXV_KIND_STRING: return sv_from_cstr(value->string);
     case SYXV_KIND_QUOTE: return syx_convert_to_string_v(env, value->quote);
     case SYXV_KIND_SPECIALF: UNREACHABLE("illegal conversion of special form to string");

@@ -229,16 +229,21 @@ void fprint_sexpr(FILE *f, SExpr *expr) {
     case SEXPR_KIND_PAIR: {
       fprintf(f, "(");
       SExpr *it = expr;
-      fprint_sexpr(f, it->pair.left);
+      SExpr *last_left = it->pair.left;
+      if (last_left->kind == SEXPR_KIND_NIL) fprintf(f, "nil");
+      else fprint_sexpr(f, last_left);
       it = it->pair.right;
       while (it->kind == SEXPR_KIND_PAIR) {
         fprintf(f, " ");
-        fprint_sexpr(f, it->pair.left);
+        last_left = it->pair.left;
+        fprint_sexpr(f, last_left);
         it = it->pair.right;
       }
       if (it->kind != SEXPR_KIND_NIL) {
         fprintf(f, " . ");
         fprint_sexpr(f, it);
+      } else if (last_left->kind == SEXPR_KIND_NIL) {
+        fprintf(f, " . nil");
       }
       fprintf(f, ")");
     } break;

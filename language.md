@@ -61,29 +61,70 @@ Create new variable bindings sequentially on new environment and execute a serie
 Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
 `(letrec (...(<name> <value>)) ...<forms>) >= nil` -->
 
-<!-- ### and
-Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
-`(letrec (...(<name> <value>)) ...<forms>) >= nil` -->
+### and
+Evaluates left to right, returns first falsy or last value. Short-circuits.
+`(and ...<forms>) => first falsy | last value`
 
-<!-- ### or
-Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
-`(letrec (...(<name> <value>)) ...<forms>) >= nil` -->
+### or
+Evaluates left to right, returns first truthy or last value. Short-circuits.
+`(or ...<forms>) => first truthy | last value`
 
-<!-- ### if
-Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
-`(letrec (...(<name> <value>)) ...<forms>) >= nil` -->
+### if
+`(if <condition> <then> <else>) => eval(<then>) | eval(<else>) | nil`
 
-<!-- ### cond
-Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
-`(letrec (...(<name> <value>)) ...<forms>) >= nil` -->
+### cond
+`(cond ...(<condition> ...<forms>) (else ...<forms>)) => first matching result | nil`
 
-## Builtins
+## Builtins List
 
-<!-- ### cons
-Takes exactly 2 arguments and returns a pair (left . right). -->
+### cons
+Takes exactly 2 arguments and returns a pair (left . right).
+`(cons <left> <right>) => (<left> . <right>)`
 
-<!-- ### car / cdr
-Returns the left / right element of a pair. -->
+### car / cdr
+Returns the left / right element of a pair.
+`(car <pair>) => <left>`
+`(cdr <pair>) => <right>`
 
-<!-- ### Arithmetics +, -, *, /
-Sequentially applies all arguments. -->
+## Builtins Arithmetics
+
+### +, -, *, /
+Sequentially applies all arguments. Integers promoted to real if any argument is real.
+`(+) => 0`
+`(+ ...<numbers>) => sum`
+`(- <number> ...<numbers>) => difference`
+`(*) => 1`
+`(* ...<numbers>) => product`
+`(/ <number> ...<numbers>) => quotient`
+
+### Comparison <, >, =, <=, >=
+Take 2 or more numeric arguments, chainable. Return `#t` or `#f`.
+
+`(= <number> ...<numbers>) => #t if all equal`
+`(< <number> ...<numbers>) => #t if strictly increasing`
+`(> <number> ...<numbers>) => #t if strictly decreasing`
+`(<= <number> ...<numbers>) => #t if non-decreasing`
+`(>= <number> ...<numbers>) => #t if non-increasing`
+
+## Builtins Boolean
+
+### not
+Returns `#f` if argument is truthy, `#t` if falsy.
+`(not <value>) => #t | #f`
+
+## Miscellaneous Builtins
+
+### FD
+`'stdout` | `'stderr` | `'stdin` | `'<fd-id>`
+
+### print
+Print arguments to file.
+`(print <FD>? ...<arguments>) => #t | #f`
+
+### println
+Print arguments to file and newline.
+`(println <FD>? ...<arguments>) => #t | #f`
+
+### printf
+Print arguments to file.
+`(print <FD>? <format-string> ...<arguments>) => #t | #f`

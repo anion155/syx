@@ -107,6 +107,8 @@ bool syxv__list_for_each_next(SyxV **list, SyxV ***value, SyxV ***cdr);
       SyxV *value##_list = (first), **value;  \
       syxv__list_for_each_next(&value##_list, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
 
+#define define_syxv_constants_ht(name) define_constants_ht((name), SyxV *)
+
 void fprint__syxv(FILE *f, SyxV *value, size_t indent);
 #define fprint_syxv(f, value, ...) fprint__syxv((f), (value), WITH_DEFAULT(0, __VA_ARGS__))
 #define print_syxv(value, ...) fprint__syxv(stdout, (value), WITH_DEFAULT(0, __VA_ARGS__))
