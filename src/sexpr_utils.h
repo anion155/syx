@@ -52,7 +52,7 @@ String_View stringify__real(sexpr_real_t value, ssize_t precision);
 struct escape_char_print {
   void *data;
   int (*get_next_char)(void *data);
-  int (*revert_next_char)(void *data);
+  int (*revert_next_char)(void *data, size_t n);
 };
 
 size_t syx_putc(FILE *fd, char char_v);
@@ -257,32 +257,64 @@ size_t syx_put_octal_char(FILE *fd, char first, struct escape_char_print escape)
 
 size_t syx_put_hex_char(FILE *fd, struct escape_char_print escape) {
   char c = escape.get_next_char(escape.data);
-  if (c < 0) return syx_putc(fd, 'x');
-  if (!ishex(c)) return escape.revert_next_char(escape.data);
+  if (c < 0 || !ishex(c)) return escape.revert_next_char(escape.data, 1);
   char output = 0;
   while (ishex(c)) {
     output = (output << 4) + hex_to_int(c);
     c = escape.get_next_char(escape.data);
     if (c < 0) return syx_putc(fd, output);
   }
-  return escape.revert_next_char(escape.data);
+  return syx_putc(fd, output);
 }
 
 size_t syx_put_unicode_char(FILE *fd, char base, struct escape_char_print escape) {
   char u[4] = {0};
   u[0] = escape.get_next_char(escape.data);
-  if (u[0] < 0) return syx_putc(fd, base);
-  if (!ishex(u[0])) return (escape.revert_next_char(escape.data), escape.revert_next_char(escape.data));
+  if (u[0] < 0 || !ishex(u[0])) return escape.revert_next_char(escape.data, 2);
   u[1] = escape.get_next_char(escape.data);
-  if (u[1] < 0) return syx_putc(fd, base) && syx_putc(fd, u[0]);
-  if (!ishex(u[1])) return (escape.revert_next_char(escape.data), escape.revert_next_char(escape.data), escape.revert_next_char(escape.data));
+  if (u[1] < 0 || !ishex(u[1])) return escape.revert_next_char(escape.data, 3);
   u[2] = escape.get_next_char(escape.data);
-  if (u[2] < 0) return syx_putc(fd, base) && syx_putc(fd, u[0]) && syx_putc(fd, u[1]);
-  if (!ishex(u[2])) return (escape.revert_next_char(escape.data), escape.revert_next_char(escape.data), escape.revert_next_char(escape.data), escape.revert_next_char(escape.data));
+  if (u[2] < 0 || !ishex(u[2])) return escape.revert_next_char(escape.data, 4);
   u[3] = escape.get_next_char(escape.data);
-  if (u[3] < 0) return syx_putc(fd, base) && syx_putc(fd, u[0]) && syx_putc(fd, u[1]) && syx_putc(fd, u[2]);
-  if (!ishex(u[3])) return (escape.revert_next_char(escape.data), escape.revert_next_char(escape.data), escape.revert_next_char(escape.data), escape.revert_next_char(escape.data), escape.revert_next_char(escape.data));
-  if (base == 'U') TODO("Implement wide unicode");
+  if (u[3] < 0 || !ishex(u[3])) return escape.revert_next_char(escape.data, 5);
+  if (base == 'u') goto print_u;
+  if (base == 'U') {
+    char U[4] = {0};
+    U[0] = escape.get_next_char(escape.data);
+    if (U[0] < 0 || !ishex(U[0])) {
+      escape.revert_next_char(escape.data, 1);
+      goto print_u;
+    }
+    U[1] = escape.get_next_char(escape.data);
+    if (U[1] < 0 || !ishex(U[1])) {
+      escape.revert_next_char(escape.data, 2);
+      goto print_u;
+    }
+    U[2] = escape.get_next_char(escape.data);
+    if (U[2] < 0 || !ishex(U[2])) {
+      escape.revert_next_char(escape.data, 3);
+      goto print_u;
+    }
+    U[3] = escape.get_next_char(escape.data);
+    if (U[3] < 0 || !ishex(U[3])) {
+      escape.revert_next_char(escape.data, 4);
+      goto print_u;
+    }
+    uint16_t high = (hex_to_int(u[0]) << 12) | (hex_to_int(u[1]) << 8) | (hex_to_int(u[2]) << 4) | hex_to_int(u[3]);
+    uint16_t low = (hex_to_int(U[0]) << 12) | (hex_to_int(U[1]) << 8) | (hex_to_int(U[2]) << 4) | hex_to_int(U[3]);
+    uint32_t codepoint = ((uint32_t)high << 16) | low;
+    if (codepoint < 0x80) {
+      return syx_putc(fd, codepoint);
+    } else if (codepoint < 0x800) {
+      return syx_putc(fd, 0xC0 | (codepoint >> 6)) && syx_putc(fd, 0x80 | (codepoint & 0x3F));
+    } else if (codepoint < 0x10000) {
+      return syx_putc(fd, 0xE0 | (codepoint >> 12)) && syx_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F)) && syx_putc(fd, 0x80 | (codepoint & 0x3F));
+    } else {
+      return syx_putc(fd, 0xF0 | (codepoint >> 18)) && syx_putc(fd, 0x80 | ((codepoint >> 12) & 0x3F)) && syx_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F)) && syx_putc(fd, 0x80 | (codepoint & 0x3F));
+    }
+  }
+  UNREACHABLE("unknown base");
+print_u:
   uint16_t codepoint = (hex_to_int(u[0]) << 12) | (hex_to_int(u[1]) << 8) | (hex_to_int(u[2]) << 4) | hex_to_int(u[3]);
   if (codepoint < 0x80) {
     return syx_putc(fd, codepoint);
@@ -332,9 +364,9 @@ int gat_char_n(void *_data) {
   return data->data[data->index++];
 }
 
-int revert_char_n(void *_data) {
+int revert_char_n(void *_data, size_t n) {
   struct gat_char_data *data = _data;
-  data->index -= 1;
+  data->index -= n;
   return 1;
 }
 
@@ -368,9 +400,9 @@ int gat_char_cstr(void *_data) {
   return c;
 }
 
-int revert_char_cstr(void *_data) {
+int revert_char_cstr(void *_data, size_t n) {
   struct gat_char_cstr_data *data = _data;
-  data->index -= 1;
+  data->index -= n;
   return 1;
 }
 
