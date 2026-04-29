@@ -10,3 +10,4 @@ SeparateDefinitionBlocks: Always
 AllowShortIfStatementsOnASingleLine: AllIfsAndElse
 IndentCaseLabels: true
 AllowShortCaseLabelsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true

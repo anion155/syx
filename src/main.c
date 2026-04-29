@@ -29,23 +29,31 @@
 
 #define SYXV_EXIT_QUIT_STORAGE "SYXV_EXIT_QUIT_STORAGE"
 
+struct SyxVs {
+  SyxV **items;
+  size_t count;
+  size_t capacity;
+};
+
 int run(Syx_Env *env, char *source_cstr) {
   SExprs *input = rc_acquire(parse_sexprs(source_cstr));
-  da_foreach(SExpr *, input_expr, input) {
-    SyxV *result = rc_acquire(syx_eval(env, (SyxV *)*input_expr));
+  struct SyxVs *results = rc_acquire(rc_alloc(sizeof(SExprs), da_destructor));
+  da_foreach(SExpr *, expr, input) {
+    SyxV *result = rc_acquire(syx_eval(env, (SyxV *)*expr));
     print_syxv(result);
+    da_append(results, result);
     printf("\n");
     if (syx_env_lookup_get(env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
-    rc_release(result);
   }
   rc_release(input);
+  rc_release(results);
   SyxV *quit = syx_env_lookup_get(env, SYXV_EXIT_QUIT_STORAGE);
   if (!quit) return -1;
   return syx_convert_to_integer_v(env, quit);
 }
 
 SyxV *eval_quit(Syx_Env *env, SyxV *arguments) {
-  SyxV *result = syxv_list_next_safe(&arguments);
+  SyxV *result = syxv_list_next(&arguments);
   if (result->kind == SYXV_KIND_NIL) result = make_syxv_integer(0);
   syx_env_define_cstr(syx_env_global(env), SYXV_EXIT_QUIT_STORAGE, result);
   return NULL;

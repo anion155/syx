@@ -33,7 +33,6 @@ SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments);
 SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments);
 SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments);
 SyxV *syx_eval(Syx_Env *env, SyxV *input);
-SyxV *syx_eval_with_release(Syx_Env *env, SyxV *input);
 
 typedef struct {
   bool (*should_stop)(Syx_Env *env, SyxV *evaluated);
@@ -184,35 +183,34 @@ Syx_Env *make_global_syx_env() {
 
 SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments) {
   SyxV *result = specialf->eval(env, arguments);
-  if (!result) result = make_syxv_nil();
+  if (!result) return make_syxv_nil();
   return result;
 }
 
 SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments) {
-  SyxV **last_argument = NULL;
-  syxv_list_for_each(argument, arguments, &last_argument) {
-    *argument = syx_eval_with_release(env, *argument);
+  SyxV *evaluated = NULL;
+  syxv_list_map(env, argument, arguments, &evaluated) {
+    *argument = syx_eval(env, *argument);
   }
-  if ((*last_argument)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("Invalid arguments list", env);
-  SyxV *result = builtin->eval(env, arguments);
-  if (!result) result = make_syxv_nil();
+  SyxV *result = builtin->eval(env, evaluated);
+  if (!result) return make_syxv_nil();
   return result;
 }
 
 SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
-  Syx_Env *call_env = rc_acquire(make_syx_env(closure->env, closure->name));
+  Syx_Env *call_env = rc_acquire(make_syx_env(closure->env, temp_sprintf("<%s>", closure->name)));
   SyxV *it = arguments;
   SyxV **last_name = NULL;
-  syxv_list_for_each(name_v, closure->defines, &last_name) {
+  syxv_list_for_each(env, name_v, closure->defines, &last_name) {
     SExpr_Symbol *symbol;
-    if ((*name_v)->kind == SYXV_KIND_PAIR) {
-      symbol = &(*name_v)->pair.left->symbol;
+    if (name_v->kind == SYXV_KIND_PAIR) {
+      symbol = &name_v->pair.left->symbol;
     } else {
-      symbol = &(*name_v)->symbol;
+      symbol = &name_v->symbol;
     }
   continue_same_param:
     if (ht_find(&call_env->symbols, symbol->name)) continue;
-    if (it->kind == SYXV_KIND_NIL) TODO("Implement smaller arguemnts passed or currying");
+    if (it->kind == SYXV_KIND_NIL) TODO("Implement smaller arguments passed or currying");
     if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", env);
     if (it->pair.left->kind == SYXV_KIND_SYMBOL && it->pair.left->symbol.name[0] == ':') {
       TODO("redone named param binding");
@@ -229,21 +227,22 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
   if ((*last_name)->kind != SYXV_KIND_NIL) {
     SExpr_Symbol *symbol = &(*last_name)->symbol;
     SyxV *rest = it;
+    SyxV *evaluated = NULL;
     SyxV **last_argument = NULL;
-    syxv_list_for_each(argument, rest, &last_argument) {
-      *argument = syx_eval_with_release(env, *argument);
+    syxv_list_map(env, argument, rest, &evaluated, &last_argument) {
+      *argument = syx_eval(env, *argument);
     }
     if ((*last_argument)->kind != SYXV_KIND_NIL) {
-      *last_argument = syx_eval_with_release(env, *last_argument);
+      *last_argument = rc_acquire(syx_eval(env, *last_argument));
     }
     syx_env_define(call_env, symbol, rest);
   }
-  syxv_list_for_each(name_v, closure->defines) {
-    if ((*name_v)->kind != SYXV_KIND_PAIR) continue;
-    const char *name = (*name_v)->pair.left->symbol.name;
+  syxv_list_for_each(env, name_v, closure->defines) {
+    if (name_v->kind != SYXV_KIND_PAIR) continue;
+    const char *name = name_v->pair.left->symbol.name;
     SyxV **value = ht_find(&call_env->symbols, name);
     if (value != NULL) continue;
-    (*value) = rc_acquire(syx_eval(env, (*name_v)->pair.right));
+    (*value) = rc_acquire(syx_eval(env, name_v->pair.right));
   }
   SyxV *result = syx_eval_forms_list(call_env, closure->forms);
   rc_release(call_env);
@@ -279,23 +278,14 @@ SyxV *syx_eval(Syx_Env *env, SyxV *input) {
   return result;
 }
 
-SyxV *syx_eval_with_release(Syx_Env *env, SyxV *value) {
-  SyxV *unevaluated = value;
-  value = rc_acquire(syx_eval(env, unevaluated));
-  rc_release(unevaluated);
-  return value;
-}
-
 SyxV *syx__eval_forms_list_opt(Syx_Env *env, SyxV *forms_list, Syx_Eval_Forms_List_Opt opt) {
   SyxV *result = NULL;
   if (opt.default_result) result = rc_acquire(opt.default_result);
-  SyxV **last_form = NULL;
-  syxv_list_for_each(form, forms_list, &last_form) {
+  syxv_list_for_each(env, form, forms_list) {
     if (result) rc_release(result);
-    result = rc_acquire(syx_eval(env, *form));
+    result = rc_acquire(syx_eval(env, form));
     if (opt.should_stop != NULL && opt.should_stop(env, result)) return rc_move(result);
   }
-  if ((*last_form)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("maulformed forms list", env);
   if (result == NULL) RUNTIME_ERROR("empty forms list", env);
   return rc_move(result);
 }

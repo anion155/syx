@@ -162,8 +162,8 @@ SExpr *make_sexpr_symbol_ctrs(const char *symbol) {
 
 SExpr *make_sexpr_pair(SExpr *left, SExpr *right) {
   SExpr *expr = make_sexpr(SEXPR_KIND_PAIR);
-  expr->pair.left = rc_acquire(left);
-  expr->pair.right = rc_acquire(right);
+  expr->pair.left = left ? rc_acquire(left) : NULL;
+  expr->pair.right = right ? rc_acquire(right) : NULL;
   return expr;
 }
 
@@ -200,7 +200,7 @@ SExpr *make_sexpr_string_cstr(const sexpr_string_t value) {
 
 SExpr *make_sexpr_quote(SExpr *quote) {
   SExpr *expr = make_sexpr(SEXPR_KIND_QUOTE);
-  expr->quote = rc_acquire(quote);
+  expr->quote = quote ? rc_acquire(quote) : NULL;
   return expr;
 }
 

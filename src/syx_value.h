@@ -30,9 +30,8 @@ typedef struct Syx_Closure {
   SyxV *forms;
 } Syx_Closure;
 
-void fprint__syx_closure(FILE *f, Syx_Closure *closure, size_t indent);
-#define fprint_syx_closure(f, closure, ...) fprint_syx_closure((f), (closure), WITH_DEFAULT(0, __VA_ARGS))
-#define print_syx_closure(closure) fprint_syx_closure(stdout, (closure), WITH_DEFAULT(0, __VA_ARGS))
+void fprint_syx_closure(FILE *f, Syx_Closure *closure);
+#define print_syx_closure(closure) fprint_syx_closure(stdout, (closure))
 
 typedef enum : unsigned int {
   SYXV_KIND_NIL = SEXPR_KIND_NIL,
@@ -99,19 +98,29 @@ SyxV *make_syxv_specialf(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env);
 
+SyxV *syxv_list_next_nullable(SyxV **list);
 SyxV *syxv_list_next(SyxV **list);
-SyxV *syxv_list_next_safe(SyxV **list);
-bool syxv__list_for_each_next(SyxV **list, SyxV ***value, SyxV ***cdr);
-#define syxv_list_for_each(value, first, ...) \
-  for (                                       \
-      SyxV *value##_list = (first), **value;  \
-      syxv__list_for_each_next(&value##_list, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
+
+bool syxv__list_for_each_next(Syx_Env *env, SyxV **list, SyxV **value, SyxV ***cdr);
+#define syxv_list_for_each(env, value, list, ...) \
+  for (SyxV *value##_list = (list), *value; syxv__list_for_each_next((env), &value##_list, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
+
+bool syxv__list_map_next(Syx_Env *env, SyxV **source_it, SyxV ***target_it, SyxV ***value, SyxV ***cdr);
+#define syxv_list_map(env, value, list, results, ...) \
+  for (SyxV *value##_source_it = (list),              \
+            **value##_target_it = (results),          \
+            **value = NULL;                           \
+       syxv__list_map_next(                           \
+           (env),                                     \
+           &value##_source_it,                        \
+           &value##_target_it,                        \
+           &value,                                    \
+           WITH_DEFAULT(NULL, __VA_ARGS__));)
 
 #define define_syxv_constants_ht(name) define_constants_ht((name), SyxV *)
 
-void fprint__syxv(FILE *f, SyxV *value, size_t indent);
-#define fprint_syxv(f, value, ...) fprint__syxv((f), (value), WITH_DEFAULT(0, __VA_ARGS__))
-#define print_syxv(value, ...) fprint__syxv(stdout, (value), WITH_DEFAULT(0, __VA_ARGS__))
+void fprint_syxv(FILE *f, SyxV *value);
+#define print_syxv(value) fprint_syxv(stdout, (value))
 
 #endif // SYX_VALUE_H
 
@@ -120,6 +129,7 @@ void fprint__syxv(FILE *f, SyxV *value, size_t indent);
 
 #define SEXPR_AST_IMPL
 #include "sexpr_ast.h"
+#include "syx_eval.h"
 
 void syxv_destructor(void *data) {
   SyxV *syxv = data;
@@ -202,7 +212,7 @@ SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *forms, Syx_Env *e
   return value;
 }
 
-SyxV *syxv_list_next(SyxV **list) {
+SyxV *syxv_list_next_nullable(SyxV **list) {
   if (!(*list)) return NULL;
   if ((*list)->kind != SYXV_KIND_PAIR) {
     SyxV *value = (*list);
@@ -214,46 +224,87 @@ SyxV *syxv_list_next(SyxV **list) {
   return value;
 }
 
-SyxV *syxv_list_next_safe(SyxV **list) {
-  SyxV *item = syxv_list_next(list);
+SyxV *syxv_list_next(SyxV **list) {
+  SyxV *item = syxv_list_next_nullable(list);
   if (!item) return make_syxv_nil();
   return item;
 }
 
-bool syxv__list_for_each_next(SyxV **list, SyxV ***value, SyxV ***cdr) {
+bool syxv__list_for_each_next(Syx_Env *env, SyxV **list, SyxV **value, SyxV ***cdr) {
   if ((*list)->kind != SYXV_KIND_PAIR) {
     if (cdr != NULL) (*cdr) = list;
+    else if ((*list)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("list expected", env);
     return false;
   }
-  (*value) = &(*list)->pair.left;
+  (*value) = (*list)->pair.left;
   (*list) = (*list)->pair.right;
   return true;
 }
 
-void fprint__syxv(FILE *f, SyxV *value, size_t indent) {
+bool syxv__list_map_next(Syx_Env *env, SyxV **source_it, SyxV ***target_it, SyxV ***value, SyxV ***cdr) {
+  if (*value) rc_acquire(**value);
+  if ((*source_it)->kind != SYXV_KIND_PAIR) {
+    if (cdr != NULL) (*cdr) = (*target_it);
+    else if ((*source_it)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("list expected", env);
+    else (**target_it) = rc_acquire(make_syxv_nil());
+    return false;
+  }
+  (**target_it) = rc_acquire(make_syxv_pair(NULL, NULL));
+  (*value) = &((**target_it)->pair.left);
+  (**value) = (*source_it)->pair.left;
+  (*source_it) = (*source_it)->pair.right;
+  (*target_it) = &((**target_it)->pair.right);
+  return true;
+}
+
+void fprint_syxv(FILE *f, SyxV *value) {
   switch (value->kind) {
-    case SYXV_KIND_NIL:
-    case SYXV_KIND_SYMBOL:
-    case SYXV_KIND_PAIR:
-    case SYXV_KIND_BOOL:
-    case SYXV_KIND_INTEGER:
-    case SYXV_KIND_REAL:
-    case SYXV_KIND_STRING:
-    case SYXV_KIND_QUOTE: return fprint_sexpr(f, (SExpr *)value);
+    case SYXV_KIND_NIL: return fprint_sexpr(f, (SExpr *)value);
+    case SYXV_KIND_SYMBOL: return fprint_sexpr(f, (SExpr *)value);
+    case SYXV_KIND_PAIR: {
+      fprintf(f, "(");
+      SyxV *it = value;
+      SyxV *last_left = it->pair.left;
+      if (last_left->kind == SYXV_KIND_NIL) fprintf(f, "nil");
+      else fprint_syxv(f, last_left);
+      it = it->pair.right;
+      while (it->kind == SYXV_KIND_PAIR) {
+        fprintf(f, " ");
+        last_left = it->pair.left;
+        fprint_syxv(f, last_left);
+        it = it->pair.right;
+      }
+      if (it->kind != SYXV_KIND_NIL) {
+        fprintf(f, " . ");
+        fprint_syxv(f, it);
+      } else if (last_left->kind == SYXV_KIND_NIL) {
+        fprintf(f, " . nil");
+      }
+      fprintf(f, ")");
+    } break;
+    case SYXV_KIND_BOOL: return fprint_sexpr(f, (SExpr *)value);
+    case SYXV_KIND_INTEGER: return fprint_sexpr(f, (SExpr *)value);
+    case SYXV_KIND_REAL: return fprint_sexpr(f, (SExpr *)value);
+    case SYXV_KIND_STRING: return fprint_sexpr(f, (SExpr *)value);
+    case SYXV_KIND_QUOTE: {
+      fprintf(f, "'");
+      fprint_syxv(f, value->quote);
+    } break;
     case SYXV_KIND_SPECIALF: fprintf(f, "?<%s>", value->specialf.name); break;
     case SYXV_KIND_BUILTIN: fprintf(f, "!<%s>", value->builtin.name); break;
-    case SYXV_KIND_CLOSURE: fprint__syx_closure(f, &value->closure, indent + 2); break;
+    case SYXV_KIND_CLOSURE: fprint_syx_closure(f, &value->closure); break;
   }
 }
 
-void fprint__syx_closure(FILE *f, Syx_Closure *closure, size_t indent) {
-  if (indent) fprintf(f, "%*c", (int)indent, ' ');
+void fprint_syx_closure(FILE *f, Syx_Closure *closure) {
   fprintf(f, "(#<%s> ", closure->name);
   fprint_syxv(f, closure->defines);
-  // fprintf(f, "\n");
-  // fprintf(f, "%*c", (int)indent + 2 + 8, ' ');
-  fprintf(f, " ");
-  fprint_syxv(f, closure->forms);
+  SyxV *it = closure->forms;
+  while (it->kind == SYXV_KIND_PAIR) {
+    fprintf(f, " ");
+    fprint_syxv(f, it->pair.left);
+    it = it->pair.right;
+  }
   fprintf(f, ")");
 }
 

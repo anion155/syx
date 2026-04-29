@@ -86,6 +86,14 @@ Returns the left / right element of a pair.
 `(car <pair>) => <left>`
 `(cdr <pair>) => <right>`
 
+### apply
+Calls a function with a list as its argument list.
+`(apply <fn> <args-list>) => result`
+
+### map
+Applies a function to each element of a list and returns a new list of results.
+`(map <fn> <list>) => <list>`
+
 ## Builtins Arithmetics
 
 ### +, -, *, /
