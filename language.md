@@ -26,24 +26,24 @@ Returns first argument unevaluated.
 
 ### begin
 Evaluates forms in order and returns last result.
-`(begin ...<forms>) => eval <forms[-1]>`
-
-### lambda
-Creates a closure that captures current environment.
-Forms evaluated in order and last result is returned.
-`(lambda <arguments-names-list> ...<forms>) = eval <forms[-1]>`
+`(begin ...<form>) => eval last <form>`
 
 #### arguments-names-list
 - `(a b)` two arguments `a` and `b`
 - `(a b . c)` two arguments `a`, `b` and all rest arguments will be in `c` as list
 - `((a 10) (b . 5))` argument `a` with default value `10`, and argument `b` with default `5`
 
+### lambda
+Creates a closure that captures current environment.
+Forms evaluated in order and last result is returned.
+`(lambda <arguments-names-list> ...<form>) = eval last <form>`
+
 ### define
 Binds value to a name in the current environment.
 `(define <name> <value>) >= nil`
 
 Can contain shorthand version of lambda definition:
-`(define (<name> ...<arguments-names-list>) ...<value>) >= nil`
+`(define (<name> <arguments-names-list>) ...<form>) >= nil`
 
 ### set
 Mutate an existing binding or creates new one in current environment.
@@ -51,29 +51,29 @@ Mutate an existing binding or creates new one in current environment.
 
 ### let
 Create new variable bindings in parallel on new environment and execute a series of forms in that environment.
-`(let (...(<name> <value>)) ...<forms>) >= nil`
+`(let (...(<name> <value>)) ...<fors>) >= nil`
 
 <!-- ### let*
 Create new variable bindings sequentially on new environment and execute a series of forms in that environment.
-`(let* (...(<name> <value>)) ...<forms>) >= nil` -->
+`(let* (...(<name> <value>)) ...<form>) >= nil` -->
 
 <!-- ### letrec
 Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
-`(letrec (...(<name> <value>)) ...<forms>) >= nil` -->
+`(letrec (...(<name> <value>)) ...<form>) >= nil` -->
 
 ### and
 Evaluates left to right, returns first falsy or last value. Short-circuits.
-`(and ...<forms>) => first falsy | last value`
+`(and ...<form>) => first falsy | last value`
 
 ### or
 Evaluates left to right, returns first truthy or last value. Short-circuits.
-`(or ...<forms>) => first truthy | last value`
+`(or ...<form>) => first truthy | last value`
 
 ### if
 `(if <condition> <then> <else>) => eval(<then>) | eval(<else>) | nil`
 
 ### cond
-`(cond ...(<condition> ...<forms>) (else ...<forms>)) => first matching result | nil`
+`(cond ...(<condition> ...<form>) (else ...<form>)) => first matching result | nil`
 
 ## Builtins List
 
@@ -87,8 +87,8 @@ Returns the left / right element of a pair.
 `(cdr <pair>) => <right>`
 
 ### apply
-Calls a function with a list as its argument list.
-`(apply <fn> <args-list>) => result`
+Calls a function with supplied arguments, all arguments are concatinated into one list.
+`(apply <fn> ...<arguments>) => result`
 
 ### map
 Applies a function to each element of a list and returns a new list of results.
@@ -99,20 +99,37 @@ Applies a function to each element of a list and returns a new list of results.
 ### +, -, *, /
 Sequentially applies all arguments. Integers promoted to fractional if any argument is fractional.
 `(+) => 0`
-`(+ ...<numbers>) => sum`
-`(- <number> ...<numbers>) => difference`
+`(+ ...<number>) => sum`
+`(- <number> ...<number>) => difference`
 `(*) => 1`
-`(* ...<numbers>) => product`
-`(/ <number> ...<numbers>) => quotient`
+`(* ...<number>) => product`
+`(/ <number> ...<number>) => quotient`
 
-### Comparison <, >, =, <=, >=
-Take 2 or more numeric arguments, chainable. Return `#t` or `#f`.
+### =
+Take 2 or more arguments, chainable. Return `#t` or `#f`.
+`(= <value> ...<value>) => #t if all equal`
 
-`(= <number> ...<numbers>) => #t if all equal`
-`(< <number> ...<numbers>) => #t if strictly increasing`
-`(> <number> ...<numbers>) => #t if strictly decreasing`
-`(<= <number> ...<numbers>) => #t if non-decreasing`
-`(>= <number> ...<numbers>) => #t if non-increasing`
+`<value>` can be any of this:
+- `bool`
+- `number`
+- `string`
+- `pair` - compairs both sides recursively
+- `quote` - compares stored values
+- `fn` - compared by reference
+- `symbol` - compared by reference
+
+### Comparison <, >, <=, >=
+Take 2 or more arguments, chainable. Return `#t` or `#f`.
+`(< <value> ...<value>) => #t if strictly increasing`
+`(> <value> ...<value>) => #t if strictly decreasing`
+`(<= <value> ...<value>) => #t if non-decreasing`
+`(>= <value> ...<value>) => #t if non-increasing`
+
+`<value>` can be any of this:
+- `number`
+- `string`
+- `pair` - compairs both sides recursively
+- `quote` - compares stored values
 
 ## Builtins Boolean
 
@@ -123,16 +140,16 @@ Returns `#f` if argument is truthy, `#t` if falsy.
 ## Miscellaneous Builtins
 
 ### FD
-`'stdout` | `'stderr` | `'stdin` | `'<fd-id>`
+`stdout` | `stderr` | `stdin` | `<fd-id>`
 
 ### print
 Print arguments to file.
-`(print <FD>? ...<arguments>) => #t | #f`
+`(print '<FD>? ...<argument>) => #t | #f`
 
 ### println
 Print arguments to file and newline.
-`(println <FD>? ...<arguments>) => #t | #f`
+`(println '<FD>? ...<argument>) => #t | #f`
 
 ### printf
 Print arguments to file.
-`(print <FD>? <format-string> ...<arguments>) => #t | #f`
+`(print '<FD>? <format-string> ...<argument>) => #t | #f`

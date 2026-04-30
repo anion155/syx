@@ -176,198 +176,123 @@ SyxV *syx_builtin_not(Syx_Env *env, SyxV *arguments) {
   return make_syxv_bool(!syx_convert_to_bool_v(env, argument));
 }
 
-typedef bool (*Syx_Comparison_Predicate)(SyxV *left, SyxV *right);
-typedef Syx_Comparison_Predicate (*Syx_Comparison_Predicate_Selector)(Syx_Env *env, SyxV *value);
+typedef bool (*Syx_Compare)(Syx_Env *env, SyxV *left, SyxV *right);
 
-SyxV *syx__builtin_compare(Syx_Env *env, SyxV *arguments, Syx_Comparison_Predicate_Selector predicate_selector) {
+SyxV *syx__builtin_compare(Syx_Env *env, SyxV *arguments, Syx_Compare compare) {
   SyxV *previous = syxv_list_next(&arguments);
-  Syx_Comparison_Predicate predicate;
   syxv_list_for_each(env, argument, arguments) {
-    predicate = predicate_selector(env, previous);
-    if (!predicate(previous, argument)) return make_syxv_bool(false);
+    if (!compare(env, previous, argument)) return make_syxv_bool(false);
     previous = argument;
   }
   return make_syxv_bool(true);
 }
 
-bool syx__builtin_equivalent_boolean(SyxV *left, SyxV *right) {
-  return right->kind == SYXV_KIND_BOOL && left->boolean == right->boolean;
-}
-
-bool syx__builtin_equivalent_integer(SyxV *left, SyxV *right) {
-  switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->integer == right->integer;
-    case SYXV_KIND_FRACTIONAL: return left->integer == right->fractional;
-    default: return false;
-  }
-}
-
-bool syx__builtin_equivalent_fractional(SyxV *left, SyxV *right) {
-  switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->fractional == right->integer;
-    case SYXV_KIND_FRACTIONAL: return left->fractional == right->fractional;
-    default: return false;
-  }
-}
-
-bool syx__builtin_equivalent_string(SyxV *left, SyxV *right) {
-  return right->kind == SYXV_KIND_STRING && strcmp(left->string, right->string) == 0;
-}
-
-Syx_Comparison_Predicate syx__builtin_equivalent_selector(Syx_Env *env, SyxV *value) {
-  switch (value->kind) {
-    case SYXV_KIND_BOOL: return syx__builtin_equivalent_boolean;
-    case SYXV_KIND_INTEGER: return syx__builtin_equivalent_integer;
-    case SYXV_KIND_FRACTIONAL: return syx__builtin_equivalent_fractional;
-    case SYXV_KIND_STRING: return syx__builtin_equivalent_string;
-    default: RUNTIME_ERROR("can not compare equivalence", env);
+bool syx__builtin_equivalent_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
+  if (left == right) return true;
+  switch (left->kind) {
+    case SYXV_KIND_NIL: return right->kind == SYXV_KIND_NIL;
+    case SYXV_KIND_SYMBOL: return right->kind == SYXV_KIND_SYMBOL && strcmp(left->symbol.name, right->symbol.name) == 0;
+    case SYXV_KIND_PAIR: return (
+        right->kind == SYXV_KIND_PAIR &&
+        syx__builtin_equivalent_comparator(env, left->pair.left, right->pair.left) &&
+        syx__builtin_equivalent_comparator(env, left->pair.right, right->pair.right));
+    case SYXV_KIND_BOOL: return false; // should work on left == right level
+    case SYXV_KIND_INTEGER: {
+      switch (right->kind) {
+        case SYXV_KIND_INTEGER: return left->integer == right->integer;
+        case SYXV_KIND_FRACTIONAL: return left->integer == right->fractional;
+        default: return false;
+      }
+    }
+    case SYXV_KIND_FRACTIONAL: {
+      switch (right->kind) {
+        case SYXV_KIND_INTEGER: return left->fractional == right->integer;
+        case SYXV_KIND_FRACTIONAL: return left->fractional == right->fractional;
+        default: return false;
+      }
+    }
+    case SYXV_KIND_STRING: return right->kind == SYXV_KIND_SYMBOL && strcmp(left->string, right->string) == 0;
+    case SYXV_KIND_QUOTE: return right->kind == SYXV_KIND_QUOTE && syx__builtin_equivalent_comparator(env, left->quote, right->quote);
+    case SYXV_KIND_SPECIALF: return false; // should work on left == right level
+    case SYXV_KIND_BUILTIN: return false;  // should work on left == right level
+    case SYXV_KIND_CLOSURE: return false;  // should work on left == right level
   }
 }
 
 /** Compare two or more numeric arguments in order.
  * Return `#t` if the condition holds for every adjacent pair, `#f` otherwise. */
 SyxV *syx_builtin_equivalent(Syx_Env *env, SyxV *arguments) {
-  return syx__builtin_compare(env, arguments, syx__builtin_equivalent_selector);
+  return syx__builtin_compare(env, arguments, syx__builtin_equivalent_comparator);
 }
 
-bool syx__builtin_lower_than_integer(SyxV *left, SyxV *right) {
-  switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->integer < right->integer;
-    case SYXV_KIND_FRACTIONAL: return left->integer < right->fractional;
-    default: return false;
+#define syx__builtin_number_string_comparator(name, operator)                                                                        \
+  switch (left->kind) {                                                                                                              \
+    case SYXV_KIND_INTEGER: {                                                                                                        \
+      switch (right->kind) {                                                                                                         \
+        case SYXV_KIND_INTEGER: return left->integer operator right->integer;                                                        \
+        case SYXV_KIND_FRACTIONAL: return left->integer operator right->fractional;                                                  \
+        default: RUNTIME_ERROR("can not compare with lower than", env);                                                              \
+      }                                                                                                                              \
+    }                                                                                                                                \
+    case SYXV_KIND_FRACTIONAL: {                                                                                                     \
+      switch (right->kind) {                                                                                                         \
+        case SYXV_KIND_INTEGER: return left->fractional operator right->integer;                                                     \
+        case SYXV_KIND_FRACTIONAL: return left->fractional operator right->fractional;                                               \
+        default: RUNTIME_ERROR("can not compare with lower than", env);                                                              \
+      }                                                                                                                              \
+    }                                                                                                                                \
+    case SYXV_KIND_STRING: {                                                                                                         \
+      right = rc_acquire(syx_convert_to_string(env, right));                                                                         \
+      bool result = strcmp(left->string, right->string) operator(0);                                                                 \
+      rc_release(right);                                                                                                             \
+      return result;                                                                                                                 \
+    }                                                                                                                                \
+    case SYXV_KIND_PAIR: return (                                                                                                    \
+        right->kind == SYXV_KIND_PAIR &&                                                                                             \
+        name(env, left->pair.left, right->pair.left) &&                                                                              \
+        name(env, left->pair.right, right->pair.right));                                                                             \
+    case SYXV_KIND_QUOTE: return right->kind == SYXV_KIND_QUOTE && syx__builtin_##name##_comparator(env, left->quote, right->quote); \
+    default: RUNTIME_ERROR("can not compare with lower than", env);                                                                  \
   }
-}
 
-bool syx__builtin_lower_than_fractional(SyxV *left, SyxV *right) {
-  switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->fractional < right->integer;
-    case SYXV_KIND_FRACTIONAL: return left->fractional < right->fractional;
-    default: return false;
-  }
-}
-
-bool syx__builtin_lower_than_string(SyxV *left, SyxV *right) {
-  return right->kind == SYXV_KIND_STRING && strcmp(left->string, right->string) < 0;
-}
-
-Syx_Comparison_Predicate syx__builtin_lower_than_selector(Syx_Env *env, SyxV *value) {
-  switch (value->kind) {
-    case SYXV_KIND_INTEGER: return syx__builtin_lower_than_integer;
-    case SYXV_KIND_FRACTIONAL: return syx__builtin_lower_than_fractional;
-    case SYXV_KIND_STRING: return syx__builtin_lower_than_string;
-    default: RUNTIME_ERROR("can not compare lower than", env);
-  }
+bool syx__builtin_lower_than_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
+  syx__builtin_number_string_comparator(syx__builtin_lower_than_comparator, <);
 }
 
 /** Compare two or more numeric arguments in order.
  * Return `#t` if the condition holds for every adjacent pair, `#f` otherwise. */
 SyxV *syx_builtin_lower_than(Syx_Env *env, SyxV *arguments) {
-  return syx__builtin_compare(env, arguments, syx__builtin_lower_than_selector);
+  return syx__builtin_compare(env, arguments, syx__builtin_lower_than_comparator);
 }
 
-bool syx__builtin_lower_or_equal_integer(SyxV *left, SyxV *right) {
-  switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->integer <= right->integer;
-    case SYXV_KIND_FRACTIONAL: return left->integer <= right->fractional;
-    default: return false;
-  }
-}
-
-bool syx__builtin_lower_or_equal_fractional(SyxV *left, SyxV *right) {
-  switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->fractional <= right->integer;
-    case SYXV_KIND_FRACTIONAL: return left->fractional <= right->fractional;
-    default: return false;
-  }
-}
-
-bool syx__builtin_lower_or_equal_string(SyxV *left, SyxV *right) {
-  return right->kind == SYXV_KIND_STRING && strcmp(left->string, right->string) <= 0;
-}
-
-Syx_Comparison_Predicate syx__builtin_lower_or_equal_selector(Syx_Env *env, SyxV *value) {
-  switch (value->kind) {
-    case SYXV_KIND_INTEGER: return syx__builtin_lower_or_equal_integer;
-    case SYXV_KIND_FRACTIONAL: return syx__builtin_lower_or_equal_fractional;
-    case SYXV_KIND_STRING: return syx__builtin_lower_or_equal_string;
-    default: RUNTIME_ERROR("can not compare equivalence", env);
-  }
+bool syx__builtin_lower_or_equal_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
+  syx__builtin_number_string_comparator(syx__builtin_lower_or_equal_comparator, <=);
 }
 
 /** Compare two or more numeric arguments in order.
  * Return `#t` if the condition holds for every adjacent pair, `#f` otherwise. */
 SyxV *syx_builtin_lower_or_equal(Syx_Env *env, SyxV *arguments) {
-  return syx__builtin_compare(env, arguments, syx__builtin_lower_or_equal_selector);
+  return syx__builtin_compare(env, arguments, syx__builtin_lower_or_equal_comparator);
 }
 
-bool syx__builtin_greater_than_integer(SyxV *left, SyxV *right) {
-  switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->integer > right->integer;
-    case SYXV_KIND_FRACTIONAL: return left->integer > right->fractional;
-    default: return false;
-  }
-}
-
-bool syx__builtin_greater_than_fractional(SyxV *left, SyxV *right) {
-  switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->fractional > right->integer;
-    case SYXV_KIND_FRACTIONAL: return left->fractional > right->fractional;
-    default: return false;
-  }
-}
-
-bool syx__builtin_greater_than_string(SyxV *left, SyxV *right) {
-  return right->kind == SYXV_KIND_STRING && strcmp(left->string, right->string) > 0;
-}
-
-Syx_Comparison_Predicate syx__builtin_greater_than_selector(Syx_Env *env, SyxV *value) {
-  switch (value->kind) {
-    case SYXV_KIND_INTEGER: return syx__builtin_greater_than_integer;
-    case SYXV_KIND_FRACTIONAL: return syx__builtin_greater_than_fractional;
-    case SYXV_KIND_STRING: return syx__builtin_greater_than_string;
-    default: RUNTIME_ERROR("can not compare equivalence", env);
-  }
+bool syx__builtin_greater_than_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
+  syx__builtin_number_string_comparator(syx__builtin_greater_than_comparator, >);
 }
 
 /** Compare two or more numeric arguments in order.
  * Return `#t` if the condition holds for every adjacent pair, `#f` otherwise. */
 SyxV *syx_builtin_greater_than(Syx_Env *env, SyxV *arguments) {
-  return syx__builtin_compare(env, arguments, syx__builtin_greater_than_selector);
+  return syx__builtin_compare(env, arguments, syx__builtin_greater_than_comparator);
 }
 
-bool syx__builtin_greater_or_equal_integer(SyxV *left, SyxV *right) {
-  switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->integer > right->integer;
-    case SYXV_KIND_FRACTIONAL: return left->integer > right->fractional;
-    default: return false;
-  }
-}
-
-bool syx__builtin_greater_or_equal_fractional(SyxV *left, SyxV *right) {
-  switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->fractional > right->integer;
-    case SYXV_KIND_FRACTIONAL: return left->fractional > right->fractional;
-    default: return false;
-  }
-}
-
-bool syx__builtin_greater_or_equal_string(SyxV *left, SyxV *right) {
-  return right->kind == SYXV_KIND_STRING && strcmp(left->string, right->string) > 0;
-}
-
-Syx_Comparison_Predicate syx__builtin_greater_or_equal_selector(Syx_Env *env, SyxV *value) {
-  switch (value->kind) {
-    case SYXV_KIND_INTEGER: return syx__builtin_greater_or_equal_integer;
-    case SYXV_KIND_FRACTIONAL: return syx__builtin_greater_or_equal_fractional;
-    case SYXV_KIND_STRING: return syx__builtin_greater_or_equal_string;
-    default: RUNTIME_ERROR("can not compare equivalence", env);
-  }
+bool syx__builtin_greater_or_equal_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
+  syx__builtin_number_string_comparator(syx__builtin_greater_or_equal_comparator, >=);
 }
 
 /** Compare two or more numeric arguments in order.
  * Return `#t` if the condition holds for every adjacent pair, `#f` otherwise. */
 SyxV *syx_builtin_greater_or_equal(Syx_Env *env, SyxV *arguments) {
-  return syx__builtin_compare(env, arguments, syx__builtin_greater_or_equal_selector);
+  return syx__builtin_compare(env, arguments, syx__builtin_greater_or_equal_comparator);
 }
 
 typedef struct File_Constant {
@@ -465,6 +390,7 @@ void syx_env_define_builtins(Syx_Env *env) {
   syx_env_define_cstr(env, "<=", make_syxv_builtin(NULL, syx_builtin_lower_or_equal));
   syx_env_define_cstr(env, ">", make_syxv_builtin(NULL, syx_builtin_greater_than));
   syx_env_define_cstr(env, ">=", make_syxv_builtin(NULL, syx_builtin_greater_or_equal));
+  // syx_env_define_cstr(env, "eq?", make_syxv_builtin(NULL, syx_builtin_identity));
 
   syx_env_define_cstr(env, "not", make_syxv_builtin(NULL, syx_builtin_not));
 

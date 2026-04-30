@@ -1,5 +1,6 @@
 - eq? - identity equality (internal pointers)
 - builtin nil?, symbol?, pair?, bool?, number?, integer?, fractional?, string?, quote?, procedure?, special-form?, builtin?, closure?
+- tests suits runner
 - return syx value from parser
 - symbols hash table
 - string -> String_View
