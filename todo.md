@@ -1,10 +1,9 @@
-
-Builtins:
-
-- eq?, equal? — identity vs structural equality
-- null?, pair? — type checks
-
-Nearly essential:
-
-- apply — call a function with a list as arguments
-- map — without this lists are painful
+- eq? - identity equality (internal pointers)
+- builtin nil?, symbol?, pair?, bool?, number?, integer?, fractional?, string?, quote?, procedure?, special-form?, builtin?, closure?
+- return syx value from parser
+- symbols hash table
+- string -> String_View
+- early exit
+- throwing error
+- catching error
+- automatic fractional -> integer
