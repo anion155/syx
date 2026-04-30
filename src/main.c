@@ -60,12 +60,8 @@ SyxV *eval_quit(Syx_Env *env, SyxV *arguments) {
 }
 
 int main(int argc, char **argv) {
-  UNUSED(ht__find_or_put);
   UNUSED(ht__find_and_delete);
-  UNUSED(*ht__key);
-  UNUSED(ht__next);
   UNUSED(ht__reset);
-  UNUSED(ht__free);
   srand(time(NULL));
 
   char **command = flag_str("c", NULL, "Commands to run");

@@ -1,32 +1,53 @@
 #ifndef NONOB_H
 #define NONOB_H
 
+#include "./flag.h"
+#include "./ht.h"
 #include "./jim.h"
+#include "./magic.h"
 #include "./nob.h"
 
-void initialize_context();
-void deinitialize_context();
+typedef struct NoNob_Command NoNob_Command;
 
-void default_usage(FILE *stream);
+struct NoNob_Command {
+  const char *description;
+  void *flags;
+  void (*init)(NoNob_Command *command);
+  bool (*run)();
+};
 
-void append_cmd_to_cdb();
+struct NoNob_Context_Storage;
 
-struct ContextPaths;
-struct ContextFlags;
-
-struct Context {
+struct NoNob_Context {
   const char *root;
-  struct ContextPaths paths;
   Nob_Cmd cmd;
   Nob_Procs procs;
   Jim cdb_jim;
-  void (*usage)(FILE *stream);
+  void (*usage)(FILE *stream, NoNob_Command *command);
   bool flag_help;
-  bool flag_ccjson;
-  struct ContextFlags flags;
+  bool flag_no_ccjson;
+  Ht(const char *, NoNob_Command) commands;
   int argc;
   char **argv;
-} ctx = {.cdb_jim = {.pp = 2}, .usage = default_usage};
+  struct NoNob_Context_Storage *s;
+} ctx = {.cdb_jim = {.pp = 2}, .commands = {.hasheq = ht_cstr_hasheq}};
+
+void nonob_initialize(int argc, char **argv);
+void nonob_deinitialize();
+
+void nonob_parse_options();
+
+void nonob__define_command_opt(const char *name, NoNob_Command command);
+#define nonob_define_command(name, description_cstr, has_flags) nonob__define_command_opt( \
+    STRINGIFY(name),                                                                       \
+    (NoNob_Command){                                                                       \
+        .description = (description_cstr),                                                 \
+        .flags = (has_flags) ? flag_c_new(NULL) : NULL,                                    \
+        .init = command_##name##_init,                                                     \
+        .run = command_##name##_run,                                                       \
+    })
+bool nonob_run_command();
+void nonob_append_cmd_to_ccjson();
 
 #endif // NONOB_H
 
@@ -45,6 +66,8 @@ struct Context {
 #include "./nob.h"
 #define FLAG_IMPL
 #include "./flag.h"
+#define HT_IMPL
+#include "./ht.h"
 
 char *get_exe_path() {
   char exe_path[PATH_MAX + 1];
@@ -66,31 +89,53 @@ char *get_exe_path() {
   return temp_strdup(exe_path);
 }
 
-void initialize_context() {
-  ctx.root = dirname(get_exe_path());
+void nonob_default_usage(FILE *stream, NoNob_Command *command) {
+  if (command) {
+    Flag_Context *flags = command->flags;
+    fprintf(stream, "usage: %s %s", flag_program_name(), ht_key(&ctx.commands, command));
+    if (flags->flags_count) fprintf(stream, " [options]");
+    fprintf(stream, "\n");
+    if (flags->flags_count) {
+      fprintf(stream, "options:\n");
+      flag_c_print_options(command->flags, stream);
+    }
+  } else {
+    fprintf(stream, "usage: %s", flag_program_name());
+    if (flag_global_context.flags_count) fprintf(stream, " [options]");
+    bool first = true;
+    ht_foreach(command, &ctx.commands) {
+      const char *name = ht_key(&ctx.commands, command);
+      if (first) fprintf(stream, " %s", name);
+      else fprintf(stream, "|%s", name);
+      first = false;
+    }
+    fprintf(stream, " \n");
+    if (ctx.commands.count) {
+      fprintf(stream, "command:\n");
+      ht_foreach(command, &ctx.commands) {
+        const char *name = ht_key(&ctx.commands, command);
+        fprintf(stream, "  %-20s  %s\n", name, command->description);
+      }
+    }
+    if (flag_global_context.flags_count) {
+      fprintf(stream, "options:\n");
+      flag_print_options(stream);
+    }
+  }
+}
 
-  flag_bool_var(&ctx.flag_ccjson, "ccjson", false, "Creates compile_commands.json");
+void nonob_initialize(int argc, char **argv) {
+  ctx.argc = argc;
+  ctx.argv = argv;
+  ctx.root = dirname(get_exe_path());
+  ctx.s = temp_alloc(sizeof(struct NoNob_Context_Storage));
+
+  flag_bool_var(&ctx.flag_no_ccjson, "no-ccjson", false, "Disable creation of compile_commands.json");
   flag_bool_var(&ctx.flag_help, "help", false, "Print this help to stdout and exit with 0");
 }
 
-void flags_parse() {
-  if (!flag_parse(ctx.argc, ctx.argv)) {
-    ctx.usage(stderr);
-    flag_print_error(stderr);
-    exit(1);
-  }
-  if (ctx.flag_help) {
-    ctx.usage(stdout);
-    exit(0);
-  }
-  ctx.argc = flag_rest_argc();
-  ctx.argv = flag_rest_argv();
-
-  if (ctx.flag_ccjson) jim_array_begin(&ctx.cdb_jim);
-}
-
-void deinitialize_context() {
-  if (ctx.flag_ccjson) {
+void nonob_deinitialize() {
+  if (!ctx.flag_no_ccjson) {
     jim_array_end(&ctx.cdb_jim);
     nob_write_entire_file(
         temp_sprintf("%s/compile_commands.json", ctx.root),
@@ -99,14 +144,64 @@ void deinitialize_context() {
   }
 }
 
-void default_usage(FILE *stream) {
-  fprintf(stream, "usage: ./nob [<options>] [--]\n");
-  fprintf(stream, "options:\n");
-  flag_print_options(stream);
+void nonob_parse_options() {
+  if (!flag_parse(ctx.argc, ctx.argv)) {
+    flag_print_error(stderr);
+    if (ctx.usage) ctx.usage(stderr, NULL);
+    else nonob_default_usage(stderr, NULL);
+    exit(1);
+  }
+  if (ctx.flag_help) {
+    if (ctx.usage) ctx.usage(stdout, NULL);
+    else nonob_default_usage(stdout, NULL);
+    exit(0);
+  }
+  ctx.argc = flag_rest_argc();
+  ctx.argv = flag_rest_argv();
+  ht_foreach(command, &ctx.commands) {
+    flag_c_set_program_name(command->flags, flag_program_name());
+  }
+
+  if (!ctx.flag_no_ccjson) jim_array_begin(&ctx.cdb_jim);
 }
 
-void append_cmd_to_cdb() {
-  if (!ctx.flag_ccjson) return;
+void nonob__define_command_opt(const char *name, NoNob_Command command) {
+  *ht_put(&ctx.commands, name) = command;
+}
+
+bool nonob_run_command() {
+  const char *name = ctx.argc > 0 ? ctx.argv[0] : "build";
+  flag_shift_args(&ctx.argc, &ctx.argv);
+  NoNob_Command *command = ht_find(&ctx.commands, name);
+  if (!command) {
+    if (ctx.usage) ctx.usage(stderr, NULL);
+    else nonob_default_usage(stderr, NULL);
+    fprintf(stderr, "ERROR: %s: unknown command\n", name);
+    exit(1);
+  }
+  Flag_Context *flags = command->flags;
+  if (command->init) command->init(command);
+  if (ctx.argc && flags->flags_count) {
+    bool *help = flag_c_bool(flags, "help", false, "Print this help to stdout and exit with 0");
+    if (!flag_c_parse(flags, ctx.argc, ctx.argv)) {
+      flag_c_print_error(flags, stderr);
+      ctx.usage(stderr, command);
+      exit(1);
+    }
+    if (*help) {
+      if (ctx.usage) ctx.usage(stdout, command);
+      else nonob_default_usage(stdout, command);
+      exit(0);
+    }
+    ctx.argc = flag_c_rest_argc(flags);
+    ctx.argv = flag_c_rest_argv(flags);
+  }
+
+  return command->run();
+}
+
+void nonob_append_cmd_to_ccjson() {
+  if (ctx.flag_no_ccjson) return;
   jim_object_begin(&ctx.cdb_jim);
 
   /** The working directory of the compilation. All paths specified in the
