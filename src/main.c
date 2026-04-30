@@ -26,6 +26,8 @@
 #include "syx_value.h"
 #define SYX_EVAL_IMPL
 #include "syx_eval.h"
+#define SYX_EVAL_IMPL
+#include "syx_eval.h"
 
 #define SYXV_EXIT_QUIT_STORAGE "SYXV_EXIT_QUIT_STORAGE"
 
@@ -48,23 +50,21 @@ typedef struct Syx_Run_Context {
 } Syx_Run_Context;
 
 int run_syx(Syx_Run_Context *ctx, const char *source_cstr) {
-  SExprs *input = rc_acquire(parse_sexprs(source_cstr));
   struct SyxVs *results = rc_acquire(rc_alloc(sizeof(SExprs), da_destructor));
-  da_foreach(SExpr *, expr, input) {
+  parser_sexprs_for_each(expr, source_cstr) {
     if (ctx->verbose >= SYX_RUN_VERBOSE_ALL) {
       printf("+");
-      print_syxv((SyxV *)*expr);
+      print_sexpr(expr);
       printf("\n");
     }
-    SyxV *result = rc_acquire(syx_eval(ctx->global_env, (SyxV *)*expr));
+    SyxV *result = syx_eval(ctx->global_env, (SyxV *)expr);
     if (ctx->verbose >= SYX_RUN_VERBOSE_EVERY_RESULT) {
       print_syxv(result);
       printf("\n");
     }
-    da_append(results, result);
+    da_append(results, rc_acquire(result));
     if (syx_env_lookup_get(ctx->global_env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
   }
-  rc_release(input);
   if (ctx->verbose == SYX_RUN_VERBOSE_LAST_RESULT) {
     print_syxv(results->items[results->count - 1]);
     printf("\n");
@@ -115,6 +115,12 @@ int main(int argc, char **argv) {
     da_foreach(const char *, command, commands) sb_append_cstr(&sb, *command);
     int run_result = run_syx(&ctx, sb_to_sv(sb).data);
     if (run_result >= 0) nob_return_defer(run_result);
+  } else if (argc == 1) {
+    String_Builder sb = {0};
+    if (!nob_read_entire_file(argv[0], &sb)) UNREACHABLE("Failed to read file");
+    String_View script = sb_to_sv(sb);
+    int run_result = run_syx(&ctx, script.data);
+    if (run_result >= 0) nob_return_defer(run_result);
   } else {
     printf("Syx Language REPL\n");
     char *line_ptr;
@@ -122,7 +128,7 @@ int main(int argc, char **argv) {
       if (*line_ptr) add_history(line_ptr);
       int run_result = run_syx(&ctx, line_ptr);
       free(line_ptr);
-      if (run_result >= 0) return run_result;
+      if (run_result >= 0) nob_return_defer(run_result);
     }
   }
 

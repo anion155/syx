@@ -7,15 +7,35 @@
 
 #include "sexpr_ast.h"
 
-SExpr *parse_sexpr(String_View *source);
-
 typedef struct SExprs {
   SExpr **items;
   size_t count;
   size_t capacity;
 } SExprs;
 
-SExprs *parse_sexprs(const char *source);
+SExpr *parse_sexpr(String_View *source);
+SExprs *parse_sexprs(String_View *source);
+
+typedef struct SExpr_Parser_Context {
+  String_View source;
+  String_View *it;
+  String_View line;
+  size_t linenumber;
+} SExpr_Parser_Context;
+
+struct Sexprs_Iterator {
+  SExpr_Parser_Context ctx;
+  SExprs exprs;
+};
+
+SExpr ***parser__make_sexprs_for_each_iterator(const char *source_src);
+bool parser__sexprs_for_each_next(SExpr ****exprs, SExpr **expr);
+SExpr_Parser_Context *parser__sexprs_for_each_ctx(SExpr **exprs);
+#define parser_sexprs_for_each(name, source)                                         \
+  for (                                                                              \
+      SExpr *name = NULL, ***_ctx = parser__make_sexprs_for_each_iterator((source)); \
+      parser__sexprs_for_each_next(&_ctx, &name);)
+#define parser_sexprs_for_each_ctx() parser__sexprs_for_each_ctx(exprs)
 
 #endif // SEXPR_PARSER_H
 
@@ -36,13 +56,7 @@ SExprs *parse_sexprs(const char *source);
 #define SEXPR_TOKEN_DOT '.'
 #define SEXPR_TOKEN_DIGIT_0 '0'
 #define SEXPR_TOKEN_GUARD '|'
-
-typedef struct {
-  String_View source;
-  String_View *it;
-  String_View line;
-  size_t linenumber;
-} SExpr_Parser_Context;
+#define SEXPR_TOKEN_COMMENT ';'
 
 #define PARSER_ERROR(message, ctx) UNREACHABLE((UNUSED(ctx), (message)))
 
@@ -151,8 +165,17 @@ SExpr *parse__sexpr_symbol(SExpr_Parser_Context *ctx) {
   return make_sexpr_symbol(name);
 }
 
-SExpr *parse__sexpr(SExpr_Parser_Context *ctx) {
+SExpr *parse__sexpr_nullable(SExpr_Parser_Context *ctx) {
   char current = ctx->it->data[0];
+  if (current == SEXPR_TOKEN_COMMENT) {
+    size_t i = 0;
+    while (i < ctx->it->count && !islineend(ctx->it->data[i])) i += 1;
+    i += 1;
+    ctx->it->count -= i;
+    ctx->it->data += i;
+    current = ctx->it->data[0];
+  }
+  if (!ctx->it->count) return NULL;
   if (current == SEXPR_TOKEN_LIST_START) return parse__sexpr_list(ctx);
   if (current == SEXPR_TOKEN_QUOTES) return parse__sexpr_quote(ctx);
   if (current == SEXPR_TOKEN_DQUOTES) return parse__sexpr_string(ctx);
@@ -165,23 +188,68 @@ SExpr *parse__sexpr(SExpr_Parser_Context *ctx) {
   return parse__sexpr_symbol(ctx);
 }
 
+SExpr *parse__sexpr(SExpr_Parser_Context *ctx) {
+  SExpr *expr = parse__sexpr_nullable(ctx);
+  if (!expr) PARSER_ERROR("expression expected", ctx);
+  return expr;
+}
+
 SExpr *parse_sexpr(String_View *source) {
   SExpr_Parser_Context ctx = {.source = *source, .it = source, .line = *source, .linenumber = 0};
   chop_spaces(&ctx);
   if (!ctx.it->count) PARSER_ERROR("unexpected end of s-expression", ctx);
-  return parse__sexpr(&ctx);
+  return parse__sexpr_nullable(&ctx);
 }
 
-SExprs *parse_sexprs(const char *source) {
-  String_View it = sv_from_cstr(source);
-  SExpr_Parser_Context ctx = {.source = it, .it = &it, .line = it, .linenumber = 0};
+SExprs *parse_sexprs(String_View *source) {
+  SExpr_Parser_Context ctx = {.source = *source, .it = source, .line = *source, .linenumber = 0};
   SExprs *exprs = rc_alloc(sizeof(SExprs), da_destructor);
-  while (it.count) {
+  while (ctx.it->count) {
     chop_spaces(&ctx);
     if (!ctx.it->count) break;
-    da_append(exprs, rc_acquire(parse__sexpr(&ctx)));
+    SExpr *expr = parse__sexpr_nullable(&ctx);
+    if (expr) da_append(exprs, rc_acquire(expr));
   }
   return exprs;
+}
+
+void parser__sexprs_for_each_iterator_destructor(void *data) {
+  struct Sexprs_Iterator *it = data;
+  free(it->ctx.it);
+  da_destructor(&it->exprs);
+}
+
+SExpr ***parser__make_sexprs_for_each_iterator(const char *source_src) {
+  struct Sexprs_Iterator *it = rc_acquire(rc_alloc(sizeof(struct Sexprs_Iterator), parser__sexprs_for_each_iterator_destructor));
+  String_View source_it = sv_from_cstr(source_src);
+  it->ctx.source = source_it;
+  it->ctx.it = malloc(sizeof(String_View));
+  it->ctx.it->data = source_it.data;
+  it->ctx.it->count = source_it.count;
+  it->ctx.line = source_it;
+  it->ctx.linenumber = 0;
+  da_reserve(&it->exprs, 1);
+  return &it->exprs.items;
+}
+
+bool parser__sexprs_for_each_next(SExpr ****_ctx, SExpr **expr) {
+  struct Sexprs_Iterator *it = (struct Sexprs_Iterator *)((SExpr_Parser_Context *)(*_ctx) - 1);
+  chop_spaces(&it->ctx);
+  if (!it->ctx.it->count) {
+    rc_release(it);
+    return false;
+  }
+  SExpr *parsed = parse__sexpr_nullable(&it->ctx);
+  if (!parsed) return parser__sexprs_for_each_next(_ctx, expr);
+  da_append(&it->exprs, rc_acquire(parsed));
+  (*_ctx) = &it->exprs.items;
+  (*expr) = parsed;
+  return true;
+}
+
+SExpr_Parser_Context *parser__sexprs_for_each_ctx(SExpr **exprs) {
+  struct Sexprs_Iterator *it = (struct Sexprs_Iterator *)((SExpr_Parser_Context *)exprs - 1);
+  return &it->ctx;
 }
 
 #endif // SEXPR_PARSER_IMPL

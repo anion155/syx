@@ -62,11 +62,11 @@ bool command_run_run(NoNob_Command *command) {
 #define command_debug_init NULL
 
 bool command_debug_run() {
+  ctx.s->build_debug = true;
   if (!command_build_run()) return false;
 
   nob_cmd_append(&ctx.cmd, "lldb");
   nob_cmd_append(&ctx.cmd, ctx.s->syx_path);
-  nob_cmd_append(&ctx.cmd, "--");
   if (ctx.argc) nob_da_append_many(&ctx.cmd, ctx.argv, ctx.argc);
   if (!nob_cmd_run(&ctx.cmd)) return false;
 
