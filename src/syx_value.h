@@ -39,7 +39,7 @@ typedef enum : unsigned int {
   SYXV_KIND_PAIR = SEXPR_KIND_PAIR,
   SYXV_KIND_BOOL = SEXPR_KIND_BOOL,
   SYXV_KIND_INTEGER = SEXPR_KIND_INTEGER,
-  SYXV_KIND_REAL = SEXPR_KIND_REAL,
+  SYXV_KIND_FRACTIONAL = SEXPR_KIND_FRACTIONAL,
   SYXV_KIND_STRING = SEXPR_KIND_STRING,
   SYXV_KIND_QUOTE = SEXPR_KIND_QUOTE,
   SYXV_KIND_SPECIALF,
@@ -58,10 +58,10 @@ struct SyxV {
       SyxV *right;
     } pair;
 
-    sexpr_bool_t boolean;
-    sexpr_int_t integer;
-    sexpr_real_t real;
-    sexpr_string_t string;
+    bool_t boolean;
+    integer_t integer;
+    fractional_t fractional;
+    string_t string;
     SyxV *quote;
     Syx_SpecialF specialf;
     Syx_Builtin builtin;
@@ -75,19 +75,19 @@ SyxV *make_syxv_symbol(String_View symbol);
 SyxV *make_syxv_symbol_n(char *symbol, size_t size);
 SyxV *make_syxv_symbol_ctrs(char *symbol);
 SyxV *make_syxv_pair(SyxV *left, SyxV *right);
-SyxV *make_syxv_bool(sexpr_bool_t value);
-SyxV *make_syxv_integer(sexpr_int_t value);
-SyxV *make_syxv_real(sexpr_real_t value);
+SyxV *make_syxv_bool(bool_t value);
+SyxV *make_syxv_integer(integer_t value);
+SyxV *make_syxv_fractional(fractional_t value);
 SyxV *make_syxv_string(String_View value);
-SyxV *make_syxv_string_n(sexpr_string_t value, size_t size);
-SyxV *make_syxv_string_cstr(sexpr_string_t value);
+SyxV *make_syxv_string_n(string_t value, size_t size);
+SyxV *make_syxv_string_cstr(string_t value);
 SyxV *make_syxv_quote(SyxV *quote);
-#define make_syxv_value(value)              \
-  _Generic(value,                           \
-      syxv_bool_t: make_syxv_bool(value),   \
-      syxv_int_t: make_syxv_integer(value), \
-      syxv_real_t: make_syxv_real(value),   \
-      syxv_string_t: make_syxv_string(value))
+#define make_syxv_value(value)                   \
+  _Generic(value,                                \
+      bool_t: make_syxv_bool(value),             \
+      integer_t: make_syxv_integer(value),       \
+      fractional_t: make_syxv_fractional(value), \
+      string_t: make_syxv_string(value))
 SyxV *make_syxv_list_opt(size_t count, SyxV **items);
 #define make_syxv_list(...)                             \
   make_syxv_list_opt(                                   \
@@ -139,7 +139,7 @@ void syxv_destructor(void *data) {
     case SYXV_KIND_PAIR:
     case SYXV_KIND_BOOL:
     case SYXV_KIND_INTEGER:
-    case SYXV_KIND_REAL:
+    case SYXV_KIND_FRACTIONAL:
     case SYXV_KIND_STRING:
     case SYXV_KIND_QUOTE: UNREACHABLE("should not be called for s-expressions");
     case SYXV_KIND_SPECIALF: {
@@ -167,17 +167,17 @@ SyxV *make_syxv_symbol_ctrs(char *symbol) { return (SyxV *)make_sexpr_symbol_ctr
 
 SyxV *make_syxv_pair(SyxV *left, SyxV *right) { return (SyxV *)make_sexpr_pair((SExpr *)left, (SExpr *)right); }
 
-SyxV *make_syxv_bool(sexpr_bool_t value) { return (SyxV *)make_sexpr_bool(value); }
+SyxV *make_syxv_bool(bool_t value) { return (SyxV *)make_sexpr_bool(value); }
 
-SyxV *make_syxv_integer(sexpr_int_t value) { return (SyxV *)make_sexpr_integer(value); }
+SyxV *make_syxv_integer(integer_t value) { return (SyxV *)make_sexpr_integer(value); }
 
-SyxV *make_syxv_real(sexpr_real_t value) { return (SyxV *)make_sexpr_real(value); }
+SyxV *make_syxv_fractional(fractional_t value) { return (SyxV *)make_sexpr_fractional(value); }
 
 SyxV *make_syxv_string(String_View value) { return (SyxV *)make_sexpr_string(value); }
 
-SyxV *make_syxv_string_n(sexpr_string_t value, size_t size) { return (SyxV *)make_sexpr_string_n(value, size); }
+SyxV *make_syxv_string_n(string_t value, size_t size) { return (SyxV *)make_sexpr_string_n(value, size); }
 
-SyxV *make_syxv_string_cstr(sexpr_string_t value) { return (SyxV *)make_sexpr_string_cstr(value); }
+SyxV *make_syxv_string_cstr(string_t value) { return (SyxV *)make_sexpr_string_cstr(value); }
 
 SyxV *make_syxv_quote(SyxV *quote) { return (SyxV *)make_sexpr_quote((SExpr *)quote); }
 
@@ -284,7 +284,7 @@ void fprint_syxv(FILE *f, SyxV *value) {
     } break;
     case SYXV_KIND_BOOL: return fprint_sexpr(f, (SExpr *)value);
     case SYXV_KIND_INTEGER: return fprint_sexpr(f, (SExpr *)value);
-    case SYXV_KIND_REAL: return fprint_sexpr(f, (SExpr *)value);
+    case SYXV_KIND_FRACTIONAL: return fprint_sexpr(f, (SExpr *)value);
     case SYXV_KIND_STRING: return fprint_sexpr(f, (SExpr *)value);
     case SYXV_KIND_QUOTE: {
       fprintf(f, "'");

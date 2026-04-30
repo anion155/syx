@@ -1,6 +1,6 @@
 ### Values
 - `1`, `-1` integer number value
-- `1.0`, `-1.0`, `1.`, `.0` real number value
+- `1.0`, `-1.0`, `1.`, `.0` fractional number value
 - `"something"` string literal value
 - `something` symbol value
 - `nil` nil value
@@ -97,7 +97,7 @@ Applies a function to each element of a list and returns a new list of results.
 ## Builtins Arithmetics
 
 ### +, -, *, /
-Sequentially applies all arguments. Integers promoted to real if any argument is real.
+Sequentially applies all arguments. Integers promoted to fractional if any argument is fractional.
 `(+) => 0`
 `(+ ...<numbers>) => sum`
 `(- <number> ...<numbers>) => difference`

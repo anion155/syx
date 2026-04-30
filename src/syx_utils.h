@@ -1,5 +1,5 @@
-#ifndef SEXPR_UTILS_H
-#define SEXPR_UTILS_H
+#ifndef SYX_UTILS_H
+#define SYX_UTILS_H
 
 #include <ht.h>
 #include <magic.h>
@@ -14,29 +14,29 @@ int hex_to_int(int c);
 
 void da_destructor(void *data);
 
-typedef bool sexpr_bool_t;
-typedef long long int sexpr_int_t;
-typedef long double sexpr_real_t;
-typedef char *sexpr_string_t;
+typedef bool bool_t;
+typedef long long int integer_t;
+typedef long double fractional_t;
+typedef char *string_t;
 
-bool parse_integer(String_View *sv, sexpr_int_t *result);
-bool parse_fractions(String_View *sv, sexpr_real_t *result);
-bool parse_real(String_View *sv, sexpr_real_t *result);
+bool parse_integer(String_View *sv, integer_t *result);
+bool parse_fractions(String_View *sv, fractional_t *result);
+bool parse_fractional(String_View *sv, fractional_t *result);
 
-size_t int_width(sexpr_int_t value);
-void stringify_int_n(sexpr_int_t value, size_t length, char *string);
-String_View stringify_int(sexpr_int_t value);
+size_t int_width(integer_t value);
+void stringify_int_n(integer_t value, size_t length, char *string);
+String_View stringify_int(integer_t value);
 
-#define REAL_MINIMAL_DIFFERENCE 1e-9
-#define MAX_REAL_FRACTIONAL_WIDTH 15
+#define FRAC_MINIMAL_DIFFERENCE 1e-9
+#define MAX_FRAC_FRACTIONAL_WIDTH 15
 
-size_t real_fraction_width(sexpr_real_t value);
-size_t real__precision(sexpr_real_t value, ssize_t precision);
-#define real_precision(value, ...) real__precision((value), WITH_DEFAULT(-MAX_REAL_FRACTIONAL_WIDTH, __VA_ARGS__))
-size_t real_width(sexpr_real_t value, size_t precision);
-void stringify_real_n(sexpr_real_t value, size_t integer_width, size_t precision, char *string);
-String_View stringify__real(sexpr_real_t value, ssize_t precision);
-#define stringify_real(value, ...) stringify__real((value), WITH_DEFAULT(-MAX_REAL_FRACTIONAL_WIDTH, __VA_ARGS__))
+size_t fractions_width(fractional_t value);
+size_t fractions__precision(fractional_t value, ssize_t precision);
+#define fractions_precision(value, ...) fractions__precision((value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
+size_t fractional_width(fractional_t value, size_t precision);
+void stringify_fractional_n(fractional_t value, size_t integer_width, size_t precision, char *string);
+String_View stringify__fractional(fractional_t value, ssize_t precision);
+#define stringify_fractional(value, ...) stringify__fractional((value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
 
 #define define_constants_ht(name, data_type)        \
   typedef Ht(char *, data_type, name##_t) name##_t; \
@@ -55,19 +55,17 @@ struct escape_char_print {
   int (*revert_next_char)(void *data, size_t n);
 };
 
-size_t syx_putc(FILE *fd, char char_v);
-size_t syx_putc_escaped(FILE *fd, struct escape_char_print escape);
-int gat_char_n(void *_data);
-size_t syx_puts_n(FILE *fd, const char *str, size_t n);
-size_t syx_puts(FILE *fd, String_View sv);
-int gat_char_cstr(void *_data);
-size_t syx_puts_cstr(FILE *fd, const char *str);
-ssize_t syx_put_sv_diff(FILE *fd, String_View *base, String_View *offset);
+size_t io_putc(FILE *fd, char char_v);
+size_t io_putc_escaped(FILE *fd, struct escape_char_print escape);
+int io_char_n(void *_data);
+size_t io_puts_n(FILE *fd, const char *str, size_t n);
+size_t io_puts(FILE *fd, String_View sv);
+size_t io_puts_cstr(FILE *fd, const char *str);
 
-#endif // SEXPR_UTILS_H
+#endif // SYX_UTILS_H
 
-#if defined(SEXPR_UTILS_IMPL) && !defined(SEXPR_UTILS_IMPL_C)
-#define SEXPR_UTILS_IMPL_C
+#if defined(SYX_UTILS_IMPL) && !defined(SYX_UTILS_IMPL_C)
+#define SYX_UTILS_IMPL_C
 
 int islineend(int c) {
   return (c == '\n' || c == '\r');
@@ -109,7 +107,7 @@ void da_destructor(void *data) {
   da_free(*da);
 }
 
-bool parse_integer(String_View *sv, sexpr_int_t *result) {
+bool parse_integer(String_View *sv, integer_t *result) {
   bool is_negative = sv->data[0] == '-';
   if (is_negative) sv_chop_left(sv, 1);
   if (!sv->count) return false;
@@ -126,11 +124,11 @@ bool parse_integer(String_View *sv, sexpr_int_t *result) {
   return true;
 }
 
-bool parse_fractions(String_View *sv, sexpr_real_t *result) {
+bool parse_fractions(String_View *sv, fractional_t *result) {
   if (sv->data[0] != '.') return false;
   sv_chop_left(sv, 1);
-  sexpr_int_t fractional_part = 0;
-  sexpr_int_t exponent = 1;
+  integer_t fractional_part = 0;
+  integer_t exponent = 1;
   size_t i = 0;
   while (i < sv->count && isdigit(sv->data[i])) {
     fractional_part = fractional_part * 10 + (sv->data[i] - '0');
@@ -139,15 +137,15 @@ bool parse_fractions(String_View *sv, sexpr_real_t *result) {
   }
   sv->count -= i;
   sv->data += i;
-  *result = (sexpr_real_t)fractional_part / (sexpr_real_t)exponent;
+  *result = (fractional_t)fractional_part / (fractional_t)exponent;
   return true;
 }
 
-bool parse_real(String_View *sv, sexpr_real_t *result) {
-  sexpr_int_t integer_part = 0;
+bool parse_fractional(String_View *sv, fractional_t *result) {
+  integer_t integer_part = 0;
   if (!parse_integer(sv, &integer_part)) return false;
   if (sv->data[0] != '.') {
-    *result = (sexpr_real_t)integer_part;
+    *result = (fractional_t)integer_part;
     return true;
   }
   if (!parse_fractions(sv, result)) return false;
@@ -156,27 +154,27 @@ bool parse_real(String_View *sv, sexpr_real_t *result) {
   return true;
 }
 
-size_t int_width(sexpr_int_t value) {
+size_t int_width(integer_t value) {
   size_t size = 0;
-  for (sexpr_int_t it = value; it != 0; it = it / 10)
+  for (integer_t it = value; it != 0; it = it / 10)
     size += 1;
   if (value == 0) size = 1;
   else if (value < 0) size += 1;
   return size;
 }
 
-void stringify_int_n(sexpr_int_t value, size_t length, char *string) {
+void stringify_int_n(integer_t value, size_t length, char *string) {
   if (value < 0) {
     length -= 1;
     string[0] = '-';
     string += 1;
   }
-  for (struct { size_t index; sexpr_int_t it; } s = {0, value}; s.index < length; s.index += 1, s.it /= 10) {
+  for (struct { size_t index; integer_t it; } s = {0, value}; s.index < length; s.index += 1, s.it /= 10) {
     string[length - s.index - 1] = '0' + (value < 0 ? -(s.it % 10) : s.it % 10);
   }
 }
 
-String_View stringify_int(sexpr_int_t value) {
+String_View stringify_int(integer_t value) {
   size_t length = int_width(value);
   char *string = malloc(length + 1);
   String_View result = {.data = string, .count = length};
@@ -184,63 +182,63 @@ String_View stringify_int(sexpr_int_t value) {
   return result;
 }
 
-size_t real_fraction_width(sexpr_real_t value) {
+size_t fractions_width(fractional_t value) {
   if (value < 0) value *= -1;
-  value -= (sexpr_int_t)value;
+  value -= (integer_t)value;
   size_t width = 0;
-  while (width < MAX_REAL_FRACTIONAL_WIDTH) {
-    if (value < REAL_MINIMAL_DIFFERENCE) break;
-    if (value > 1.0 - REAL_MINIMAL_DIFFERENCE) break;
+  while (width < MAX_FRAC_FRACTIONAL_WIDTH) {
+    if (value < FRAC_MINIMAL_DIFFERENCE) break;
+    if (value > 1.0 - FRAC_MINIMAL_DIFFERENCE) break;
     value *= 10;
-    value -= (sexpr_int_t)value;
+    value -= (integer_t)value;
     width++;
   }
   return width;
 }
 
-size_t real__precision(sexpr_real_t value, ssize_t precision) {
+size_t fractions__precision(fractional_t value, ssize_t precision) {
   if (precision >= 0) return precision;
-  size_t fractional_width = real_fraction_width(value);
+  size_t fractional_width = fractions_width(value);
   size_t exponenta = -precision;
   return fractional_width > exponenta ? exponenta : fractional_width;
 }
 
-size_t real_width(sexpr_real_t value, size_t precision) {
+size_t fractional_width(fractional_t value, size_t precision) {
   size_t integer_width = int_width(value);
   if (precision == 0) return integer_width;
   return integer_width + 1 + precision;
 }
 
-void stringify_real_n(sexpr_real_t value, size_t integer_width, size_t precision, char *string) {
-  sexpr_real_t round_const = value < 0 ? -0.5 : 0.5;
+void stringify_fractional_n(fractional_t value, size_t integer_width, size_t precision, char *string) {
+  fractional_t round_const = value < 0 ? -0.5 : 0.5;
   if (precision == 0) {
-    stringify_int_n((sexpr_int_t)value + round_const, integer_width, string);
+    stringify_int_n((integer_t)value + round_const, integer_width, string);
     return;
   }
   size_t width = integer_width + 1 + precision;
   stringify_int_n(value, integer_width, string);
   string[integer_width] = '.';
   string[width] = 0;
-  sexpr_int_t exponent = 1;
+  integer_t exponent = 1;
   for (size_t index = 0; index < precision; index += 1)
     exponent *= 10;
-  sexpr_int_t fractions = (sexpr_int_t)((value < 0 ? -value : value) * exponent + 0.5);
+  integer_t fractions = (integer_t)((value < 0 ? -value : value) * exponent + 0.5);
   stringify_int_n(fractions, precision, string + integer_width + 1);
   return;
 }
 
-String_View stringify__real(sexpr_real_t value, ssize_t precision) {
-  sexpr_real_t round_const = value < 0 ? -0.5 : 0.5;
-  if (precision == 0) return stringify_int((sexpr_int_t)value + round_const);
-  size_t _precision = real__precision(value, precision);
-  String_View res = {.count = real_width(value, _precision)};
+String_View stringify__fractional(fractional_t value, ssize_t precision) {
+  fractional_t round_const = value < 0 ? -0.5 : 0.5;
+  if (precision == 0) return stringify_int((integer_t)value + round_const);
+  size_t _precision = fractions__precision(value, precision);
+  String_View res = {.count = fractional_width(value, _precision)};
   char *string = malloc(res.count + 1);
   res.data = string;
-  stringify_real_n(value, int_width(value), _precision, string);
+  stringify_fractional_n(value, int_width(value), _precision, string);
   return res;
 }
 
-size_t syx_putc(FILE *fd, char char_v) {
+size_t io_putc(FILE *fd, char char_v) {
   if (fputc(char_v, fd) < 0) return 0;
   return 1;
 }
@@ -251,7 +249,7 @@ size_t syx_put_octal_char(FILE *fd, char first, struct escape_char_print escape)
   for (size_t count = 1; c > 0 && isoctal(c) && count <= 3; c = escape.get_next_char(escape.data), count += 1) {
     output = (output << 3) + (c - '0');
   }
-  syx_putc(fd, output);
+  io_putc(fd, output);
   return 1;
 }
 
@@ -262,9 +260,9 @@ size_t syx_put_hex_char(FILE *fd, struct escape_char_print escape) {
   while (ishex(c)) {
     output = (output << 4) + hex_to_int(c);
     c = escape.get_next_char(escape.data);
-    if (c < 0) return syx_putc(fd, output);
+    if (c < 0) return io_putc(fd, output);
   }
-  return syx_putc(fd, output);
+  return io_putc(fd, output);
 }
 
 size_t syx_put_unicode_char(FILE *fd, char base, struct escape_char_print escape) {
@@ -304,52 +302,52 @@ size_t syx_put_unicode_char(FILE *fd, char base, struct escape_char_print escape
     uint16_t low = (hex_to_int(U[0]) << 12) | (hex_to_int(U[1]) << 8) | (hex_to_int(U[2]) << 4) | hex_to_int(U[3]);
     uint32_t codepoint = ((uint32_t)high << 16) | low;
     if (codepoint < 0x80) {
-      return syx_putc(fd, codepoint);
+      return io_putc(fd, codepoint);
     } else if (codepoint < 0x800) {
-      return syx_putc(fd, 0xC0 | (codepoint >> 6)) && syx_putc(fd, 0x80 | (codepoint & 0x3F));
+      return io_putc(fd, 0xC0 | (codepoint >> 6)) && io_putc(fd, 0x80 | (codepoint & 0x3F));
     } else if (codepoint < 0x10000) {
-      return syx_putc(fd, 0xE0 | (codepoint >> 12)) && syx_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F)) && syx_putc(fd, 0x80 | (codepoint & 0x3F));
+      return io_putc(fd, 0xE0 | (codepoint >> 12)) && io_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F)) && io_putc(fd, 0x80 | (codepoint & 0x3F));
     } else {
-      return syx_putc(fd, 0xF0 | (codepoint >> 18)) && syx_putc(fd, 0x80 | ((codepoint >> 12) & 0x3F)) && syx_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F)) && syx_putc(fd, 0x80 | (codepoint & 0x3F));
+      return io_putc(fd, 0xF0 | (codepoint >> 18)) && io_putc(fd, 0x80 | ((codepoint >> 12) & 0x3F)) && io_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F)) && io_putc(fd, 0x80 | (codepoint & 0x3F));
     }
   }
   UNREACHABLE("unknown base");
 print_u:
   uint16_t codepoint = (hex_to_int(u[0]) << 12) | (hex_to_int(u[1]) << 8) | (hex_to_int(u[2]) << 4) | hex_to_int(u[3]);
   if (codepoint < 0x80) {
-    return syx_putc(fd, codepoint);
+    return io_putc(fd, codepoint);
   } else if (codepoint < 0x800) {
-    return syx_putc(fd, 0xC0 | (codepoint >> 6)) && syx_putc(fd, 0x80 | (codepoint & 0x3F));
+    return io_putc(fd, 0xC0 | (codepoint >> 6)) && io_putc(fd, 0x80 | (codepoint & 0x3F));
   } else {
-    return syx_putc(fd, 0xE0 | (codepoint >> 12)) && syx_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F)) && syx_putc(fd, 0x80 | (codepoint & 0x3F));
+    return io_putc(fd, 0xE0 | (codepoint >> 12)) && io_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F)) && io_putc(fd, 0x80 | (codepoint & 0x3F));
   }
 }
 
-size_t syx_putc_escaped(FILE *fd, struct escape_char_print escape) {
+size_t io_putc_escaped(FILE *fd, struct escape_char_print escape) {
   int c = escape.get_next_char(escape.data);
   if (c < 0) return 0;
-  if (c != '\\') return syx_putc(fd, c);
+  if (c != '\\') return io_putc(fd, c);
   c = escape.get_next_char(escape.data);
-  if (c < 0) return syx_putc(fd, '\\');
+  if (c < 0) return io_putc(fd, '\\');
   switch (c) {
-    case 'a': return syx_putc(fd, '\a');
-    case 'b': return syx_putc(fd, '\b');
-    case 'e': return syx_putc(fd, '\e');
-    case 'f': return syx_putc(fd, '\f');
-    case 'n': return syx_putc(fd, '\n');
-    case 'r': return syx_putc(fd, '\r');
-    case 't': return syx_putc(fd, '\t');
-    case 'v': return syx_putc(fd, '\v');
-    case '\\': return syx_putc(fd, '\\');
-    case '\'': return syx_putc(fd, '\'');
-    case '"': return syx_putc(fd, '\"');
-    case '?': return syx_putc(fd, '\?');
+    case 'a': return io_putc(fd, '\a');
+    case 'b': return io_putc(fd, '\b');
+    case 'e': return io_putc(fd, '\e');
+    case 'f': return io_putc(fd, '\f');
+    case 'n': return io_putc(fd, '\n');
+    case 'r': return io_putc(fd, '\r');
+    case 't': return io_putc(fd, '\t');
+    case 'v': return io_putc(fd, '\v');
+    case '\\': return io_putc(fd, '\\');
+    case '\'': return io_putc(fd, '\'');
+    case '"': return io_putc(fd, '\"');
+    case '?': return io_putc(fd, '\?');
     case 'x': return syx_put_hex_char(fd, escape);
     case 'u': return syx_put_unicode_char(fd, 'u', escape);
     case 'U': return syx_put_unicode_char(fd, 'U', escape);
   }
   if (isoctal(c)) return syx_put_octal_char(fd, c, escape);
-  return syx_putc(fd, c);
+  return io_putc(fd, c);
 }
 
 struct gat_char_data {
@@ -358,7 +356,7 @@ struct gat_char_data {
   size_t index;
 };
 
-int gat_char_n(void *_data) {
+int io_char_n(void *_data) {
   struct gat_char_data *data = _data;
   if (data->index >= data->count) return -1;
   return data->data[data->index++];
@@ -370,57 +368,49 @@ int revert_char_n(void *_data, size_t n) {
   return 1;
 }
 
-size_t syx_puts_n(FILE *fd, const char *str, size_t n) {
+size_t io_puts_n(FILE *fd, const char *str, size_t n) {
   struct gat_char_data data = {.data = str, .count = n, .index = 0};
-  struct escape_char_print escape = {.data = &data, .get_next_char = gat_char_n, .revert_next_char = revert_char_n};
+  struct escape_char_print escape = {.data = &data, .get_next_char = io_char_n, .revert_next_char = revert_char_n};
   while (data.index < n) {
-    if (!syx_putc_escaped(fd, escape)) return data.index;
+    if (!io_putc_escaped(fd, escape)) return data.index;
   }
   return n;
 }
 
-size_t syx_puts(FILE *fd, String_View sv) {
+size_t io_puts(FILE *fd, String_View sv) {
   struct gat_char_data data = {.data = sv.data, .count = sv.count, .index = 0};
-  struct escape_char_print escape = {.data = &data, .get_next_char = gat_char_n, .revert_next_char = revert_char_n};
+  struct escape_char_print escape = {.data = &data, .get_next_char = io_char_n, .revert_next_char = revert_char_n};
   while (data.index < sv.count) {
-    if (!syx_putc_escaped(fd, escape)) return data.index;
+    if (!io_putc_escaped(fd, escape)) return data.index;
   }
   return data.count;
 }
 
-struct gat_char_cstr_data {
+struct get_char_cstr_data {
   const char *cstr;
   size_t index;
 };
 
-int gat_char_cstr(void *_data) {
-  struct gat_char_cstr_data *data = _data;
+int get_char_cstr(void *_data) {
+  struct get_char_cstr_data *data = _data;
   char c = data->cstr[data->index];
   if (c == 0) return -1;
   return c;
 }
 
 int revert_char_cstr(void *_data, size_t n) {
-  struct gat_char_cstr_data *data = _data;
+  struct get_char_cstr_data *data = _data;
   data->index -= n;
   return 1;
 }
 
-size_t syx_puts_cstr(FILE *fd, const char *str) {
-  struct gat_char_cstr_data data = {.cstr = str, .index = 0};
-  struct escape_char_print escape = {.data = &data, .get_next_char = gat_char_cstr, .revert_next_char = revert_char_cstr};
+size_t io_puts_cstr(FILE *fd, const char *str) {
+  struct get_char_cstr_data data = {.cstr = str, .index = 0};
+  struct escape_char_print escape = {.data = &data, .get_next_char = get_char_cstr, .revert_next_char = revert_char_cstr};
   while (str[data.index]) {
-    if (!syx_putc_escaped(fd, escape)) return data.index;
+    if (!io_putc_escaped(fd, escape)) return data.index;
   }
   return data.index;
 }
 
-ssize_t syx_put_sv_diff(FILE *fd, String_View *base, String_View *offset) {
-  ptrdiff_t diff = offset->data - base->data;
-  if (diff <= 0) return 0;
-  if (!syx_puts_n(fd, base->data, offset->data - base->data)) return -1;
-  *base = *offset;
-  return diff;
-}
-
-#endif // SEXPR_UTILS_IMPL
+#endif // SYX_UTILS_IMPL

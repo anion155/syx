@@ -80,92 +80,92 @@ SyxV *syx_builtin_map(Syx_Env *env, SyxV *arguments) {
 }
 
 struct syx_upgradable_operator {
-  sexpr_int_t (*nil)(Syx_Env *env);
-  sexpr_int_t (*integer)(sexpr_int_t left, sexpr_int_t right);
-  sexpr_real_t (*real)(sexpr_real_t left, sexpr_real_t right);
+  integer_t (*nil)(Syx_Env *env);
+  integer_t (*integer)(integer_t left, integer_t right);
+  fractional_t (*fractional)(fractional_t left, fractional_t right);
 };
 
-SyxV *syx__builtin_operator_upgrade_real(Syx_Env *env, SyxV *arguments, struct syx_upgradable_operator *operator, sexpr_real_t initial_value) {
-  sexpr_real_t value = initial_value;
+SyxV *syx__builtin_operator_upgrade(Syx_Env *env, SyxV *arguments, struct syx_upgradable_operator *operator, fractional_t initial_value) {
+  fractional_t value = initial_value;
   syxv_list_for_each(env, argument, arguments) {
-    value = operator->real(value, syx_convert_to_real_v(env, argument));
+    value = operator->fractional(value, syx_convert_to_fractional_v(env, argument));
   }
-  return make_syxv_real(value);
+  return make_syxv_fractional(value);
 }
 
 SyxV *syx__builtin_operator(Syx_Env *env, SyxV *arguments, struct syx_upgradable_operator *operator) {
   SyxV *first = syxv_list_next(&arguments);
-  sexpr_int_t value;
-  if (first->kind == SYXV_KIND_REAL) return syx__builtin_operator_upgrade_real(env, arguments, operator, first->real);
+  integer_t value;
+  if (first->kind == SYXV_KIND_FRACTIONAL) return syx__builtin_operator_upgrade(env, arguments, operator, first->fractional);
   if (first->kind == SYXV_KIND_NIL) value = operator->nil(env);
   else value = syx_convert_to_integer_v(env, first);
   syxv_list_for_each(env, argument, arguments) {
-    if (argument->kind == SYXV_KIND_REAL) return syx__builtin_operator_upgrade_real(env, argument_list, operator, value);
+    if (argument->kind == SYXV_KIND_FRACTIONAL) return syx__builtin_operator_upgrade(env, argument_list, operator, value);
     value = operator->integer(value, syx_convert_to_integer_v(env, argument));
   }
   return make_syxv_integer(value);
 }
 
-sexpr_int_t syx__operator_summ_nil(Syx_Env *env) { return (UNUSED(env), 0); }
+integer_t syx__operator_summ_nil(Syx_Env *env) { return (UNUSED(env), 0); }
 
-sexpr_int_t syx__operator_summ_integer(sexpr_int_t left, sexpr_int_t right) { return left + right; }
+integer_t syx__operator_summ_integer(integer_t left, integer_t right) { return left + right; }
 
-sexpr_real_t syx__operator_summ_real(sexpr_real_t left, sexpr_real_t right) { return left + right; }
+fractional_t syx__operator_summ_fractional(fractional_t left, fractional_t right) { return left + right; }
 
 /** Sum of all arguments. */
 SyxV *syx_builtin_summ(Syx_Env *env, SyxV *arguments) {
   struct syx_upgradable_operator operator= {
     .nil = syx__operator_summ_nil,
     .integer = syx__operator_summ_integer,
-    .real = syx__operator_summ_real
+    .fractional = syx__operator_summ_fractional
   };
   return syx__builtin_operator(env, arguments, &operator);
 }
 
-sexpr_int_t syx__operator_sub_nil(Syx_Env *env) { RUNTIME_ERROR("list of number expected", env); }
+integer_t syx__operator_sub_nil(Syx_Env *env) { RUNTIME_ERROR("list of number expected", env); }
 
-sexpr_int_t syx__operator_sub_integer(sexpr_int_t left, sexpr_int_t right) { return left - right; }
+integer_t syx__operator_sub_integer(integer_t left, integer_t right) { return left - right; }
 
-sexpr_real_t syx__operator_sub_real(sexpr_real_t left, sexpr_real_t right) { return left - right; }
+fractional_t syx__operator_sub_fractional(fractional_t left, fractional_t right) { return left - right; }
 
 /** Subtracts all arguments from first. */
 SyxV *syx_builtin_sub(Syx_Env *env, SyxV *arguments) {
   struct syx_upgradable_operator operator= {
     .nil = syx__operator_sub_nil,
     .integer = syx__operator_sub_integer,
-    .real = syx__operator_sub_real
+    .fractional = syx__operator_sub_fractional
   };
   return syx__builtin_operator(env, arguments, &operator);
 }
 
-sexpr_int_t syx__operator_mul_nil(Syx_Env *env) { return (UNUSED(env), 1); }
+integer_t syx__operator_mul_nil(Syx_Env *env) { return (UNUSED(env), 1); }
 
-sexpr_int_t syx__operator_mul_integer(sexpr_int_t left, sexpr_int_t right) { return left * right; }
+integer_t syx__operator_mul_integer(integer_t left, integer_t right) { return left * right; }
 
-sexpr_real_t syx__operator_mul_real(sexpr_real_t left, sexpr_real_t right) { return left * right; }
+fractional_t syx__operator_mul_fractional(fractional_t left, fractional_t right) { return left * right; }
 
 /** Multiplies all arguments. */
 SyxV *syx_builtin_mul(Syx_Env *env, SyxV *arguments) {
   struct syx_upgradable_operator operator= {
     .nil = syx__operator_mul_nil,
     .integer = syx__operator_mul_integer,
-    .real = syx__operator_mul_real
+    .fractional = syx__operator_mul_fractional
   };
   return syx__builtin_operator(env, arguments, &operator);
 }
 
-sexpr_int_t syx__operator_div_nil(Syx_Env *env) { RUNTIME_ERROR("list of number expected", env); }
+integer_t syx__operator_div_nil(Syx_Env *env) { RUNTIME_ERROR("list of number expected", env); }
 
-sexpr_int_t syx__operator_div_integer(sexpr_int_t left, sexpr_int_t right) { return left / right; }
+integer_t syx__operator_div_integer(integer_t left, integer_t right) { return left / right; }
 
-sexpr_real_t syx__operator_div_real(sexpr_real_t left, sexpr_real_t right) { return left / right; }
+fractional_t syx__operator_div_fractional(fractional_t left, fractional_t right) { return left / right; }
 
 /** Divide first argument by every next sequentialy. */
 SyxV *syx_builtin_div(Syx_Env *env, SyxV *arguments) {
   struct syx_upgradable_operator operator= {
     .nil = syx__operator_div_nil,
     .integer = syx__operator_div_integer,
-    .real = syx__operator_div_real
+    .fractional = syx__operator_div_fractional
   };
   return syx__builtin_operator(env, arguments, &operator);
 }
@@ -197,15 +197,15 @@ bool syx__builtin_equivalent_boolean(SyxV *left, SyxV *right) {
 bool syx__builtin_equivalent_integer(SyxV *left, SyxV *right) {
   switch (right->kind) {
     case SYXV_KIND_INTEGER: return left->integer == right->integer;
-    case SYXV_KIND_REAL: return left->integer == right->real;
+    case SYXV_KIND_FRACTIONAL: return left->integer == right->fractional;
     default: return false;
   }
 }
 
-bool syx__builtin_equivalent_real(SyxV *left, SyxV *right) {
+bool syx__builtin_equivalent_fractional(SyxV *left, SyxV *right) {
   switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->real == right->integer;
-    case SYXV_KIND_REAL: return left->real == right->real;
+    case SYXV_KIND_INTEGER: return left->fractional == right->integer;
+    case SYXV_KIND_FRACTIONAL: return left->fractional == right->fractional;
     default: return false;
   }
 }
@@ -218,7 +218,7 @@ Syx_Comparison_Predicate syx__builtin_equivalent_selector(Syx_Env *env, SyxV *va
   switch (value->kind) {
     case SYXV_KIND_BOOL: return syx__builtin_equivalent_boolean;
     case SYXV_KIND_INTEGER: return syx__builtin_equivalent_integer;
-    case SYXV_KIND_REAL: return syx__builtin_equivalent_real;
+    case SYXV_KIND_FRACTIONAL: return syx__builtin_equivalent_fractional;
     case SYXV_KIND_STRING: return syx__builtin_equivalent_string;
     default: RUNTIME_ERROR("can not compare equivalence", env);
   }
@@ -233,15 +233,15 @@ SyxV *syx_builtin_equivalent(Syx_Env *env, SyxV *arguments) {
 bool syx__builtin_lower_than_integer(SyxV *left, SyxV *right) {
   switch (right->kind) {
     case SYXV_KIND_INTEGER: return left->integer < right->integer;
-    case SYXV_KIND_REAL: return left->integer < right->real;
+    case SYXV_KIND_FRACTIONAL: return left->integer < right->fractional;
     default: return false;
   }
 }
 
-bool syx__builtin_lower_than_real(SyxV *left, SyxV *right) {
+bool syx__builtin_lower_than_fractional(SyxV *left, SyxV *right) {
   switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->real < right->integer;
-    case SYXV_KIND_REAL: return left->real < right->real;
+    case SYXV_KIND_INTEGER: return left->fractional < right->integer;
+    case SYXV_KIND_FRACTIONAL: return left->fractional < right->fractional;
     default: return false;
   }
 }
@@ -253,7 +253,7 @@ bool syx__builtin_lower_than_string(SyxV *left, SyxV *right) {
 Syx_Comparison_Predicate syx__builtin_lower_than_selector(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_INTEGER: return syx__builtin_lower_than_integer;
-    case SYXV_KIND_REAL: return syx__builtin_lower_than_real;
+    case SYXV_KIND_FRACTIONAL: return syx__builtin_lower_than_fractional;
     case SYXV_KIND_STRING: return syx__builtin_lower_than_string;
     default: RUNTIME_ERROR("can not compare lower than", env);
   }
@@ -268,15 +268,15 @@ SyxV *syx_builtin_lower_than(Syx_Env *env, SyxV *arguments) {
 bool syx__builtin_lower_or_equal_integer(SyxV *left, SyxV *right) {
   switch (right->kind) {
     case SYXV_KIND_INTEGER: return left->integer <= right->integer;
-    case SYXV_KIND_REAL: return left->integer <= right->real;
+    case SYXV_KIND_FRACTIONAL: return left->integer <= right->fractional;
     default: return false;
   }
 }
 
-bool syx__builtin_lower_or_equal_real(SyxV *left, SyxV *right) {
+bool syx__builtin_lower_or_equal_fractional(SyxV *left, SyxV *right) {
   switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->real <= right->integer;
-    case SYXV_KIND_REAL: return left->real <= right->real;
+    case SYXV_KIND_INTEGER: return left->fractional <= right->integer;
+    case SYXV_KIND_FRACTIONAL: return left->fractional <= right->fractional;
     default: return false;
   }
 }
@@ -288,7 +288,7 @@ bool syx__builtin_lower_or_equal_string(SyxV *left, SyxV *right) {
 Syx_Comparison_Predicate syx__builtin_lower_or_equal_selector(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_INTEGER: return syx__builtin_lower_or_equal_integer;
-    case SYXV_KIND_REAL: return syx__builtin_lower_or_equal_real;
+    case SYXV_KIND_FRACTIONAL: return syx__builtin_lower_or_equal_fractional;
     case SYXV_KIND_STRING: return syx__builtin_lower_or_equal_string;
     default: RUNTIME_ERROR("can not compare equivalence", env);
   }
@@ -303,15 +303,15 @@ SyxV *syx_builtin_lower_or_equal(Syx_Env *env, SyxV *arguments) {
 bool syx__builtin_greater_than_integer(SyxV *left, SyxV *right) {
   switch (right->kind) {
     case SYXV_KIND_INTEGER: return left->integer > right->integer;
-    case SYXV_KIND_REAL: return left->integer > right->real;
+    case SYXV_KIND_FRACTIONAL: return left->integer > right->fractional;
     default: return false;
   }
 }
 
-bool syx__builtin_greater_than_real(SyxV *left, SyxV *right) {
+bool syx__builtin_greater_than_fractional(SyxV *left, SyxV *right) {
   switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->real > right->integer;
-    case SYXV_KIND_REAL: return left->real > right->real;
+    case SYXV_KIND_INTEGER: return left->fractional > right->integer;
+    case SYXV_KIND_FRACTIONAL: return left->fractional > right->fractional;
     default: return false;
   }
 }
@@ -323,7 +323,7 @@ bool syx__builtin_greater_than_string(SyxV *left, SyxV *right) {
 Syx_Comparison_Predicate syx__builtin_greater_than_selector(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_INTEGER: return syx__builtin_greater_than_integer;
-    case SYXV_KIND_REAL: return syx__builtin_greater_than_real;
+    case SYXV_KIND_FRACTIONAL: return syx__builtin_greater_than_fractional;
     case SYXV_KIND_STRING: return syx__builtin_greater_than_string;
     default: RUNTIME_ERROR("can not compare equivalence", env);
   }
@@ -338,15 +338,15 @@ SyxV *syx_builtin_greater_than(Syx_Env *env, SyxV *arguments) {
 bool syx__builtin_greater_or_equal_integer(SyxV *left, SyxV *right) {
   switch (right->kind) {
     case SYXV_KIND_INTEGER: return left->integer > right->integer;
-    case SYXV_KIND_REAL: return left->integer > right->real;
+    case SYXV_KIND_FRACTIONAL: return left->integer > right->fractional;
     default: return false;
   }
 }
 
-bool syx__builtin_greater_or_equal_real(SyxV *left, SyxV *right) {
+bool syx__builtin_greater_or_equal_fractional(SyxV *left, SyxV *right) {
   switch (right->kind) {
-    case SYXV_KIND_INTEGER: return left->real > right->integer;
-    case SYXV_KIND_REAL: return left->real > right->real;
+    case SYXV_KIND_INTEGER: return left->fractional > right->integer;
+    case SYXV_KIND_FRACTIONAL: return left->fractional > right->fractional;
     default: return false;
   }
 }
@@ -358,7 +358,7 @@ bool syx__builtin_greater_or_equal_string(SyxV *left, SyxV *right) {
 Syx_Comparison_Predicate syx__builtin_greater_or_equal_selector(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_INTEGER: return syx__builtin_greater_or_equal_integer;
-    case SYXV_KIND_REAL: return syx__builtin_greater_or_equal_real;
+    case SYXV_KIND_FRACTIONAL: return syx__builtin_greater_or_equal_fractional;
     case SYXV_KIND_STRING: return syx__builtin_greater_or_equal_string;
     default: RUNTIME_ERROR("can not compare equivalence", env);
   }
@@ -399,8 +399,8 @@ SyxV *syx_builtin_print(Syx_Env *env, SyxV *arguments) {
   bool first = true;
   syxv_list_for_each(env, argument, arguments) {
     String_View sv = syx_convert_to_string_v(env, argument);
-    if (!first && !syx_putc(f, ' ')) return make_syxv_bool(false);
-    if (!syx_puts(f, sv)) return make_syxv_bool(false);
+    if (!first && !io_putc(f, ' ')) return make_syxv_bool(false);
+    if (!io_puts(f, sv)) return make_syxv_bool(false);
     first = false;
   }
   return make_syxv_bool(true);
@@ -411,11 +411,19 @@ SyxV *syx_builtin_println(Syx_Env *env, SyxV *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
   syxv_list_for_each(env, argument, arguments) {
     String_View sv = syx_convert_to_string_v(env, argument);
-    if (!syx_puts(f, sv)) return make_syxv_bool(false);
-    if (!syx_putc(f, ' ')) return make_syxv_bool(false);
+    if (!io_puts(f, sv)) return make_syxv_bool(false);
+    if (!io_putc(f, ' ')) return make_syxv_bool(false);
   }
-  if (!syx_putc(f, '\n')) return make_syxv_bool(false);
+  if (!io_putc(f, '\n')) return make_syxv_bool(false);
   return make_syxv_bool(true);
+}
+
+ssize_t io_put_sv_diff(FILE *fd, String_View *base, String_View *offset) {
+  ptrdiff_t diff = offset->data - base->data;
+  if (diff <= 0) return 0;
+  if (!io_puts_n(fd, base->data, offset->data - base->data)) return -1;
+  *base = *offset;
+  return diff;
 }
 
 /** Prints formatted string to file. */
@@ -428,14 +436,14 @@ SyxV *syx_builtin_printf(Syx_Env *env, SyxV *arguments) {
     size_t format_size = 1;
     if (it.data[0] != '%') continue;
     // TODO: implement custom formats
-    if (syx_put_sv_diff(f, &str, &it) < 0) return make_syxv_bool(false);
+    if (io_put_sv_diff(f, &str, &it) < 0) return make_syxv_bool(false);
     sv_chop_left(&it, format_size);
     str = it;
     SyxV *argument = syxv_list_next(&arguments);
     String_View sv = syx_convert_to_string_v(env, argument);
-    if (!syx_puts(f, sv)) return make_syxv_bool(false);
+    if (!io_puts(f, sv)) return make_syxv_bool(false);
   }
-  if (syx_put_sv_diff(f, &str, &it) < 0) return make_syxv_bool(false);
+  if (io_put_sv_diff(f, &str, &it) < 0) return make_syxv_bool(false);
   return make_syxv_bool(true);
 }
 

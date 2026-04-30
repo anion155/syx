@@ -1,7 +1,7 @@
 #ifndef SEXPR_AST_H
 #define SEXPR_AST_H
 
-#include "sexpr_utils.h"
+#include "syx_utils.h"
 #include <ht.h>
 #include <nob.h>
 #include <rc.h>
@@ -13,7 +13,7 @@ typedef enum : unsigned int {
   SEXPR_KIND_PAIR,
   SEXPR_KIND_BOOL,
   SEXPR_KIND_INTEGER,
-  SEXPR_KIND_REAL,
+  SEXPR_KIND_FRACTIONAL,
   SEXPR_KIND_STRING,
   SEXPR_KIND_QUOTE,
 } SExpr_Kind;
@@ -25,21 +25,21 @@ typedef struct SExpr_Symbol {
 
 typedef struct SExpr SExpr;
 
+typedef struct Expr_Pair {
+  SExpr *left;
+  SExpr *right;
+} Expr_Pair;
+
 struct SExpr {
   SExpr_Kind kind;
 
   union {
     SExpr_Symbol symbol;
-
-    struct Expr_Pair {
-      SExpr *left;
-      SExpr *right;
-    } pair;
-
-    sexpr_bool_t boolean;
-    sexpr_int_t integer;
-    sexpr_real_t real;
-    sexpr_string_t string;
+    Expr_Pair pair;
+    bool_t boolean;
+    integer_t integer;
+    fractional_t fractional;
+    string_t string;
     SExpr *quote;
   };
 };
@@ -50,20 +50,20 @@ SExpr *make_sexpr_symbol(String_View symbol);
 SExpr *make_sexpr_symbol_n(const char *symbol, size_t size);
 SExpr *make_sexpr_symbol_ctrs(const char *symbol);
 SExpr *make_sexpr_pair(SExpr *left, SExpr *right);
-SExpr *make_sexpr_bool(sexpr_bool_t value);
-SExpr *make_sexpr_integer(sexpr_int_t value);
-SExpr *make_sexpr_real(sexpr_real_t value);
+SExpr *make_sexpr_bool(bool_t value);
+SExpr *make_sexpr_integer(integer_t value);
+SExpr *make_sexpr_fractional(fractional_t value);
 SExpr *make_sexpr_string(String_View value);
-SExpr *make_sexpr_string_n(const sexpr_string_t value, size_t size);
-SExpr *make_sexpr_string_cstr(const sexpr_string_t value);
+SExpr *make_sexpr_string_n(const string_t value, size_t size);
+SExpr *make_sexpr_string_cstr(const string_t value);
 SExpr *make_sexpr_quote(SExpr *quote);
 
-#define make_sexpr_value(value)               \
-  _Generic(value,                             \
-      sexpr_bool_t: make_sexpr_bool(value),   \
-      sexpr_int_t: make_sexpr_integer(value), \
-      sexpr_real_t: make_sexpr_real(value),   \
-      sexpr_string_t: make_sexpr_string(value))
+#define make_sexpr_value(value)                   \
+  _Generic(value,                                 \
+      bool_t: make_sexpr_bool(value),             \
+      integer_t: make_sexpr_integer(value),       \
+      fractional_t: make_sexpr_fractional(value), \
+      string_t: make_sexpr_string(value))
 
 SExpr *make_sexpr_list_opt(size_t count, SExpr **items);
 #define make_sexpr_list(...)                              \
@@ -85,8 +85,8 @@ void fdump__sexpr(FILE *f, SExpr *expr, size_t current_indent, size_t next_inden
 
 #include <nob.h>
 #include <stdio.h>
-#define SEXPR_UTILS_IMPL
-#include "sexpr_utils.h"
+#define SYX_UTILS_IMPL
+#include "syx_utils.h"
 
 void sexpr_destructor(void *data) {
   SExpr *expr = data;
@@ -99,7 +99,7 @@ void sexpr_destructor(void *data) {
       break;
     case SEXPR_KIND_BOOL: break;
     case SEXPR_KIND_INTEGER: break;
-    case SEXPR_KIND_REAL: break;
+    case SEXPR_KIND_FRACTIONAL: break;
     case SEXPR_KIND_STRING: free(expr->string); break;
     case SEXPR_KIND_QUOTE: rc_release(expr->quote); break;
   }
@@ -167,20 +167,20 @@ SExpr *make_sexpr_pair(SExpr *left, SExpr *right) {
   return expr;
 }
 
-SExpr *make_sexpr_bool(sexpr_bool_t value) {
+SExpr *make_sexpr_bool(bool_t value) {
   sexpr_constants();
   return value ? SEXPR_TRUE : SEXPR_FALSE;
 }
 
-SExpr *make_sexpr_integer(sexpr_int_t value) {
+SExpr *make_sexpr_integer(integer_t value) {
   SExpr *expr = make_sexpr(SEXPR_KIND_INTEGER);
   expr->integer = value;
   return expr;
 }
 
-SExpr *make_sexpr_real(sexpr_real_t value) {
-  SExpr *expr = make_sexpr(SEXPR_KIND_REAL);
-  expr->real = value;
+SExpr *make_sexpr_fractional(fractional_t value) {
+  SExpr *expr = make_sexpr(SEXPR_KIND_FRACTIONAL);
+  expr->fractional = value;
   return expr;
 }
 
@@ -190,11 +190,11 @@ SExpr *make_sexpr_string(String_View value) {
   return expr;
 }
 
-SExpr *make_sexpr_string_n(const sexpr_string_t value, size_t size) {
+SExpr *make_sexpr_string_n(const string_t value, size_t size) {
   return make_sexpr_string((String_View){.data = value, .count = size});
 }
 
-SExpr *make_sexpr_string_cstr(const sexpr_string_t value) {
+SExpr *make_sexpr_string_cstr(const string_t value) {
   return make_sexpr_string(sv_from_cstr(value));
 }
 
@@ -259,8 +259,8 @@ void fprint_sexpr(FILE *f, SExpr *expr) {
       String_View sv = stringify_int(expr->integer);
       fprintf(f, SV_Fmt, SV_Arg(sv));
     } break;
-    case SEXPR_KIND_REAL: {
-      String_View sv = stringify_real(expr->real);
+    case SEXPR_KIND_FRACTIONAL: {
+      String_View sv = stringify_fractional(expr->fractional);
       fprintf(f, SV_Fmt, SV_Arg(sv));
     } break;
     case SEXPR_KIND_STRING: {
@@ -297,8 +297,8 @@ void fdump__sexpr(FILE *f, SExpr *expr, size_t current_indent, size_t next_inden
     case SEXPR_KIND_INTEGER: {
       fprintf(f, "INTEGER: %lld\n", expr->integer);
     } break;
-    case SEXPR_KIND_REAL: {
-      fprintf(f, "REAL: %Lf\n", expr->real);
+    case SEXPR_KIND_FRACTIONAL: {
+      fprintf(f, "FRACTIONAL: %Lf\n", expr->fractional);
     } break;
     case SEXPR_KIND_STRING: {
       fprintf(f, "STRING: \"%s\"\n", expr->string);
