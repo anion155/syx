@@ -224,35 +224,37 @@ SyxV *syx_builtin_equivalent(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_equivalent_comparator);
 }
 
-#define syx__builtin_comparison_comparator(name, operator)                                                                           \
-  switch (left->kind) {                                                                                                              \
-    case SYXV_KIND_INTEGER: {                                                                                                        \
-      switch (right->kind) {                                                                                                         \
-        case SYXV_KIND_INTEGER: return left->integer operator right->integer;                                                        \
-        case SYXV_KIND_FRACTIONAL: return left->integer operator right->fractional;                                                  \
-        default: RUNTIME_ERROR("can not compare with lower than", env);                                                              \
-      }                                                                                                                              \
-    }                                                                                                                                \
-    case SYXV_KIND_FRACTIONAL: {                                                                                                     \
-      switch (right->kind) {                                                                                                         \
-        case SYXV_KIND_INTEGER: return left->fractional operator right->integer;                                                     \
-        case SYXV_KIND_FRACTIONAL: return left->fractional operator right->fractional;                                               \
-        default: RUNTIME_ERROR("can not compare with lower than", env);                                                              \
-      }                                                                                                                              \
-    }                                                                                                                                \
-    case SYXV_KIND_STRING: {                                                                                                         \
-      right = rc_acquire(syx_convert_to_string(env, right));                                                                         \
-      bool result = strcmp(left->string, right->string) operator(0);                                                                 \
-      rc_release(right);                                                                                                             \
-      return result;                                                                                                                 \
-    }                                                                                                                                \
-    case SYXV_KIND_PAIR: return (                                                                                                    \
-        right->kind == SYXV_KIND_PAIR &&                                                                                             \
-        name(env, left->pair.left, right->pair.left) &&                                                                              \
-        name(env, left->pair.right, right->pair.right));                                                                             \
-    case SYXV_KIND_QUOTE: return right->kind == SYXV_KIND_QUOTE && syx__builtin_##name##_comparator(env, left->quote, right->quote); \
-    default: RUNTIME_ERROR("can not compare with lower than", env);                                                                  \
+#define syx__builtin_comparison_comparator(self_name, operator)                                               \
+  switch (left->kind) {                                                                                       \
+    case SYXV_KIND_INTEGER: {                                                                                 \
+      switch (right->kind) {                                                                                  \
+        case SYXV_KIND_INTEGER: return left->integer operator right->integer;                                 \
+        case SYXV_KIND_FRACTIONAL: return left->integer operator right->fractional;                           \
+        default: RUNTIME_ERROR("can not compare with lower than", env);                                       \
+      }                                                                                                       \
+    }                                                                                                         \
+    case SYXV_KIND_FRACTIONAL: {                                                                              \
+      switch (right->kind) {                                                                                  \
+        case SYXV_KIND_INTEGER: return left->fractional operator right->integer;                              \
+        case SYXV_KIND_FRACTIONAL: return left->fractional operator right->fractional;                        \
+        default: RUNTIME_ERROR("can not compare with lower than", env);                                       \
+      }                                                                                                       \
+    }                                                                                                         \
+    case SYXV_KIND_STRING: {                                                                                  \
+      right = rc_acquire(syx_convert_to_string(env, right));                                                  \
+      bool result = strcmp(left->string, right->string) operator(0);                                          \
+      rc_release(right);                                                                                      \
+      return result;                                                                                          \
+    }                                                                                                         \
+    case SYXV_KIND_PAIR: return (                                                                             \
+        right->kind == SYXV_KIND_PAIR &&                                                                      \
+        self_name(env, left->pair.left, right->pair.left) &&                                                  \
+        self_name(env, left->pair.right, right->pair.right));                                                 \
+    case SYXV_KIND_QUOTE: return right->kind == SYXV_KIND_QUOTE && self_name(env, left->quote, right->quote); \
+    default: RUNTIME_ERROR("can not compare with lower than", env);                                           \
   }
+
+bool syx__builtin_lower_than_comparator(Syx_Env *env, SyxV *left, SyxV *right);
 
 bool syx__builtin_lower_than_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
   syx__builtin_comparison_comparator(syx__builtin_lower_than_comparator, <);
@@ -263,6 +265,8 @@ SyxV *syx_builtin_lower_than(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_lower_than_comparator);
 }
 
+bool syx__builtin_lower_or_equal_comparator(Syx_Env *env, SyxV *left, SyxV *right);
+
 bool syx__builtin_lower_or_equal_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
   syx__builtin_comparison_comparator(syx__builtin_lower_or_equal_comparator, <=);
 }
@@ -271,6 +275,8 @@ bool syx__builtin_lower_or_equal_comparator(Syx_Env *env, SyxV *left, SyxV *righ
 SyxV *syx_builtin_lower_or_equal(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_lower_or_equal_comparator);
 }
+
+bool syx__builtin_greater_than_comparator(Syx_Env *env, SyxV *left, SyxV *right);
 
 bool syx__builtin_greater_than_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
   syx__builtin_comparison_comparator(syx__builtin_greater_than_comparator, >);
@@ -281,6 +287,8 @@ SyxV *syx_builtin_greater_than(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_greater_than_comparator);
 }
 
+bool syx__builtin_greater_or_equal_comparator(Syx_Env *env, SyxV *left, SyxV *right);
+
 bool syx__builtin_greater_or_equal_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
   syx__builtin_comparison_comparator(syx__builtin_greater_or_equal_comparator, >=);
 }
@@ -290,7 +298,10 @@ SyxV *syx_builtin_greater_or_equal(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_greater_or_equal_comparator);
 }
 
+bool syx__builtin_identity_comparator(Syx_Env *env, SyxV *left, SyxV *right);
+
 bool syx__builtin_identity_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
+  UNUSED(env);
   if (left == right) return true;
   switch (left->kind) {
     case SYXV_KIND_NIL: return right->kind == SYXV_KIND_NIL;
@@ -312,30 +323,23 @@ SyxV *syx_builtin_identity(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_identity_comparator);
 }
 
+#define syx__builtin_type_guard(name, kind_checks)            \
+  SyxV *value = syxv_list_next_nullable(&arguments);          \
+  if (value == NULL) RUNTIME_ERROR("argument expected", env); \
+  return make_syxv_bool((kind_checks))
+
 /** Type checks id first argument is nil. */
-SyxV *syx_builtin_is_nil(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_NIL);
-}
+SyxV *syx_builtin_is_nil(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(nil, value->kind == SYXV_KIND_NIL); }
 
 /** Type checks id first argument is symbol. */
-SyxV *syx_builtin_is_symbol(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_SYMBOL);
-}
+SyxV *syx_builtin_is_symbol(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(symbol, value->kind == SYXV_KIND_SYMBOL); }
 
 /** Type checks id first argument is pair. */
-SyxV *syx_builtin_is_pair(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_PAIR);
-}
+SyxV *syx_builtin_is_pair(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(pair, value->kind == SYXV_KIND_PAIR); }
 
 /** Type checks id first argument is list. */
 SyxV *syx_builtin_is_list(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
+  SyxV *value = syxv_list_next_nullable(&arguments);
   if (value == NULL) RUNTIME_ERROR("argument expected", env);
   SyxV *it = value;
   while (it->kind == SYXV_KIND_PAIR) it = it->pair.right;
@@ -343,74 +347,34 @@ SyxV *syx_builtin_is_list(Syx_Env *env, SyxV *arguments) {
 }
 
 /** Type checks id first argument is bool. */
-SyxV *syx_builtin_is_bool(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_BOOL);
-}
+SyxV *syx_builtin_is_bool(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(bool, value->kind == SYXV_KIND_BOOL); }
 
 /** Type checks id first argument is number. */
-SyxV *syx_builtin_is_number(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_INTEGER || value->kind == SYXV_KIND_FRACTIONAL);
-}
+SyxV *syx_builtin_is_number(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(number, value->kind == SYXV_KIND_INTEGER || value->kind == SYXV_KIND_FRACTIONAL); }
 
 /** Type checks id first argument is integer. */
-SyxV *syx_builtin_is_integer(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_INTEGER);
-}
+SyxV *syx_builtin_is_integer(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(integer, value->kind == SYXV_KIND_INTEGER); }
 
 /** Type checks id first argument is fractional. */
-SyxV *syx_builtin_is_fractional(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_FRACTIONAL);
-}
+SyxV *syx_builtin_is_fractional(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(fractional, value->kind == SYXV_KIND_FRACTIONAL); }
 
 /** Type checks id first argument is string. */
-SyxV *syx_builtin_is_string(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_STRING);
-}
+SyxV *syx_builtin_is_string(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(string, value->kind == SYXV_KIND_STRING); }
 
 /** Type checks id first argument is quote. */
-SyxV *syx_builtin_is_quote(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_QUOTE);
-}
+SyxV *syx_builtin_is_quote(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(quote, value->kind == SYXV_KIND_QUOTE); }
 
 /** Type checks id first argument is procedure. */
-SyxV *syx_builtin_is_procedure(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_SPECIALF || value->kind == SYXV_KIND_BUILTIN || value->kind == SYXV_KIND_CLOSURE);
-}
+SyxV *syx_builtin_is_procedure(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(procedure, value->kind == SYXV_KIND_SPECIALF || value->kind == SYXV_KIND_BUILTIN || value->kind == SYXV_KIND_CLOSURE); }
 
 /** Type checks id first argument is special form. */
-SyxV *syx_builtin_is_special_form(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_SPECIALF);
-}
+SyxV *syx_builtin_is_special_form(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(special_form, value->kind == SYXV_KIND_SPECIALF); }
 
 /** Type checks id first argument is builtin. */
-SyxV *syx_builtin_is_builtin(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_BUILTIN);
-}
+SyxV *syx_builtin_is_builtin(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(builtin, value->kind == SYXV_KIND_BUILTIN); }
 
 /** Type checks id first argument is closure. */
-SyxV *syx_builtin_is_closure(Syx_Env *env, SyxV *arguments) {
-  SyxV *value = syxv_list_next_nullable(arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", env);
-  return make_syxv_bool(value->kind == SYXV_KIND_CLOSURE);
-}
+SyxV *syx_builtin_is_closure(Syx_Env *env, SyxV *arguments) { syx__builtin_type_guard(closure, value->kind == SYXV_KIND_CLOSURE); }
 
 typedef struct File_Constant {
   int fd;
