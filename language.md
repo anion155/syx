@@ -106,20 +106,52 @@ Sequentially applies all arguments. Integers promoted to fractional if any argum
 `(/ <number> ...<number>) => quotient`
 
 ### =
-Take 2 or more arguments, chainable. Return `#t` or `#f`.
+Applies structural check between each consequence pairs.
 `(= <value> ...<value>) => #t if all equal`
 
 `<value>` can be any of this:
 - `bool`
 - `number`
 - `string`
-- `pair` - compairs both sides recursively
+- `pair` - compares both sides recursively
 - `quote` - compares stored values
 - `fn` - compared by reference
 - `symbol` - compared by reference
 
+Examples:
+`(= #t #t) => #t`
+`(= 1 1) => #t`
+`(= 1 1.0) => #t`
+`(= "a" "a") => #t`
+`(= '(1 2) '(1 2)) => #t`
+`(= ''1 ''1) => #t`
+`(= if if) => #t`
+`(= (lambda (a) a) (lambda (a) a)) => #f`
+`(= 'a 'a) => #t`
+`(define a 1) (define b 1) (= a b) => #f`
+
+### eq?
+Applies identity check between each consequence pairs.
+`(eq? <value> ...<value>) => #t if all equal`
+
+Examples:
+`(eq? #t #t) => #t`
+`(eq? #t #f) => #f`
+`(eq? 1 1) => #t`
+`(eq? 1 1.0) => #f`
+`(eq? "a" "a") => #f`
+`(eq? '(1 2) '(1 2)) => #f`
+`(define a '(1 2)) (eq? a a) => #t`
+`(eq? ''1 ''1) => #f`
+`(define a ''1) (eq? a a) => #t`
+`(eq? if if) => #t`
+`(eq? (lambda (a) a) (lambda (a) a)) => #f`
+`(define b (lambda (a) a)) (eq? b b) => #t`
+`(eq? 'a 'a) => #t`
+`(define a 1) (define b 1) (eq? a b) => #f`
+
 ### Comparison <, >, <=, >=
-Take 2 or more arguments, chainable. Return `#t` or `#f`.
+Applies operators between each consequence pairs.
 `(< <value> ...<value>) => #t if strictly increasing`
 `(> <value> ...<value>) => #t if strictly decreasing`
 `(<= <value> ...<value>) => #t if non-decreasing`
@@ -128,7 +160,7 @@ Take 2 or more arguments, chainable. Return `#t` or `#f`.
 `<value>` can be any of this:
 - `number`
 - `string`
-- `pair` - compairs both sides recursively
+- `pair` - compares both sides recursively
 - `quote` - compares stored values
 
 ## Builtins Boolean

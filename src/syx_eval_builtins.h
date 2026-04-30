@@ -219,13 +219,34 @@ bool syx__builtin_equivalent_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
   }
 }
 
-/** Compare two or more numeric arguments in order.
- * Return `#t` if the condition holds for every adjacent pair, `#f` otherwise. */
+/** Applies structural check between each consequence pairs. */
 SyxV *syx_builtin_equivalent(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_equivalent_comparator);
 }
 
-#define syx__builtin_number_string_comparator(name, operator)                                                                        \
+bool syx__builtin_identity_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
+  if (left == right) return true;
+  switch (left->kind) {
+    case SYXV_KIND_NIL: return right->kind == SYXV_KIND_NIL;
+    case SYXV_KIND_SYMBOL: return right->kind == SYXV_KIND_SYMBOL && strcmp(left->symbol.name, right->symbol.name) == 0;
+    case SYXV_KIND_PAIR: return false; // should work on left == right level
+    case SYXV_KIND_BOOL: return false; // should work on left == right level
+    case SYXV_KIND_INTEGER: return right->kind == SYXV_KIND_INTEGER && left->integer == right->integer;
+    case SYXV_KIND_FRACTIONAL: return right->kind == SYXV_KIND_FRACTIONAL && left->fractional == right->fractional;
+    case SYXV_KIND_STRING: return false;   // should work on left == right level
+    case SYXV_KIND_QUOTE: return false;    // should work on left == right level
+    case SYXV_KIND_SPECIALF: return false; // should work on left == right level
+    case SYXV_KIND_BUILTIN: return false;  // should work on left == right level
+    case SYXV_KIND_CLOSURE: return false;  // should work on left == right level
+  }
+}
+
+/** Applies identity check between each consequence pairs. */
+SyxV *syx_builtin_identity(Syx_Env *env, SyxV *arguments) {
+  return syx__builtin_compare(env, arguments, syx__builtin_identity_comparator);
+}
+
+#define syx__builtin_comparison_comparator(name, operator)                                                                           \
   switch (left->kind) {                                                                                                              \
     case SYXV_KIND_INTEGER: {                                                                                                        \
       switch (right->kind) {                                                                                                         \
@@ -256,41 +277,37 @@ SyxV *syx_builtin_equivalent(Syx_Env *env, SyxV *arguments) {
   }
 
 bool syx__builtin_lower_than_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
-  syx__builtin_number_string_comparator(syx__builtin_lower_than_comparator, <);
+  syx__builtin_comparison_comparator(syx__builtin_lower_than_comparator, <);
 }
 
-/** Compare two or more numeric arguments in order.
- * Return `#t` if the condition holds for every adjacent pair, `#f` otherwise. */
+/** Applies lower than between each consequence pairs. */
 SyxV *syx_builtin_lower_than(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_lower_than_comparator);
 }
 
 bool syx__builtin_lower_or_equal_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
-  syx__builtin_number_string_comparator(syx__builtin_lower_or_equal_comparator, <=);
+  syx__builtin_comparison_comparator(syx__builtin_lower_or_equal_comparator, <=);
 }
 
-/** Compare two or more numeric arguments in order.
- * Return `#t` if the condition holds for every adjacent pair, `#f` otherwise. */
+/** Applies lower or equal between each consequence pairs. */
 SyxV *syx_builtin_lower_or_equal(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_lower_or_equal_comparator);
 }
 
 bool syx__builtin_greater_than_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
-  syx__builtin_number_string_comparator(syx__builtin_greater_than_comparator, >);
+  syx__builtin_comparison_comparator(syx__builtin_greater_than_comparator, >);
 }
 
-/** Compare two or more numeric arguments in order.
- * Return `#t` if the condition holds for every adjacent pair, `#f` otherwise. */
+/** Applies greater than between each consequence pairs. */
 SyxV *syx_builtin_greater_than(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_greater_than_comparator);
 }
 
 bool syx__builtin_greater_or_equal_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
-  syx__builtin_number_string_comparator(syx__builtin_greater_or_equal_comparator, >=);
+  syx__builtin_comparison_comparator(syx__builtin_greater_or_equal_comparator, >=);
 }
 
-/** Compare two or more numeric arguments in order.
- * Return `#t` if the condition holds for every adjacent pair, `#f` otherwise. */
+/** Applies greater or equal between each consequence pairs. */
 SyxV *syx_builtin_greater_or_equal(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_greater_or_equal_comparator);
 }
@@ -386,11 +403,11 @@ void syx_env_define_builtins(Syx_Env *env) {
   syx_env_define_cstr(env, "/", make_syxv_builtin(NULL, syx_builtin_div));
 
   syx_env_define_cstr(env, "=", make_syxv_builtin(NULL, syx_builtin_equivalent));
+  syx_env_define_cstr(env, "eq?", make_syxv_builtin(NULL, syx_builtin_identity));
   syx_env_define_cstr(env, "<", make_syxv_builtin(NULL, syx_builtin_lower_than));
   syx_env_define_cstr(env, "<=", make_syxv_builtin(NULL, syx_builtin_lower_or_equal));
   syx_env_define_cstr(env, ">", make_syxv_builtin(NULL, syx_builtin_greater_than));
   syx_env_define_cstr(env, ">=", make_syxv_builtin(NULL, syx_builtin_greater_or_equal));
-  // syx_env_define_cstr(env, "eq?", make_syxv_builtin(NULL, syx_builtin_identity));
 
   syx_env_define_cstr(env, "not", make_syxv_builtin(NULL, syx_builtin_not));
 
