@@ -105,6 +105,8 @@ Sequentially applies all arguments. Integers promoted to fractional if any argum
 `(* ...<number>) => product`
 `(/ <number> ...<number>) => quotient`
 
+## Builtins Boolean
+
 ### =
 Applies structural check between each consequence pairs.
 `(= <value> ...<value>) => #t if all equal`
@@ -130,6 +132,19 @@ Examples:
 `(= 'a 'a) => #t`
 `(define a 1) (define b 1) (= a b) => #f`
 
+### Comparison <, >, <=, >=
+Applies operators between each consequence pairs.
+`(< <value> ...<value>) => #t if strictly increasing`
+`(> <value> ...<value>) => #t if strictly decreasing`
+`(<= <value> ...<value>) => #t if non-decreasing`
+`(>= <value> ...<value>) => #t if non-increasing`
+
+`<value>` can be any of this:
+- `number`
+- `string`
+- `pair` - compares both sides recursively
+- `quote` - compares stored values
+
 ### eq?
 Applies identity check between each consequence pairs.
 `(eq? <value> ...<value>) => #t if all equal`
@@ -150,20 +165,9 @@ Examples:
 `(eq? 'a 'a) => #t`
 `(define a 1) (define b 1) (eq? a b) => #f`
 
-### Comparison <, >, <=, >=
-Applies operators between each consequence pairs.
-`(< <value> ...<value>) => #t if strictly increasing`
-`(> <value> ...<value>) => #t if strictly decreasing`
-`(<= <value> ...<value>) => #t if non-decreasing`
-`(>= <value> ...<value>) => #t if non-increasing`
-
-`<value>` can be any of this:
-- `number`
-- `string`
-- `pair` - compares both sides recursively
-- `quote` - compares stored values
-
-## Builtins Boolean
+### nil?, symbol?, pair?, list?, bool?, number?, integer?, fractional?, string?, quote?, procedure?, special-form?, builtin?, closure?
+Type checks first argument.
+`(<type>? <value>) => bool`
 
 ### not
 Returns `#f` if argument is truthy, `#t` if falsy.

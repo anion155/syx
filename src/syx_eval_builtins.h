@@ -224,28 +224,6 @@ SyxV *syx_builtin_equivalent(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_equivalent_comparator);
 }
 
-bool syx__builtin_identity_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
-  if (left == right) return true;
-  switch (left->kind) {
-    case SYXV_KIND_NIL: return right->kind == SYXV_KIND_NIL;
-    case SYXV_KIND_SYMBOL: return right->kind == SYXV_KIND_SYMBOL && strcmp(left->symbol.name, right->symbol.name) == 0;
-    case SYXV_KIND_PAIR: return false; // should work on left == right level
-    case SYXV_KIND_BOOL: return false; // should work on left == right level
-    case SYXV_KIND_INTEGER: return right->kind == SYXV_KIND_INTEGER && left->integer == right->integer;
-    case SYXV_KIND_FRACTIONAL: return right->kind == SYXV_KIND_FRACTIONAL && left->fractional == right->fractional;
-    case SYXV_KIND_STRING: return false;   // should work on left == right level
-    case SYXV_KIND_QUOTE: return false;    // should work on left == right level
-    case SYXV_KIND_SPECIALF: return false; // should work on left == right level
-    case SYXV_KIND_BUILTIN: return false;  // should work on left == right level
-    case SYXV_KIND_CLOSURE: return false;  // should work on left == right level
-  }
-}
-
-/** Applies identity check between each consequence pairs. */
-SyxV *syx_builtin_identity(Syx_Env *env, SyxV *arguments) {
-  return syx__builtin_compare(env, arguments, syx__builtin_identity_comparator);
-}
-
 #define syx__builtin_comparison_comparator(name, operator)                                                                           \
   switch (left->kind) {                                                                                                              \
     case SYXV_KIND_INTEGER: {                                                                                                        \
@@ -310,6 +288,128 @@ bool syx__builtin_greater_or_equal_comparator(Syx_Env *env, SyxV *left, SyxV *ri
 /** Applies greater or equal between each consequence pairs. */
 SyxV *syx_builtin_greater_or_equal(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_compare(env, arguments, syx__builtin_greater_or_equal_comparator);
+}
+
+bool syx__builtin_identity_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
+  if (left == right) return true;
+  switch (left->kind) {
+    case SYXV_KIND_NIL: return right->kind == SYXV_KIND_NIL;
+    case SYXV_KIND_SYMBOL: return right->kind == SYXV_KIND_SYMBOL && strcmp(left->symbol.name, right->symbol.name) == 0;
+    case SYXV_KIND_PAIR: return false; // should work on left == right level
+    case SYXV_KIND_BOOL: return false; // should work on left == right level
+    case SYXV_KIND_INTEGER: return right->kind == SYXV_KIND_INTEGER && left->integer == right->integer;
+    case SYXV_KIND_FRACTIONAL: return right->kind == SYXV_KIND_FRACTIONAL && left->fractional == right->fractional;
+    case SYXV_KIND_STRING: return false;   // should work on left == right level
+    case SYXV_KIND_QUOTE: return false;    // should work on left == right level
+    case SYXV_KIND_SPECIALF: return false; // should work on left == right level
+    case SYXV_KIND_BUILTIN: return false;  // should work on left == right level
+    case SYXV_KIND_CLOSURE: return false;  // should work on left == right level
+  }
+}
+
+/** Applies identity check between each consequence pairs. */
+SyxV *syx_builtin_identity(Syx_Env *env, SyxV *arguments) {
+  return syx__builtin_compare(env, arguments, syx__builtin_identity_comparator);
+}
+
+/** Type checks id first argument is nil. */
+SyxV *syx_builtin_is_nil(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_NIL);
+}
+
+/** Type checks id first argument is symbol. */
+SyxV *syx_builtin_is_symbol(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_SYMBOL);
+}
+
+/** Type checks id first argument is pair. */
+SyxV *syx_builtin_is_pair(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_PAIR);
+}
+
+/** Type checks id first argument is list. */
+SyxV *syx_builtin_is_list(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  SyxV *it = value;
+  while (it->kind == SYXV_KIND_PAIR) it = it->pair.right;
+  return make_syxv_bool(it->kind == SYXV_KIND_NIL);
+}
+
+/** Type checks id first argument is bool. */
+SyxV *syx_builtin_is_bool(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_BOOL);
+}
+
+/** Type checks id first argument is number. */
+SyxV *syx_builtin_is_number(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_INTEGER || value->kind == SYXV_KIND_FRACTIONAL);
+}
+
+/** Type checks id first argument is integer. */
+SyxV *syx_builtin_is_integer(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_INTEGER);
+}
+
+/** Type checks id first argument is fractional. */
+SyxV *syx_builtin_is_fractional(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_FRACTIONAL);
+}
+
+/** Type checks id first argument is string. */
+SyxV *syx_builtin_is_string(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_STRING);
+}
+
+/** Type checks id first argument is quote. */
+SyxV *syx_builtin_is_quote(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_QUOTE);
+}
+
+/** Type checks id first argument is procedure. */
+SyxV *syx_builtin_is_procedure(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_SPECIALF || value->kind == SYXV_KIND_BUILTIN || value->kind == SYXV_KIND_CLOSURE);
+}
+
+/** Type checks id first argument is special form. */
+SyxV *syx_builtin_is_special_form(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_SPECIALF);
+}
+
+/** Type checks id first argument is builtin. */
+SyxV *syx_builtin_is_builtin(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_BUILTIN);
+}
+
+/** Type checks id first argument is closure. */
+SyxV *syx_builtin_is_closure(Syx_Env *env, SyxV *arguments) {
+  SyxV *value = syxv_list_next_nullable(arguments);
+  if (value == NULL) RUNTIME_ERROR("argument expected", env);
+  return make_syxv_bool(value->kind == SYXV_KIND_CLOSURE);
 }
 
 typedef struct File_Constant {
@@ -403,11 +503,26 @@ void syx_env_define_builtins(Syx_Env *env) {
   syx_env_define_cstr(env, "/", make_syxv_builtin(NULL, syx_builtin_div));
 
   syx_env_define_cstr(env, "=", make_syxv_builtin(NULL, syx_builtin_equivalent));
-  syx_env_define_cstr(env, "eq?", make_syxv_builtin(NULL, syx_builtin_identity));
   syx_env_define_cstr(env, "<", make_syxv_builtin(NULL, syx_builtin_lower_than));
   syx_env_define_cstr(env, "<=", make_syxv_builtin(NULL, syx_builtin_lower_or_equal));
   syx_env_define_cstr(env, ">", make_syxv_builtin(NULL, syx_builtin_greater_than));
   syx_env_define_cstr(env, ">=", make_syxv_builtin(NULL, syx_builtin_greater_or_equal));
+
+  syx_env_define_cstr(env, "eq?", make_syxv_builtin(NULL, syx_builtin_identity));
+  syx_env_define_cstr(env, "nil?", make_syxv_builtin(NULL, syx_builtin_is_nil));
+  syx_env_define_cstr(env, "symbol?", make_syxv_builtin(NULL, syx_builtin_is_symbol));
+  syx_env_define_cstr(env, "pair?", make_syxv_builtin(NULL, syx_builtin_is_pair));
+  syx_env_define_cstr(env, "list?", make_syxv_builtin(NULL, syx_builtin_is_list));
+  syx_env_define_cstr(env, "bool?", make_syxv_builtin(NULL, syx_builtin_is_bool));
+  syx_env_define_cstr(env, "number?", make_syxv_builtin(NULL, syx_builtin_is_number));
+  syx_env_define_cstr(env, "integer?", make_syxv_builtin(NULL, syx_builtin_is_integer));
+  syx_env_define_cstr(env, "fractional?", make_syxv_builtin(NULL, syx_builtin_is_fractional));
+  syx_env_define_cstr(env, "string?", make_syxv_builtin(NULL, syx_builtin_is_string));
+  syx_env_define_cstr(env, "quote?", make_syxv_builtin(NULL, syx_builtin_is_quote));
+  syx_env_define_cstr(env, "procedure?", make_syxv_builtin(NULL, syx_builtin_is_procedure));
+  syx_env_define_cstr(env, "special-form?", make_syxv_builtin(NULL, syx_builtin_is_special_form));
+  syx_env_define_cstr(env, "builtin?", make_syxv_builtin(NULL, syx_builtin_is_builtin));
+  syx_env_define_cstr(env, "closure?", make_syxv_builtin(NULL, syx_builtin_is_closure));
 
   syx_env_define_cstr(env, "not", make_syxv_builtin(NULL, syx_builtin_not));
 
