@@ -1,11 +1,12 @@
 #ifndef SEXPR_AST_H
 #define SEXPR_AST_H
 
-#include "syx_utils.h"
 #include <ht.h>
 #include <nob.h>
 #include <rc.h>
 #include <stdlib.h>
+
+#include "syx_utils.h"
 
 typedef enum : unsigned int {
   SEXPR_KIND_NIL,
@@ -36,10 +37,10 @@ struct SExpr {
   union {
     SExpr_Symbol symbol;
     Expr_Pair pair;
-    bool_t boolean;
-    integer_t integer;
-    fractional_t fractional;
-    string_t string;
+    syx_bool_t boolean;
+    syx_integer_t integer;
+    syx_fractional_t fractional;
+    syx_string_t string;
     SExpr *quote;
   };
 };
@@ -50,20 +51,20 @@ SExpr *make_sexpr_symbol(String_View symbol);
 SExpr *make_sexpr_symbol_n(const char *symbol, size_t size);
 SExpr *make_sexpr_symbol_ctrs(const char *symbol);
 SExpr *make_sexpr_pair(SExpr *left, SExpr *right);
-SExpr *make_sexpr_bool(bool_t value);
-SExpr *make_sexpr_integer(integer_t value);
-SExpr *make_sexpr_fractional(fractional_t value);
+SExpr *make_sexpr_bool(syx_bool_t value);
+SExpr *make_sexpr_integer(syx_integer_t value);
+SExpr *make_sexpr_fractional(syx_fractional_t value);
 SExpr *make_sexpr_string(String_View value);
-SExpr *make_sexpr_string_n(const string_t value, size_t size);
-SExpr *make_sexpr_string_cstr(const string_t value);
+SExpr *make_sexpr_string_n(const syx_string_t value, size_t size);
+SExpr *make_sexpr_string_cstr(const syx_string_t value);
 SExpr *make_sexpr_quote(SExpr *quote);
 
-#define make_sexpr_value(value)                   \
-  _Generic(value,                                 \
-      bool_t: make_sexpr_bool(value),             \
-      integer_t: make_sexpr_integer(value),       \
-      fractional_t: make_sexpr_fractional(value), \
-      string_t: make_sexpr_string(value))
+#define make_sexpr_value(value)                       \
+  _Generic(value,                                     \
+      syx_bool_t: make_sexpr_bool(value),             \
+      syx_integer_t: make_sexpr_integer(value),       \
+      syx_fractional_t: make_sexpr_fractional(value), \
+      syx_string_t: make_sexpr_string(value))
 
 SExpr *make_sexpr_list_opt(size_t count, SExpr **items);
 #define make_sexpr_list(...)                              \
@@ -167,18 +168,18 @@ SExpr *make_sexpr_pair(SExpr *left, SExpr *right) {
   return expr;
 }
 
-SExpr *make_sexpr_bool(bool_t value) {
+SExpr *make_sexpr_bool(syx_bool_t value) {
   sexpr_constants();
   return value ? SEXPR_TRUE : SEXPR_FALSE;
 }
 
-SExpr *make_sexpr_integer(integer_t value) {
+SExpr *make_sexpr_integer(syx_integer_t value) {
   SExpr *expr = make_sexpr(SEXPR_KIND_INTEGER);
   expr->integer = value;
   return expr;
 }
 
-SExpr *make_sexpr_fractional(fractional_t value) {
+SExpr *make_sexpr_fractional(syx_fractional_t value) {
   SExpr *expr = make_sexpr(SEXPR_KIND_FRACTIONAL);
   expr->fractional = value;
   return expr;
@@ -190,11 +191,11 @@ SExpr *make_sexpr_string(String_View value) {
   return expr;
 }
 
-SExpr *make_sexpr_string_n(const string_t value, size_t size) {
+SExpr *make_sexpr_string_n(const syx_string_t value, size_t size) {
   return make_sexpr_string((String_View){.data = value, .count = size});
 }
 
-SExpr *make_sexpr_string_cstr(const string_t value) {
+SExpr *make_sexpr_string_cstr(const syx_string_t value) {
   return make_sexpr_string(sv_from_cstr(value));
 }
 

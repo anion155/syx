@@ -44,9 +44,9 @@ SyxV *syx__eval_forms_list_opt(Syx_Env *env, SyxV *forms_list, Syx_Eval_Forms_Li
 
 bool syx_convert_to_bool_v(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value);
-integer_t syx_convert_to_integer_v(Syx_Env *env, SyxV *value);
+syx_integer_t syx_convert_to_integer_v(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value);
-fractional_t syx_convert_to_fractional_v(Syx_Env *env, SyxV *value);
+syx_fractional_t syx_convert_to_fractional_v(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_fractional(Syx_Env *env, SyxV *value);
 String_View syx_convert_to_string_v(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value);
@@ -296,8 +296,8 @@ bool syx_convert_to_bool_v(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_SYMBOL: return (true);
     case SYXV_KIND_PAIR: return (true);
     case SYXV_KIND_BOOL: return value->boolean;
-    case SYXV_KIND_INTEGER: return ((bool_t)value->integer);
-    case SYXV_KIND_FRACTIONAL: return ((bool_t)value->fractional);
+    case SYXV_KIND_INTEGER: return ((syx_bool_t)value->integer);
+    case SYXV_KIND_FRACTIONAL: return ((syx_bool_t)value->fractional);
     case SYXV_KIND_STRING: return (*value->string != 0);
     case SYXV_KIND_QUOTE: return syx_convert_to_bool_v(env, value->quote);
     case SYXV_KIND_SPECIALF: return (true);
@@ -311,17 +311,17 @@ SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value) {
   return make_syxv_bool(syx_convert_to_bool_v(env, value));
 }
 
-integer_t syx_convert_to_integer_v(Syx_Env *env, SyxV *value) {
+syx_integer_t syx_convert_to_integer_v(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_NIL: return 0;
     case SYXV_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to integer number");
     case SYXV_KIND_PAIR: UNREACHABLE("illegal conversion of pair to integer number");
     case SYXV_KIND_BOOL: return value->boolean ? 1 : 0;
     case SYXV_KIND_INTEGER: return value->integer;
-    case SYXV_KIND_FRACTIONAL: return (integer_t)value->fractional;
+    case SYXV_KIND_FRACTIONAL: return (syx_integer_t)value->fractional;
     case SYXV_KIND_STRING: {
       String_View sv = sv_from_cstr(value->string);
-      integer_t result = 0;
+      syx_integer_t result = 0;
       if (!parse_integer(&sv, &result)) UNREACHABLE("illegal conversion of string to integer number");
       return result;
     }
@@ -339,7 +339,7 @@ SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_INTEGER: return value;
     case SYXV_KIND_STRING: {
       String_View sv = sv_from_cstr(value->string);
-      integer_t result = 0;
+      syx_integer_t result = 0;
       if (!parse_integer(&sv, &result)) return NULL;
       return make_syxv_integer(result);
     }
@@ -350,17 +350,17 @@ SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value) {
   }
 }
 
-fractional_t syx_convert_to_fractional_v(Syx_Env *env, SyxV *value) {
+syx_fractional_t syx_convert_to_fractional_v(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_NIL: return 0.0;
     case SYXV_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to fractional number");
     case SYXV_KIND_PAIR: UNREACHABLE("illegal conversion of pair to fractional number");
     case SYXV_KIND_BOOL: return value->boolean ? 1.0 : 0.0;
-    case SYXV_KIND_INTEGER: return (fractional_t)value->integer;
+    case SYXV_KIND_INTEGER: return (syx_fractional_t)value->integer;
     case SYXV_KIND_FRACTIONAL: return value->fractional;
     case SYXV_KIND_STRING: {
       String_View sv = sv_from_cstr(value->string);
-      fractional_t result = 0;
+      syx_fractional_t result = 0;
       if (!parse_fractional(&sv, &result)) UNREACHABLE("illegal conversion of string to fractional number");
       return result;
     }
@@ -378,7 +378,7 @@ SyxV *syx_convert_to_fractional(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_FRACTIONAL: return value;
     case SYXV_KIND_STRING: {
       String_View sv = sv_from_cstr(value->string);
-      fractional_t result = 0;
+      syx_fractional_t result = 0;
       if (!parse_fractional(&sv, &result)) return NULL;
       return make_syxv_fractional(result);
     }

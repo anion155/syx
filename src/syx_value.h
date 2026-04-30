@@ -58,10 +58,10 @@ struct SyxV {
       SyxV *right;
     } pair;
 
-    bool_t boolean;
-    integer_t integer;
-    fractional_t fractional;
-    string_t string;
+    syx_bool_t boolean;
+    syx_integer_t integer;
+    syx_fractional_t fractional;
+    syx_string_t string;
     SyxV *quote;
     Syx_SpecialF specialf;
     Syx_Builtin builtin;
@@ -75,19 +75,19 @@ SyxV *make_syxv_symbol(String_View symbol);
 SyxV *make_syxv_symbol_n(char *symbol, size_t size);
 SyxV *make_syxv_symbol_ctrs(char *symbol);
 SyxV *make_syxv_pair(SyxV *left, SyxV *right);
-SyxV *make_syxv_bool(bool_t value);
-SyxV *make_syxv_integer(integer_t value);
-SyxV *make_syxv_fractional(fractional_t value);
+SyxV *make_syxv_bool(syx_bool_t value);
+SyxV *make_syxv_integer(syx_integer_t value);
+SyxV *make_syxv_fractional(syx_fractional_t value);
 SyxV *make_syxv_string(String_View value);
-SyxV *make_syxv_string_n(string_t value, size_t size);
-SyxV *make_syxv_string_cstr(string_t value);
+SyxV *make_syxv_string_n(syx_string_t value, size_t size);
+SyxV *make_syxv_string_cstr(syx_string_t value);
 SyxV *make_syxv_quote(SyxV *quote);
-#define make_syxv_value(value)                   \
-  _Generic(value,                                \
-      bool_t: make_syxv_bool(value),             \
-      integer_t: make_syxv_integer(value),       \
-      fractional_t: make_syxv_fractional(value), \
-      string_t: make_syxv_string(value))
+#define make_syxv_value(value)                       \
+  _Generic(value,                                    \
+      syx_bool_t: make_syxv_bool(value),             \
+      syx_integer_t: make_syxv_integer(value),       \
+      syx_fractional_t: make_syxv_fractional(value), \
+      syx_string_t: make_syxv_string(value))
 SyxV *make_syxv_list_opt(size_t count, SyxV **items);
 #define make_syxv_list(...)                             \
   make_syxv_list_opt(                                   \
@@ -167,17 +167,17 @@ SyxV *make_syxv_symbol_ctrs(char *symbol) { return (SyxV *)make_sexpr_symbol_ctr
 
 SyxV *make_syxv_pair(SyxV *left, SyxV *right) { return (SyxV *)make_sexpr_pair((SExpr *)left, (SExpr *)right); }
 
-SyxV *make_syxv_bool(bool_t value) { return (SyxV *)make_sexpr_bool(value); }
+SyxV *make_syxv_bool(syx_bool_t value) { return (SyxV *)make_sexpr_bool(value); }
 
-SyxV *make_syxv_integer(integer_t value) { return (SyxV *)make_sexpr_integer(value); }
+SyxV *make_syxv_integer(syx_integer_t value) { return (SyxV *)make_sexpr_integer(value); }
 
-SyxV *make_syxv_fractional(fractional_t value) { return (SyxV *)make_sexpr_fractional(value); }
+SyxV *make_syxv_fractional(syx_fractional_t value) { return (SyxV *)make_sexpr_fractional(value); }
 
 SyxV *make_syxv_string(String_View value) { return (SyxV *)make_sexpr_string(value); }
 
-SyxV *make_syxv_string_n(string_t value, size_t size) { return (SyxV *)make_sexpr_string_n(value, size); }
+SyxV *make_syxv_string_n(syx_string_t value, size_t size) { return (SyxV *)make_sexpr_string_n(value, size); }
 
-SyxV *make_syxv_string_cstr(string_t value) { return (SyxV *)make_sexpr_string_cstr(value); }
+SyxV *make_syxv_string_cstr(syx_string_t value) { return (SyxV *)make_sexpr_string_cstr(value); }
 
 SyxV *make_syxv_quote(SyxV *quote) { return (SyxV *)make_sexpr_quote((SExpr *)quote); }
 

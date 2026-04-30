@@ -61,8 +61,8 @@ String_View chop_spaces(SExpr_Parser_Context *ctx) {
 
 SExpr *parse__sexpr(SExpr_Parser_Context *ctx);
 
-SExpr *parse__sexpr_fractional(SExpr_Parser_Context *ctx, integer_t integer_part) {
-  fractional_t fractional_part = 0;
+SExpr *parse__sexpr_fractional(SExpr_Parser_Context *ctx, syx_integer_t integer_part) {
+  syx_fractional_t fractional_part = 0;
   if (!parse_fractions(ctx->it, &fractional_part)) PARSER_ERROR("expected fractional number's fractional part start here", ctx);
   if (integer_part < 0) fractional_part = integer_part - fractional_part;
   else fractional_part = integer_part + fractional_part;
@@ -71,7 +71,7 @@ SExpr *parse__sexpr_fractional(SExpr_Parser_Context *ctx, integer_t integer_part
 
 SExpr *parse__sexpr_integer(SExpr_Parser_Context *ctx) {
   if (!ctx->it->count) PARSER_ERROR("expected number literal here", ctx);
-  integer_t value = 0;
+  syx_integer_t value = 0;
   if (ctx->it->data[0] == SEXPR_TOKEN_DOT) goto upgrade;
   if (!parse_integer(ctx->it, &value)) PARSER_ERROR("expected number literal here", ctx);
   if (ctx->it->data[0] == SEXPR_TOKEN_DOT) goto upgrade;

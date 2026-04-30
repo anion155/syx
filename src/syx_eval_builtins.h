@@ -80,13 +80,13 @@ SyxV *syx_builtin_map(Syx_Env *env, SyxV *arguments) {
 }
 
 struct syx_upgradable_operator {
-  integer_t (*nil)(Syx_Env *env);
-  integer_t (*integer)(integer_t left, integer_t right);
-  fractional_t (*fractional)(fractional_t left, fractional_t right);
+  syx_integer_t (*nil)(Syx_Env *env);
+  syx_integer_t (*integer)(syx_integer_t left, syx_integer_t right);
+  syx_fractional_t (*fractional)(syx_fractional_t left, syx_fractional_t right);
 };
 
-SyxV *syx__builtin_operator_upgrade(Syx_Env *env, SyxV *arguments, struct syx_upgradable_operator *operator, fractional_t initial_value) {
-  fractional_t value = initial_value;
+SyxV *syx__builtin_operator_upgrade(Syx_Env *env, SyxV *arguments, struct syx_upgradable_operator *operator, syx_fractional_t initial_value) {
+  syx_fractional_t value = initial_value;
   syxv_list_for_each(env, argument, arguments) {
     value = operator->fractional(value, syx_convert_to_fractional_v(env, argument));
   }
@@ -95,7 +95,7 @@ SyxV *syx__builtin_operator_upgrade(Syx_Env *env, SyxV *arguments, struct syx_up
 
 SyxV *syx__builtin_operator(Syx_Env *env, SyxV *arguments, struct syx_upgradable_operator *operator) {
   SyxV *first = syxv_list_next(&arguments);
-  integer_t value;
+  syx_integer_t value;
   if (first->kind == SYXV_KIND_FRACTIONAL) return syx__builtin_operator_upgrade(env, arguments, operator, first->fractional);
   if (first->kind == SYXV_KIND_NIL) value = operator->nil(env);
   else value = syx_convert_to_integer_v(env, first);
@@ -106,11 +106,11 @@ SyxV *syx__builtin_operator(Syx_Env *env, SyxV *arguments, struct syx_upgradable
   return make_syxv_integer(value);
 }
 
-integer_t syx__operator_summ_nil(Syx_Env *env) { return (UNUSED(env), 0); }
+syx_integer_t syx__operator_summ_nil(Syx_Env *env) { return (UNUSED(env), 0); }
 
-integer_t syx__operator_summ_integer(integer_t left, integer_t right) { return left + right; }
+syx_integer_t syx__operator_summ_integer(syx_integer_t left, syx_integer_t right) { return left + right; }
 
-fractional_t syx__operator_summ_fractional(fractional_t left, fractional_t right) { return left + right; }
+syx_fractional_t syx__operator_summ_fractional(syx_fractional_t left, syx_fractional_t right) { return left + right; }
 
 /** Sum of all arguments. */
 SyxV *syx_builtin_summ(Syx_Env *env, SyxV *arguments) {
@@ -122,11 +122,11 @@ SyxV *syx_builtin_summ(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_operator(env, arguments, &operator);
 }
 
-integer_t syx__operator_sub_nil(Syx_Env *env) { RUNTIME_ERROR("list of number expected", env); }
+syx_integer_t syx__operator_sub_nil(Syx_Env *env) { RUNTIME_ERROR("list of number expected", env); }
 
-integer_t syx__operator_sub_integer(integer_t left, integer_t right) { return left - right; }
+syx_integer_t syx__operator_sub_integer(syx_integer_t left, syx_integer_t right) { return left - right; }
 
-fractional_t syx__operator_sub_fractional(fractional_t left, fractional_t right) { return left - right; }
+syx_fractional_t syx__operator_sub_fractional(syx_fractional_t left, syx_fractional_t right) { return left - right; }
 
 /** Subtracts all arguments from first. */
 SyxV *syx_builtin_sub(Syx_Env *env, SyxV *arguments) {
@@ -138,11 +138,11 @@ SyxV *syx_builtin_sub(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_operator(env, arguments, &operator);
 }
 
-integer_t syx__operator_mul_nil(Syx_Env *env) { return (UNUSED(env), 1); }
+syx_integer_t syx__operator_mul_nil(Syx_Env *env) { return (UNUSED(env), 1); }
 
-integer_t syx__operator_mul_integer(integer_t left, integer_t right) { return left * right; }
+syx_integer_t syx__operator_mul_integer(syx_integer_t left, syx_integer_t right) { return left * right; }
 
-fractional_t syx__operator_mul_fractional(fractional_t left, fractional_t right) { return left * right; }
+syx_fractional_t syx__operator_mul_fractional(syx_fractional_t left, syx_fractional_t right) { return left * right; }
 
 /** Multiplies all arguments. */
 SyxV *syx_builtin_mul(Syx_Env *env, SyxV *arguments) {
@@ -154,11 +154,11 @@ SyxV *syx_builtin_mul(Syx_Env *env, SyxV *arguments) {
   return syx__builtin_operator(env, arguments, &operator);
 }
 
-integer_t syx__operator_div_nil(Syx_Env *env) { RUNTIME_ERROR("list of number expected", env); }
+syx_integer_t syx__operator_div_nil(Syx_Env *env) { RUNTIME_ERROR("list of number expected", env); }
 
-integer_t syx__operator_div_integer(integer_t left, integer_t right) { return left / right; }
+syx_integer_t syx__operator_div_integer(syx_integer_t left, syx_integer_t right) { return left / right; }
 
-fractional_t syx__operator_div_fractional(fractional_t left, fractional_t right) { return left / right; }
+syx_fractional_t syx__operator_div_fractional(syx_fractional_t left, syx_fractional_t right) { return left / right; }
 
 /** Divide first argument by every next sequentialy. */
 SyxV *syx_builtin_div(Syx_Env *env, SyxV *arguments) {
