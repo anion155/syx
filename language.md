@@ -180,12 +180,12 @@ Returns `#f` if argument is truthy, `#t` if falsy.
 
 ### print
 Print arguments to file.
-`(print '<FD>? ...<argument>) => #t | #f`
+`(print '<FD>? ...<argument>) => nil`
 
 ### println
 Print arguments to file and newline.
-`(println '<FD>? ...<argument>) => #t | #f`
+`(println '<FD>? ...<argument>) => nil`
 
 ### printf
 Print arguments to file.
-`(print '<FD>? <format-string> ...<argument>) => #t | #f`
+`(print '<FD>? <format-string> ...<argument>) => nil`

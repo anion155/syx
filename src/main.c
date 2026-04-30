@@ -35,23 +35,44 @@ struct SyxVs {
   size_t capacity;
 };
 
-int run_syx(Syx_Env *env, char *source_cstr, bool print_result) {
+typedef enum Syx_Run_Verbose {
+  SYX_RUN_VERBOSE_QUITE = 0,
+  SYX_RUN_VERBOSE_LAST_RESULT,
+  SYX_RUN_VERBOSE_EVERY_RESULT,
+  SYX_RUN_VERBOSE_ALL,
+} Syx_Run_Verbose;
+
+typedef struct Syx_Run_Context {
+  Syx_Env *global_env;
+  Syx_Run_Verbose verbose;
+} Syx_Run_Context;
+
+int run_syx(Syx_Run_Context *ctx, const char *source_cstr) {
   SExprs *input = rc_acquire(parse_sexprs(source_cstr));
   struct SyxVs *results = rc_acquire(rc_alloc(sizeof(SExprs), da_destructor));
   da_foreach(SExpr *, expr, input) {
-    SyxV *result = rc_acquire(syx_eval(env, (SyxV *)*expr));
-    if (print_result) {
+    if (ctx->verbose >= SYX_RUN_VERBOSE_ALL) {
+      printf("+");
+      print_syxv((SyxV *)*expr);
+      printf("\n");
+    }
+    SyxV *result = rc_acquire(syx_eval(ctx->global_env, (SyxV *)*expr));
+    if (ctx->verbose >= SYX_RUN_VERBOSE_EVERY_RESULT) {
       print_syxv(result);
       printf("\n");
     }
     da_append(results, result);
-    if (syx_env_lookup_get(env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
+    if (syx_env_lookup_get(ctx->global_env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
   }
   rc_release(input);
+  if (ctx->verbose == SYX_RUN_VERBOSE_LAST_RESULT) {
+    print_syxv(results->items[results->count - 1]);
+    printf("\n");
+  }
   rc_release(results);
-  SyxV *quit = syx_env_lookup_get(env, SYXV_EXIT_QUIT_STORAGE);
+  SyxV *quit = syx_env_lookup_get(ctx->global_env, SYXV_EXIT_QUIT_STORAGE);
   if (!quit) return -1;
-  return syx_convert_to_integer_v(env, quit);
+  return syx_convert_to_integer_v(ctx->global_env, quit);
 }
 
 SyxV *eval_quit(Syx_Env *env, SyxV *arguments) {
@@ -66,8 +87,10 @@ int main(int argc, char **argv) {
   UNUSED(ht__reset);
   srand(time(NULL));
 
-  bool *print_result = flag_bool("p", false, "Print results of evaluation");
-  char **command = flag_str("c", NULL, "Commands to run");
+  bool *verbose_all = flag_bool("x", false, "Print every expression before evaluation");
+  bool *verbose_results = flag_bool("d", false, "Print expression evaluation result");
+  bool *verbose_last = flag_bool("p", false, "Print result of last evaluation");
+  Flag_List *commands = flag_list("c", "Commands to run");
   if (!flag_parse(argc, argv)) {
     // usage(stderr);
     flag_print_error(stderr);
@@ -77,23 +100,33 @@ int main(int argc, char **argv) {
   argv = flag_rest_argv();
 
   Syx_Env *global_env = rc_acquire(make_global_syx_env());
+  Syx_Run_Context ctx = {
+      .global_env = global_env,
+      .verbose = *verbose_all       ? SYX_RUN_VERBOSE_ALL
+                 : *verbose_results ? SYX_RUN_VERBOSE_EVERY_RESULT
+                 : *verbose_last    ? SYX_RUN_VERBOSE_LAST_RESULT
+                                    : SYX_RUN_VERBOSE_QUITE,
+  };
   syx_env_define_cstr(global_env, "quit", make_syxv_builtin("quit", eval_quit));
 
-  if (*command) {
-    int result = run_syx(global_env, *command, *print_result);
-    rc_release(global_env);
-    return result >= 0 ? result : 0;
+  int result = 0;
+  if (commands->count) {
+    String_Builder sb = {0};
+    da_foreach(const char *, command, commands) sb_append_cstr(&sb, *command);
+    int run_result = run_syx(&ctx, sb_to_sv(sb).data);
+    if (run_result >= 0) nob_return_defer(run_result);
+  } else {
+    printf("Syx Language REPL\n");
+    char *line_ptr;
+    while ((line_ptr = readline("> ")) != NULL) {
+      if (*line_ptr) add_history(line_ptr);
+      int run_result = run_syx(&ctx, line_ptr);
+      free(line_ptr);
+      if (run_result >= 0) return run_result;
+    }
   }
 
-  printf("Syx Language REPL\n");
-  char *line_ptr;
-  while ((line_ptr = readline("> ")) != NULL) {
-    if (*line_ptr) add_history(line_ptr);
-    int result = run_syx(global_env, line_ptr, *print_result);
-    free(line_ptr);
-    if (result >= 0) return result;
-  }
+defer:
   rc_release(global_env);
-
-  return 0;
+  return result;
 }

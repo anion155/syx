@@ -146,7 +146,7 @@ int main(int argc, char **argv) {
     nob_cmd_append(&ctx.cmd, "clear");
     if (!nob_cmd_run(&ctx.cmd)) goto fail;
   }
-  if (!nonob_run_command()) goto fail;
+  if (!nonob_run_command("build")) goto fail;
 
   nonob_deinitialize();
   return 0;

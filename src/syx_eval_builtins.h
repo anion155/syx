@@ -405,11 +405,11 @@ SyxV *syx_builtin_print(Syx_Env *env, SyxV *arguments) {
   bool first = true;
   syxv_list_for_each(env, argument, arguments) {
     String_View sv = syx_convert_to_string_v(env, argument);
-    if (!first && !io_putc(f, ' ')) return make_syxv_bool(false);
-    if (!io_puts(f, sv)) return make_syxv_bool(false);
+    if (!first && !io_putc(f, ' ')) return make_syxv_nil();
+    if (!io_puts(f, sv)) return make_syxv_nil();
     first = false;
   }
-  return make_syxv_bool(true);
+  return make_syxv_nil();
 }
 
 /** Prints arguments to file, adds new line to the end. */
@@ -417,11 +417,11 @@ SyxV *syx_builtin_println(Syx_Env *env, SyxV *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
   syxv_list_for_each(env, argument, arguments) {
     String_View sv = syx_convert_to_string_v(env, argument);
-    if (!io_puts(f, sv)) return make_syxv_bool(false);
-    if (!io_putc(f, ' ')) return make_syxv_bool(false);
+    if (!io_puts(f, sv)) return make_syxv_nil();
+    if (!io_putc(f, ' ')) return make_syxv_nil();
   }
-  if (!io_putc(f, '\n')) return make_syxv_bool(false);
-  return make_syxv_bool(true);
+  if (!io_putc(f, '\n')) return make_syxv_nil();
+  return make_syxv_nil();
 }
 
 ssize_t io_put_sv_diff(FILE *fd, String_View *base, String_View *offset) {
@@ -442,15 +442,15 @@ SyxV *syx_builtin_printf(Syx_Env *env, SyxV *arguments) {
     size_t format_size = 1;
     if (it.data[0] != '%') continue;
     // TODO: implement custom formats
-    if (io_put_sv_diff(f, &str, &it) < 0) return make_syxv_bool(false);
+    if (io_put_sv_diff(f, &str, &it) < 0) return make_syxv_nil();
     sv_chop_left(&it, format_size);
     str = it;
     SyxV *argument = syxv_list_next(&arguments);
     String_View sv = syx_convert_to_string_v(env, argument);
-    if (!io_puts(f, sv)) return make_syxv_bool(false);
+    if (!io_puts(f, sv)) return make_syxv_nil();
   }
-  if (io_put_sv_diff(f, &str, &it) < 0) return make_syxv_bool(false);
-  return make_syxv_bool(true);
+  if (io_put_sv_diff(f, &str, &it) < 0) return make_syxv_nil();
+  return make_syxv_nil();
 }
 
 void syx_env_define_builtins(Syx_Env *env) {

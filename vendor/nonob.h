@@ -51,7 +51,8 @@ void nonob__define_command_opt(const char *name, NoNob_Command command);
         .init = command_##name##_init,                                          \
         .run = command_##name##_run,                                            \
     })
-bool nonob_run_command();
+bool nonob__run_command(const char *default_command);
+#define nonob_run_command(...) nonob__run_command(WITH_DEFAULT(NULL, __VA_ARGS__))
 void nonob_append_cmd_to_ccjson();
 
 #endif // NONOB_H
@@ -175,10 +176,13 @@ void nonob__define_command_opt(const char *name, NoNob_Command command) {
   *ht_put(&ctx.commands, name) = command;
 }
 
-bool nonob_run_command() {
-  const char *name = ctx.argc > 0 ? ctx.argv[0] : "build";
-  flag_shift_args(&ctx.argc, &ctx.argv);
-  NoNob_Command *command = ht_find(&ctx.commands, name);
+bool nonob__run_command(const char *default_command) {
+  const char *name = default_command;
+  if (ctx.argc > 0) {
+    name = ctx.argv[0];
+    flag_shift_args(&ctx.argc, &ctx.argv);
+  }
+  NoNob_Command *command = !name ? NULL : ht_find(&ctx.commands, name);
   if (!command) {
     if (ctx.usage) ctx.usage(stderr, NULL);
     else nonob_default_usage(stderr, NULL);
@@ -225,7 +229,6 @@ void nonob_append_cmd_to_ccjson() {
       if (strcmp(*arg, "-o") == 0) {
         output = true;
       } else if (output) {
-        printf("GG: %s\n", *arg);
         jim_member_key(&ctx.ccjson, "file");
         jim_string(&ctx.ccjson, *arg);
         break;
