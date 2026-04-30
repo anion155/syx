@@ -82,19 +82,34 @@ SyxV *eval_quit(Syx_Env *env, SyxV *arguments) {
   return NULL;
 }
 
+void usage(FILE *stream) {
+  fprintf(stream, "usage: %s [options] [file]\n", flag_program_name());
+  fprintf(stream, "modes:\n");
+  fprintf(stream, "  %-16s  %s\n", "syx", "Starts the interactive REPL.");
+  fprintf(stream, "  %-16s  %s\n", "syx <file.syx>", "Executes the specified script file.");
+  fprintf(stream, "  %-16s  %s\n", "syx -c \"expr\"", "Executes the provided syx string.");
+  fprintf(stream, "options:\n");
+  flag_print_options(stream);
+}
+
 int main(int argc, char **argv) {
   UNUSED(ht__find_and_delete);
   UNUSED(ht__reset);
   srand(time(NULL));
 
   bool *verbose_all = flag_bool("x", false, "Print every expression before evaluation");
-  bool *verbose_results = flag_bool("d", false, "Print expression evaluation result");
+  bool *verbose_results = flag_bool("d", false, "Print every expression evaluation result");
   bool *verbose_last = flag_bool("p", false, "Print result of last evaluation");
   Flag_List *commands = flag_list("c", "Commands to run");
+  bool *help = flag_bool("h", false, "Show this help message");
   if (!flag_parse(argc, argv)) {
-    // usage(stderr);
     flag_print_error(stderr);
+    usage(stderr);
     exit(1);
+  }
+  if (*help) {
+    usage(stdout);
+    exit(0);
   }
   argc = flag_rest_argc();
   argv = flag_rest_argv();
