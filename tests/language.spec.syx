@@ -1,0 +1,74 @@
+;; 1. BASIC VALUES & LITERALS
+123                         ; 123
+-45                         ; -45
+1.23                        ; 1.23
+.5                          ; 0.5
+"quoted string"             ; "quoted string"
+true                        ; #t
+#t                          ; #t
+false                       ; #f
+#f                          ; #f
+nil                         ; nil
+'some-symbol                ; some-symbol
+
+;; 2. PAIRS & LIST STRUCTURE
+(cons 1 2)                  ; (1 . 2)
+(cons 1 (cons 2 nil))       ; (1 2)
+'(a . b)                    ; (a . b)
+'(a b . c)                  ; (a b . c)
+(car '(1 . 2))              ; 1
+(cdr '(1 . 2))              ; 2
+(car '(1 2 3))              ; 1
+(cdr '(1 2 3))              ; (2 3)
+(car (cdr '(1 2 3)))        ; 2
+
+;; 3. TYPE PREDICATES
+(number? 1)                 ; #t
+(number? 1.0)               ; #t
+(integer? 1)                ; #t
+(integer? 1.0)              ; #f
+(fractional? 1.0)           ; #t
+(string? "a")               ; #t
+(symbol? 'a)                ; #t
+(pair? '(a . b))            ; #t
+(list? '(a b c))            ; #t
+(list? '(a . b))            ; #f
+(nil? nil)                  ; #t
+(bool? #t)                  ; #t
+
+;; 4. EQUALITY LOGIC
+(= 1 1.0)                   ; #t
+(= "abc" "abc")             ; #t
+(= '(1 2) '(1 2))           ; #t
+(= 'a 'a)                   ; #t
+(eq? 1 1)                   ; #t
+(eq? 1 1.0)                 ; #f
+(eq? "a" "a")               ; #f
+(eq? '(1) '(1))             ; #f
+(eq? 'a 'a)                 ; #t
+
+;; 5. SPECIAL FORMS & LOGIC
+(quote (a b))               ; (a b)
+(begin 1 2 3)               ; 3
+(if #t 'yes 'no)            ; yes
+(if #f 'yes 'no)            ; no
+(if #f 'yes)                ; nil
+(and 1 2 3)                 ; 3
+(and #f 1)                  ; #f
+(or #f 5)                   ; 5
+(cond ((= 1 2) 'no) ((= 1 1) 'yes) (else 'none)) ; yes
+
+;; 6. DEFINITION & ASSIGNMENT
+(define a 10)               ; nil
+a                           ; 10
+(set a 20)                  ; nil
+a                           ; 20
+(let ((x 1) (y 2)) (+ x y)) ; 3
+
+;; 7. ARITHMETIC VARIADICS
+(+)                         ; 0
+(*)                         ; 1
+(+ 1 2 3 4)                 ; 10
+(- 10 5 2)                  ; 3
+(* 2 3 4)                   ; 24
+(/ 20 2 2)                  ; 5

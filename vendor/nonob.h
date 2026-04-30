@@ -19,10 +19,10 @@ struct NoNob_Command {
 struct NoNob_Context_Storage;
 
 struct NoNob_Context {
-  const char *root;
+  const char *exe_path;
   Nob_Cmd cmd;
   Nob_Procs procs;
-  Jim cdb_jim;
+  Jim ccjson;
   void (*usage)(FILE *stream, NoNob_Command *command);
   bool flag_help;
   bool flag_no_ccjson;
@@ -30,21 +30,26 @@ struct NoNob_Context {
   int argc;
   char **argv;
   struct NoNob_Context_Storage *s;
-} ctx = {.cdb_jim = {.pp = 2}, .commands = {.hasheq = ht_cstr_hasheq}};
+} ctx = {.ccjson = {.pp = 2}, .commands = {.hasheq = ht_cstr_hasheq}};
 
-void nonob_initialize(int argc, char **argv);
+typedef struct NoNob_Initialize_Opt {
+  bool disable_ccjson;
+} NoNob_Initialize_Opt;
+
+void nonob_initialize_opt(int argc, char **argv, NoNob_Initialize_Opt opt);
+#define nonob_initialize(argc, argv, ...) nonob_initialize_opt((argc), (argv), (NoNob_Initialize_Opt){__VA_ARGS__})
 void nonob_deinitialize();
 
 void nonob_parse_options();
 
 void nonob__define_command_opt(const char *name, NoNob_Command command);
-#define nonob_define_command(name, description_cstr, has_flags) nonob__define_command_opt( \
-    STRINGIFY(name),                                                                       \
-    (NoNob_Command){                                                                       \
-        .description = (description_cstr),                                                 \
-        .flags = (has_flags) ? flag_c_new(NULL) : NULL,                                    \
-        .init = command_##name##_init,                                                     \
-        .run = command_##name##_run,                                                       \
+#define nonob_define_command(name, description_cstr) nonob__define_command_opt( \
+    STRINGIFY(name),                                                            \
+    (NoNob_Command){                                                            \
+        .description = (description_cstr),                                      \
+        .flags = flag_c_new(NULL),                                              \
+        .init = command_##name##_init,                                          \
+        .run = command_##name##_run,                                            \
     })
 bool nonob_run_command();
 void nonob_append_cmd_to_ccjson();
@@ -57,7 +62,7 @@ void nonob_append_cmd_to_ccjson();
 #include <libgen.h>
 #include <string.h>
 #if defined(__APPLE__)
-#include <mach-o/dyld.h>
+#  include <mach-o/dyld.h>
 #endif
 
 #define JIM_IMPL
@@ -75,14 +80,14 @@ char *get_exe_path() {
   {
     char link_path[PATH_MAX];
     uint32_t size = sizeof(link_path);
-    if (_NSGetExecutablePath(link_path, &size) != 0) return false;
-    if (realpath(link_path, exe_path) == NULL) return false;
+    if (_NSGetExecutablePath(link_path, &size) != 0) return "";
+    if (realpath(link_path, exe_path) == NULL) return "";
   }
 #elif defined(__linux__)
   {
     ssize_t count = readlink("/proc/self/exe", exe_path, PATH_MAX);
     printf("%d\n", count);
-    if (count == 0) return false;
+    if (count == 0) return "";
     exe_path[count] = 0;
   }
 #endif
@@ -124,23 +129,24 @@ void nonob_default_usage(FILE *stream, NoNob_Command *command) {
   }
 }
 
-void nonob_initialize(int argc, char **argv) {
+void nonob_initialize_opt(int argc, char **argv, NoNob_Initialize_Opt opt) {
   ctx.argc = argc;
   ctx.argv = argv;
-  ctx.root = dirname(get_exe_path());
+  ctx.exe_path = dirname(get_exe_path());
   ctx.s = temp_alloc(sizeof(struct NoNob_Context_Storage));
 
-  flag_bool_var(&ctx.flag_no_ccjson, "no-ccjson", false, "Disable creation of compile_commands.json");
+  if (!opt.disable_ccjson) flag_bool_var(&ctx.flag_no_ccjson, "no-ccjson", false, "Disable creation of compile_commands.json");
+  else ctx.flag_no_ccjson = true;
   flag_bool_var(&ctx.flag_help, "help", false, "Print this help to stdout and exit with 0");
 }
 
 void nonob_deinitialize() {
   if (!ctx.flag_no_ccjson) {
-    jim_array_end(&ctx.cdb_jim);
+    jim_array_end(&ctx.ccjson);
     nob_write_entire_file(
-        temp_sprintf("%s/compile_commands.json", ctx.root),
-        ctx.cdb_jim.sink,
-        ctx.cdb_jim.sink_count);
+        temp_sprintf("%s/compile_commands.json", ctx.exe_path),
+        ctx.ccjson.sink,
+        ctx.ccjson.sink_count);
   }
 }
 
@@ -162,7 +168,7 @@ void nonob_parse_options() {
     flag_c_set_program_name(command->flags, flag_program_name());
   }
 
-  if (!ctx.flag_no_ccjson) jim_array_begin(&ctx.cdb_jim);
+  if (!ctx.flag_no_ccjson) jim_array_begin(&ctx.ccjson);
 }
 
 void nonob__define_command_opt(const char *name, NoNob_Command command) {
@@ -202,25 +208,26 @@ bool nonob_run_command() {
 
 void nonob_append_cmd_to_ccjson() {
   if (ctx.flag_no_ccjson) return;
-  jim_object_begin(&ctx.cdb_jim);
+  jim_object_begin(&ctx.ccjson);
 
   /** The working directory of the compilation. All paths specified in the
    * command or file fields must be either absolute or relative to this directory. */
-  jim_member_key(&ctx.cdb_jim, "directory");
-  jim_string(&ctx.cdb_jim, ctx.root);
+  jim_member_key(&ctx.ccjson, "directory");
+  jim_string(&ctx.ccjson, ctx.exe_path);
 
   /** The main translation unit source processed by this compilation step.
    * This is used by tools as the key into the compilation database.
    * There can be multiple command objects for the same file, for example
    * if the same source file is compiled with different configurations. */
-  jim_member_key(&ctx.cdb_jim, "file");
   if (strstr(ctx.cmd.items[0], "cc")) {
     bool output = false;
     for (const char **arg = ctx.cmd.items + 1; arg < ctx.cmd.items + ctx.cmd.count; ++arg) {
-      if (*arg[0] == '-') {
-        if (strcmp(*arg, "-o")) output = true;
-      } else {
-        jim_string(&ctx.cdb_jim, *arg);
+      if (strcmp(*arg, "-o") == 0) {
+        output = true;
+      } else if (output) {
+        printf("GG: %s\n", *arg);
+        jim_member_key(&ctx.ccjson, "file");
+        jim_string(&ctx.ccjson, *arg);
         break;
       }
       output = false;
@@ -231,18 +238,18 @@ void nonob_append_cmd_to_ccjson() {
    * compilation step for the translation unit file. arguments[0] should be
    * the executable name, such as clang++. Arguments should not be escaped,
    * but ready to pass to execvp(). */
-  jim_member_key(&ctx.cdb_jim, "arguments");
-  jim_array_begin(&ctx.cdb_jim);
+  jim_member_key(&ctx.ccjson, "arguments");
+  jim_array_begin(&ctx.ccjson);
   da_foreach(const char *, arg, &ctx.cmd) {
-    jim_string(&ctx.cdb_jim, *arg);
+    jim_string(&ctx.ccjson, *arg);
   }
-  jim_array_end(&ctx.cdb_jim);
+  jim_array_end(&ctx.ccjson);
 
   /** The compile command as a single shell-escaped string. Arguments may be
    * shell quoted and escaped following platform conventions, with ‘"’ and ‘\’
    * being the only special characters. Shell expansion is not supported. */
-  // jim_member_key(&ctx.cdb_jim, "command");
-  // jim_string(&ctx.cdb_jim, ROOT_PATH);
+  // jim_member_key(&ctx.ccjson, "command");
+  // jim_string(&ctx.ccjson, ROOT_PATH);
 
   /** Either arguments or command is required. arguments is preferred,
    * as shell (un)escaping is a possible source of errors. */
@@ -250,10 +257,10 @@ void nonob_append_cmd_to_ccjson() {
   /** The name of the output created by this compilation step.
    * This field is optional. It can be used to distinguish different
    * processing modes of the same input file. */
-  // jim_member_key(&ctx.cdb_jim, "output");
-  // jim_string(&ctx.cdb_jim, ROOT_PATH);
+  // jim_member_key(&ctx.ccjson, "output");
+  // jim_string(&ctx.ccjson, ROOT_PATH);
 
-  jim_object_end(&ctx.cdb_jim);
+  jim_object_end(&ctx.ccjson);
 }
 
 #endif // NONOB_IMPL

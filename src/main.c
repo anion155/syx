@@ -3,10 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef __APPLE__
-#include <editline/readline.h>
+#  include <editline/readline.h>
 #else
-#include <readline/history.h>
-#include <readline/readline.h>
+#  include <readline/history.h>
+#  include <readline/readline.h>
 #endif
 
 #define NOB_IMPL
@@ -35,14 +35,16 @@ struct SyxVs {
   size_t capacity;
 };
 
-int run(Syx_Env *env, char *source_cstr) {
+int run_syx(Syx_Env *env, char *source_cstr, bool print_result) {
   SExprs *input = rc_acquire(parse_sexprs(source_cstr));
   struct SyxVs *results = rc_acquire(rc_alloc(sizeof(SExprs), da_destructor));
   da_foreach(SExpr *, expr, input) {
     SyxV *result = rc_acquire(syx_eval(env, (SyxV *)*expr));
-    print_syxv(result);
+    if (print_result) {
+      print_syxv(result);
+      printf("\n");
+    }
     da_append(results, result);
-    printf("\n");
     if (syx_env_lookup_get(env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
   }
   rc_release(input);
@@ -64,6 +66,7 @@ int main(int argc, char **argv) {
   UNUSED(ht__reset);
   srand(time(NULL));
 
+  bool *print_result = flag_bool("p", false, "Print results of evaluation");
   char **command = flag_str("c", NULL, "Commands to run");
   if (!flag_parse(argc, argv)) {
     // usage(stderr);
@@ -77,7 +80,7 @@ int main(int argc, char **argv) {
   syx_env_define_cstr(global_env, "quit", make_syxv_builtin("quit", eval_quit));
 
   if (*command) {
-    int result = run(global_env, *command);
+    int result = run_syx(global_env, *command, *print_result);
     rc_release(global_env);
     return result >= 0 ? result : 0;
   }
@@ -86,7 +89,7 @@ int main(int argc, char **argv) {
   char *line_ptr;
   while ((line_ptr = readline("> ")) != NULL) {
     if (*line_ptr) add_history(line_ptr);
-    int result = run(global_env, line_ptr);
+    int result = run_syx(global_env, line_ptr, *print_result);
     free(line_ptr);
     if (result >= 0) return result;
   }
