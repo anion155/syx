@@ -247,11 +247,6 @@ finish:
 }
 
 int main(int argc, char **argv) {
-  UNUSED(ht__find_or_put);
-  UNUSED(ht__find_and_delete);
-  UNUSED(ht__reset);
-  UNUSED(ht__free);
-
   nonob_initialize(argc, argv, .disable_ccjson = true);
   ctx.s->root_path = realpath(temp_sprintf("%s/..", ctx.exe_path), NULL);
   ctx.s->src_path = temp_sprintf("%s/src", ctx.s->root_path);

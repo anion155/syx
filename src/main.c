@@ -93,8 +93,6 @@ void usage(FILE *stream) {
 }
 
 int main(int argc, char **argv) {
-  UNUSED(ht__find_and_delete);
-  UNUSED(ht__reset);
   srand(time(NULL));
 
   bool *verbose_all = flag_bool("x", false, "Print every expression before evaluation");
