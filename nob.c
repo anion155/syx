@@ -126,6 +126,31 @@ bool command_clean_run() {
   return true;
 }
 
+#define command_playground_init NULL
+
+bool command_playground_run() {
+  nob_cc(&ctx.cmd);
+  nob_cc_flags(&ctx.cmd);
+  nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->src_path));
+  nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->vendor_path));
+  nob_cmd_append(&ctx.cmd, "-ggdb");
+  nob_cc_inputs(&ctx.cmd, "-std=c23");
+  nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/playground.c", ctx.s->src_path));
+  nob_cc_output(&ctx.cmd, temp_sprintf("%s/playground", ctx.s->build_path));
+  nonob_append_cmd_to_ccjson();
+  if (!nob_cmd_run(&ctx.cmd)) return false;
+
+  nob_cmd_append(&ctx.cmd, temp_sprintf("%s/playground", ctx.s->build_path));
+  if (!nob_cmd_run(&ctx.cmd)) {
+    nob_cmd_append(&ctx.cmd, "lldb");
+    nob_cmd_append(&ctx.cmd, temp_sprintf("%s/playground", ctx.s->build_path));
+    nob_cmd_run(&ctx.cmd);
+    return false;
+  }
+
+  return true;
+}
+
 int main(int argc, char **argv) {
   NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "./vendor/nonob.h");
   nonob_initialize(argc, argv);
@@ -142,6 +167,7 @@ int main(int argc, char **argv) {
   nonob_define_command(debug, "Run project with lldb");
   nonob_define_command(tests, "Run tests");
   nonob_define_command(clean, "Clean artifacts");
+  nonob_define_command(playground, "Playground env");
   nonob_parse_options();
   if (*clear) {
     nob_cmd_append(&ctx.cmd, "clear");
