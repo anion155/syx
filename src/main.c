@@ -18,24 +18,14 @@
 #define RC_IMPL
 #include <rc.h>
 
-#define SEXPR_AST_IMPL
-#include "sexpr_ast.h"
-#define SEXPR_PARSER_IMPL
-#include "sexpr_parser.h"
+#define SYX_PARSER_IMPL
+#include "syx_parser.h"
 #define SYX_VALUE_IMPL
 #include "syx_value.h"
 #define SYX_EVAL_IMPL
 #include "syx_eval.h"
-#define SYX_EVAL_IMPL
-#include "syx_eval.h"
 
 #define SYXV_EXIT_QUIT_STORAGE "SYXV_EXIT_QUIT_STORAGE"
-
-struct SyxVs {
-  SyxV **items;
-  size_t count;
-  size_t capacity;
-};
 
 typedef enum Syx_Run_Verbose {
   SYX_RUN_VERBOSE_QUITE = 0,
@@ -50,14 +40,14 @@ typedef struct Syx_Run_Context {
 } Syx_Run_Context;
 
 int run_syx(Syx_Run_Context *ctx, const char *source_cstr) {
-  struct SyxVs *results = rc_acquire(rc_alloc(sizeof(SExprs), da_destructor));
-  parser_sexprs_for_each(expr, source_cstr) {
+  SyxVs *results = rc_acquire(rc_alloc(sizeof(SyxVs), da_destructor));
+  parser_syxvs_for_each(value, source_cstr) {
     if (ctx->verbose >= SYX_RUN_VERBOSE_ALL) {
       printf("+");
-      print_sexpr(expr);
+      print_syxv(value);
       printf("\n");
     }
-    SyxV *result = syx_eval(ctx->global_env, (SyxV *)expr);
+    SyxV *result = syx_eval(ctx->global_env, value);
     if (ctx->verbose >= SYX_RUN_VERBOSE_EVERY_RESULT) {
       print_syxv(result);
       printf("\n");
@@ -113,13 +103,16 @@ int main(int argc, char **argv) {
   argv = flag_rest_argv();
 
   Syx_Env *global_env = rc_acquire(make_global_syx_env());
-  Syx_Run_Context ctx = {
-      .global_env = global_env,
-      .verbose = *verbose_all       ? SYX_RUN_VERBOSE_ALL
-                 : *verbose_results ? SYX_RUN_VERBOSE_EVERY_RESULT
-                 : *verbose_last    ? SYX_RUN_VERBOSE_LAST_RESULT
-                                    : SYX_RUN_VERBOSE_QUITE,
-  };
+  Syx_Run_Context ctx = {.global_env = global_env};
+
+  if (commands->count) ctx.verbose = SYX_RUN_VERBOSE_LAST_RESULT;
+  else if (argc == 1) ctx.verbose = SYX_RUN_VERBOSE_QUITE;
+  else ctx.verbose = SYX_RUN_VERBOSE_LAST_RESULT;
+
+  if (*verbose_all) ctx.verbose = SYX_RUN_VERBOSE_ALL;
+  else if (*verbose_results) ctx.verbose = SYX_RUN_VERBOSE_EVERY_RESULT;
+  else if (*verbose_last) ctx.verbose = SYX_RUN_VERBOSE_LAST_RESULT;
+
   syx_env_define_cstr(global_env, "quit", make_syxv_builtin("quit", eval_quit));
 
   int result = 0;

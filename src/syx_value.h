@@ -6,7 +6,7 @@
 #include <nob.h>
 #include <rc.h>
 
-#include "sexpr_ast.h"
+#include "syx_utils.h"
 
 typedef struct SyxV SyxV;
 typedef struct Syx_Env Syx_Env;
@@ -30,34 +30,36 @@ typedef struct Syx_Closure {
   SyxV *forms;
 } Syx_Closure;
 
-void fprint_syx_closure(FILE *f, Syx_Closure *closure);
-#define print_syx_closure(closure) fprint_syx_closure(stdout, (closure))
-
 typedef enum : unsigned int {
-  SYXV_KIND_NIL = SEXPR_KIND_NIL,
-  SYXV_KIND_SYMBOL = SEXPR_KIND_SYMBOL,
-  SYXV_KIND_PAIR = SEXPR_KIND_PAIR,
-  SYXV_KIND_BOOL = SEXPR_KIND_BOOL,
-  SYXV_KIND_INTEGER = SEXPR_KIND_INTEGER,
-  SYXV_KIND_FRACTIONAL = SEXPR_KIND_FRACTIONAL,
-  SYXV_KIND_STRING = SEXPR_KIND_STRING,
-  SYXV_KIND_QUOTE = SEXPR_KIND_QUOTE,
+  SYXV_KIND_NIL,
+  SYXV_KIND_SYMBOL,
+  SYXV_KIND_PAIR,
+  SYXV_KIND_BOOL,
+  SYXV_KIND_INTEGER,
+  SYXV_KIND_FRACTIONAL,
+  SYXV_KIND_STRING,
+  SYXV_KIND_QUOTE,
   SYXV_KIND_SPECIALF,
   SYXV_KIND_BUILTIN,
   SYXV_KIND_CLOSURE,
 } SyxV_Kind;
 
+typedef struct SyxV_Symbol {
+  char *name;
+  bool guarded;
+} SyxV_Symbol;
+
+typedef struct SyxV_Pair {
+  SyxV *left;
+  SyxV *right;
+} SyxV_Pair;
+
 struct SyxV {
   SyxV_Kind kind;
 
   union {
-    SExpr_Symbol symbol;
-
-    struct SyxV_Pair {
-      SyxV *left;
-      SyxV *right;
-    } pair;
-
+    SyxV_Symbol symbol;
+    SyxV_Pair pair;
     syx_bool_t boolean;
     syx_integer_t integer;
     syx_fractional_t fractional;
@@ -69,30 +71,36 @@ struct SyxV {
   };
 };
 
+typedef struct SyxVs {
+  SyxV **items;
+  size_t count;
+  size_t capacity;
+} SyxVs;
+
 void syxv_destructor(void *data);
 SyxV *make_syxv_nil();
 SyxV *make_syxv_symbol(String_View symbol);
 SyxV *make_syxv_symbol_n(char *symbol, size_t size);
-SyxV *make_syxv_symbol_ctrs(char *symbol);
+SyxV *make_syxv_symbol_cstr(char *symbol);
 SyxV *make_syxv_pair(SyxV *left, SyxV *right);
+SyxV *make_syxv_list_opt(size_t count, SyxV **items);
+#define make_syxv_list(...)                             \
+  make_syxv_list_opt(                                   \
+      sizeof((SyxV *[]){__VA_ARGS__}) / sizeof(SyxV *), \
+      (SyxV *[]){__VA_ARGS__})
 SyxV *make_syxv_bool(syx_bool_t value);
 SyxV *make_syxv_integer(syx_integer_t value);
 SyxV *make_syxv_fractional(syx_fractional_t value);
 SyxV *make_syxv_string(String_View value);
 SyxV *make_syxv_string_n(syx_string_t value, size_t size);
 SyxV *make_syxv_string_cstr(syx_string_t value);
-SyxV *make_syxv_quote(SyxV *quote);
 #define make_syxv_value(value)                       \
   _Generic(value,                                    \
       syx_bool_t: make_syxv_bool(value),             \
       syx_integer_t: make_syxv_integer(value),       \
       syx_fractional_t: make_syxv_fractional(value), \
       syx_string_t: make_syxv_string(value))
-SyxV *make_syxv_list_opt(size_t count, SyxV **items);
-#define make_syxv_list(...)                             \
-  make_syxv_list_opt(                                   \
-      sizeof((SyxV *[]){__VA_ARGS__}) / sizeof(SyxV *), \
-      (SyxV *[]){__VA_ARGS__})
+SyxV *make_syxv_quote(SyxV *quote);
 
 SyxV *make_syxv_specialf(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
@@ -117,7 +125,14 @@ bool syxv__list_map_next(Syx_Env *env, SyxV **source_it, SyxV ***target_it, SyxV
            &value,                                    \
            WITH_DEFAULT(NULL, __VA_ARGS__));)
 
-#define define_syxv_constants_ht(name) define_constants_ht((name), SyxV *)
+#define define_syxv_constants_ht(name) define_constants_ht(name, SyxV *)
+
+typedef Ht(SyxV *, size_t, SyxV_Stringify_Cache) SyxV_Stringify_Cache;
+size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache);
+#define get_syxv_string_width(value, ...) get__syxv_string_width((value), WITH_DEFAULT(NULL, __VA_ARGS__))
+void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_Cache *cache);
+#define stringify_syxv_n(value, length, string, ...) stringify__syxv_n((value), (length), (string), WITH_DEFAULT(NULL, __VA_ARGS__))
+String_View stringify_syxv(SyxV *value);
 
 void fprint_syxv(FILE *f, SyxV *value);
 #define print_syxv(value) fprint_syxv(stdout, (value))
@@ -127,21 +142,31 @@ void fprint_syxv(FILE *f, SyxV *value);
 #if defined(SYX_VALUE_IMPL) && !defined(SYX_VALUE_IMPL_C)
 #define SYX_VALUE_IMPL_C
 
-#define SEXPR_AST_IMPL
-#include "sexpr_ast.h"
+#define HT_IMPL
+#include <ht.h>
+#define NOB_IMPL
+#include <nob.h>
+#define RC_IMPL
+#include <rc.h>
+#define SYX_EVAL_IMPL
 #include "syx_eval.h"
+#define SYX_UTILS_IMPL
+#include "syx_utils.h"
 
 void syxv_destructor(void *data) {
   SyxV *syxv = data;
   switch (syxv->kind) {
-    case SYXV_KIND_NIL:
-    case SYXV_KIND_SYMBOL:
+    case SYXV_KIND_NIL: break;
+    case SYXV_KIND_SYMBOL: rc_release(syxv->symbol.name); break;
     case SYXV_KIND_PAIR:
-    case SYXV_KIND_BOOL:
-    case SYXV_KIND_INTEGER:
-    case SYXV_KIND_FRACTIONAL:
-    case SYXV_KIND_STRING:
-    case SYXV_KIND_QUOTE: UNREACHABLE("should not be called for s-expressions");
+      rc_release(syxv->pair.left);
+      rc_release(syxv->pair.right);
+      break;
+    case SYXV_KIND_BOOL: break;
+    case SYXV_KIND_INTEGER: break;
+    case SYXV_KIND_FRACTIONAL: break;
+    case SYXV_KIND_STRING: free(syxv->string); break;
+    case SYXV_KIND_QUOTE: rc_release(syxv->quote); break;
     case SYXV_KIND_SPECIALF: {
       if (syxv->specialf.name) free(syxv->specialf.name);
     } break;
@@ -157,36 +182,105 @@ void syxv_destructor(void *data) {
   }
 }
 
-SyxV *make_syxv_nil() { return (SyxV *)make_sexpr_nil(); }
-
-SyxV *make_syxv_symbol(String_View symbol) { return (SyxV *)make_sexpr_symbol(symbol); }
-
-SyxV *make_syxv_symbol_n(char *symbol, size_t size) { return (SyxV *)make_sexpr_symbol_n(symbol, size); }
-
-SyxV *make_syxv_symbol_ctrs(char *symbol) { return (SyxV *)make_sexpr_symbol_ctrs(symbol); }
-
-SyxV *make_syxv_pair(SyxV *left, SyxV *right) { return (SyxV *)make_sexpr_pair((SExpr *)left, (SExpr *)right); }
-
-SyxV *make_syxv_bool(syx_bool_t value) { return (SyxV *)make_sexpr_bool(value); }
-
-SyxV *make_syxv_integer(syx_integer_t value) { return (SyxV *)make_sexpr_integer(value); }
-
-SyxV *make_syxv_fractional(syx_fractional_t value) { return (SyxV *)make_sexpr_fractional(value); }
-
-SyxV *make_syxv_string(String_View value) { return (SyxV *)make_sexpr_string(value); }
-
-SyxV *make_syxv_string_n(syx_string_t value, size_t size) { return (SyxV *)make_sexpr_string_n(value, size); }
-
-SyxV *make_syxv_string_cstr(syx_string_t value) { return (SyxV *)make_sexpr_string_cstr(value); }
-
-SyxV *make_syxv_quote(SyxV *quote) { return (SyxV *)make_sexpr_quote((SExpr *)quote); }
-
-SyxV *make_syxv_list_opt(size_t count, SyxV **items) { return (SyxV *)make_sexpr_list_opt(count, (SExpr **)items); }
-
 SyxV *make_syxv(SyxV_Kind kind) {
   SyxV *value = rc_alloc(sizeof(SyxV), syxv_destructor);
   value->kind = kind;
   return value;
+}
+
+define_syxv_constants_ht(SYXV_CONSTANTS) {
+  SyxV *nil = make_syxv(SYXV_KIND_NIL);
+  *ht_put(SYXV_CONSTANTS, "nil") = nil;
+  *ht_put(SYXV_CONSTANTS, "null") = nil;
+
+  SyxV *t = make_syxv(SYXV_KIND_BOOL);
+  t->boolean = true;
+  *ht_put(SYXV_CONSTANTS, "#t") = t;
+  *ht_put(SYXV_CONSTANTS, "true") = t;
+
+  SyxV *f = make_syxv(SYXV_KIND_BOOL);
+  f->boolean = true;
+  *ht_put(SYXV_CONSTANTS, "#f") = f;
+  *ht_put(SYXV_CONSTANTS, "false") = f;
+}
+
+SyxV *make_syxv_nil() {
+  return *ht_find(SYXV_CONSTANTS(), "nil");
+}
+
+SyxV *make_syxv_symbol(String_View symbol) {
+  SyxV **constant = ht_find(SYXV_CONSTANTS(), symbol.data);
+  if (constant != NULL) return *constant;
+  bool guarded = false;
+  for (String_View it = symbol; it.count; sv_chop_left(&it, 1)) {
+    if (issymbol(*it.data)) continue;
+    guarded = true;
+    break;
+  }
+  SyxV *syxv = make_syxv(SYXV_KIND_SYMBOL);
+  syxv->symbol.name = rc_acquire(rc_manage_strndup(symbol.data, symbol.count));
+  syxv->symbol.guarded = guarded;
+  return syxv;
+}
+
+SyxV *make_syxv_symbol_n(char *symbol, size_t size) {
+  return make_syxv_symbol((String_View){.data = symbol, .count = size});
+}
+
+SyxV *make_syxv_symbol_cstr(char *symbol) {
+  return make_syxv_symbol(sv_from_cstr(symbol));
+}
+
+SyxV *make_syxv_pair(SyxV *left, SyxV *right) {
+  SyxV *syxv = make_syxv(SYXV_KIND_PAIR);
+  syxv->pair.left = left ? rc_acquire(left) : NULL;
+  syxv->pair.right = right ? rc_acquire(right) : NULL;
+  return syxv;
+}
+
+SyxV *make_syxv_list_opt(size_t count, SyxV **items) {
+  if (!count) UNREACHABLE("empty list array must contain [NULL]");
+  SyxV *expr = items[count - 1] == NULL ? make_syxv_nil() : items[count - 1];
+  for (ssize_t index = (ssize_t)count - 2; index >= 0; index -= 1) {
+    expr = make_syxv_pair(items[index], expr);
+  }
+  return expr;
+}
+
+SyxV *make_syxv_bool(syx_bool_t value) {
+  return value ? *ht_find(SYXV_CONSTANTS(), "#t") : *ht_find(SYXV_CONSTANTS(), "#f");
+}
+
+SyxV *make_syxv_integer(syx_integer_t value) {
+  SyxV *syxv = make_syxv(SYXV_KIND_INTEGER);
+  syxv->integer = value;
+  return syxv;
+}
+
+SyxV *make_syxv_fractional(syx_fractional_t value) {
+  SyxV *syxv = make_syxv(SYXV_KIND_FRACTIONAL);
+  syxv->fractional = value;
+  return syxv;
+}
+
+SyxV *make_syxv_string(String_View value) {
+  SyxV *syxv = make_syxv(SYXV_KIND_STRING);
+  syxv->string = strndup(value.data, value.count);
+  return syxv;
+}
+
+SyxV *make_syxv_string_n(syx_string_t value, size_t size) {
+  return make_syxv_string((String_View){.data = value, .count = size});
+}
+
+SyxV *make_syxv_string_cstr(syx_string_t value) {
+  return make_syxv_string(sv_from_cstr(value));
+}
+
+SyxV *make_syxv_quote(SyxV *quote) {
+  SyxV *syxv = make_syxv(SYXV_KIND_QUOTE);
+  syxv->quote = quote ? rc_acquire(quote) : NULL;
+  return syxv;
 }
 
 SyxV *make_syxv_specialf(const char *name, Syx_Evaluator eval) {
@@ -206,9 +300,9 @@ SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval) {
 SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *forms, Syx_Env *env) {
   SyxV *value = make_syxv(SYXV_KIND_CLOSURE);
   value->closure.name = name ? strdup(name) : NULL;
-  value->closure.defines = rc_acquire(defines);
-  value->closure.forms = rc_acquire(forms);
-  value->closure.env = rc_acquire(env);
+  value->closure.defines = defines ? rc_acquire(defines) : NULL;
+  value->closure.forms = forms ? rc_acquire(forms) : NULL;
+  value->closure.env = env ? rc_acquire(env) : NULL;
   return value;
 }
 

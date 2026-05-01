@@ -1,8 +1,8 @@
 #ifndef SYX_EVAL_BUILTINS_H
 #define SYX_EVAL_BUILTINS_H
 
-#include "sexpr_ast.h"
 #include "syx_eval.h"
+#include "syx_value.h"
 
 void syx_env_define_builtins(Syx_Env *env);
 

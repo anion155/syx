@@ -23,9 +23,9 @@ Syx_Env *make_syx_env(Syx_Env *parent, const char *description);
 Syx_Env *syx_env_global(Syx_Env *env);
 SyxV **syx_env_lookup(Syx_Env *env, const char *name);
 SyxV *syx_env_lookup_get(Syx_Env *env, const char *name);
-void syx_env_define(Syx_Env *env, SExpr_Symbol *symbol, SyxV *value);
+void syx_env_define(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value);
 void syx_env_define_cstr(Syx_Env *env, const char *name, SyxV *value);
-void syx_env_set(Syx_Env *env, SExpr_Symbol *symbol, SyxV *value);
+void syx_env_set(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value);
 void syx_env_set_cstr(Syx_Env *env, const char *name, SyxV *value);
 Syx_Env *make_global_syx_env();
 
@@ -138,7 +138,7 @@ void syxv_update_name(SyxV *value, const char *name) {
   }
 }
 
-void syx_env_define(Syx_Env *env, SExpr_Symbol *symbol, SyxV *value) {
+void syx_env_define(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value) {
   rc_acquire(symbol->name);
   ensure_syxv_redefinable(env, symbol->name);
   *ht_find_or_put(&env->symbols, symbol->name) = rc_acquire(value);
@@ -153,7 +153,7 @@ void syx_env_define_cstr(Syx_Env *env, const char *name, SyxV *value) {
   syxv_update_name(value, name);
 }
 
-void syx_env_set(Syx_Env *env, SExpr_Symbol *symbol, SyxV *value) {
+void syx_env_set(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value) {
   rc_acquire(symbol->name);
   SyxV **item = ensure_syxv_redefinable(env, symbol->name);
   if (item == NULL) item = ht_put(&env->symbols, symbol->name);
@@ -202,7 +202,7 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
   SyxV *it = arguments;
   SyxV **last_name = NULL;
   syxv_list_for_each(env, name_v, closure->defines, &last_name) {
-    SExpr_Symbol *symbol;
+    SyxV_Symbol *symbol;
     if (name_v->kind == SYXV_KIND_PAIR) {
       symbol = &name_v->pair.left->symbol;
     } else {
@@ -225,7 +225,7 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
     it = it->pair.right;
   }
   if ((*last_name)->kind != SYXV_KIND_NIL) {
-    SExpr_Symbol *symbol = &(*last_name)->symbol;
+    SyxV_Symbol *symbol = &(*last_name)->symbol;
     SyxV *rest = it;
     SyxV *evaluated = NULL;
     SyxV **last_argument = NULL;
@@ -395,7 +395,7 @@ String_View syx_convert_to_string_v(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to string");
     case SYXV_KIND_PAIR: UNREACHABLE("illegal conversion of pair to string");
     case SYXV_KIND_BOOL: return sv_from_cstr(value->boolean ? "true" : "false");
-    case SYXV_KIND_INTEGER: return stringify_int(value->integer);
+    case SYXV_KIND_INTEGER: return stringify_integer(value->integer);
     case SYXV_KIND_FRACTIONAL: return stringify_fractional(value->fractional);
     case SYXV_KIND_STRING: return sv_from_cstr(value->string);
     case SYXV_KIND_QUOTE: return syx_convert_to_string_v(env, value->quote);
