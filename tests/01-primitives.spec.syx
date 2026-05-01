@@ -9,4 +9,4 @@ true                        ; #t
 false                       ; #f
 #f                          ; #f
 nil                         ; nil
-'some-symbol                ; some-symbol
+''some-symbol               ; 'some-symbol
