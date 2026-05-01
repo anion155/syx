@@ -10,9 +10,6 @@ void syx_env_define_constants(Syx_Env *env);
 #if defined(SYX_EVAL_CONSTANTS_IMPL) && !defined(SYX_EVAL_CONSTANTS_IMPL_C)
 #define SYX_EVAL_CONSTANTS_IMPL_C
 
-#define NANOID_IMPL
-#include <nanoid.h>
-
 void syx_env_define_constants(Syx_Env *env) {
   syx_env_define_cstr(env, "nil", make_syxv_nil());
   syx_env_define_cstr(env, "null", make_syxv_nil());

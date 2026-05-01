@@ -1,22 +1,66 @@
-+123
-123
-+-45
--45
-+1.23
-1.23
-+0.5
-0.5
-+"quoted string"
-"quoted string"
-+true
++'nil
+nil
++'symbol
+symbol
++'()
+()
++'(a b)
+(a b)
++'(a b . c)
+(a b . c)
++'#f
+#f
++'#t
 #t
++'false
+false
++'true
+true
++'123
+123
++'-123
+-123
++'123.456
+123.456
++'-123.456
+-123.456
++'"test"
+"test"
++''"test"
+'"test"
++'if
+if
++'+
++
++'(lambda (a b) (+ a b))
+(lambda (a b) (+ a b))
++nil
+()
++()
+()
++#f
+#f
 +#t
 #t
 +false
 #f
-+#f
-#f
-+nil
-()
-+''some-symbol
-'some-symbol
++true
+#t
++123
+123
++-123
+-123
++123.456
+123.456
++-123.456
+-123.456
++"test"
+"test"
++'"test"
+"test"
++if
+?<if>
+++
+!<+>
++(lambda (a b) (+ a b))
+(#<lambda-f_HjfhM> (a b) (+ a b))

@@ -1,12 +1,37 @@
-;; 1. BASIC VALUES & LITERALS
-123                         ; 123
--45                         ; -45
-1.23                        ; 1.23
-.5                          ; 0.5
-"quoted string"             ; "quoted string"
-true                        ; #t
-#t                          ; #t
-false                       ; #f
-#f                          ; #f
-nil                         ; nil
-''some-symbol               ; 'some-symbol
+'nil
+'symbol
+'()
+'(a b)
+'(a b . c)
+'#f
+'#t
+'false
+'true
+'123
+'-123
+'123.456
+'-123.456
+'"test"
+''"test"
+'if
+'+
+'(lambda (a b) (+ a b))
+
+nil
+;; symbol
+()
+;; (a b)
+;; (a b . c)
+#f
+#t
+false
+true
+123
+-123
+123.456
+-123.456
+"test"
+'"test"
+if
++
+(lambda (a b) (+ a b))

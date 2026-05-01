@@ -169,7 +169,9 @@ SyxV *parse__syxv_nullable(SyxV_Parser_Context *ctx) {
     if (!ctx->it->count) return NULL;
     sv_chop_left(ctx->it, 1);
     if (!ctx->it->count) return NULL;
-    current = ctx->it->data[0];
+    chop_spaces(ctx);
+    if (!ctx->it->count) return NULL;
+    return parse__syxv_nullable(ctx);
   }
   if (current == SYXV_TOKEN_LIST_START) return parse__syxv_list(ctx);
   if (current == SYXV_TOKEN_QUOTES) return parse__syxv_quote(ctx);

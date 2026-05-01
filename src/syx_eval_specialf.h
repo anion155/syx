@@ -10,9 +10,6 @@ void syx_env_define_special_forms(Syx_Env *env);
 #if defined(SYX_EVAL_SPECIALF_IMPL) && !defined(SYX_EVAL_SPECIALF_IMPL_C)
 #define SYX_EVAL_SPECIALF_IMPL_C
 
-#define NANOID_IMPL
-#include <nanoid.h>
-
 /** Special forms */
 
 /** Returns first argument unevaluated */
@@ -26,9 +23,7 @@ SyxV *syx_special_form_begin(Syx_Env *env, SyxV *arguments) {
   return syx_eval_forms_list(env, arguments);
 }
 
-/** Creates a closure that captures current environment. */
-SyxV *syx_special_form_lambda(Syx_Env *env, SyxV *arguments) {
-  SyxV *defines = syxv_list_next(&arguments);
+SyxV *syx__special_form_make_lambda(Syx_Env *env, const char *name, SyxV *defines, SyxV *forms) {
   if (defines->kind == SYXV_KIND_NIL) RUNTIME_ERROR("malformed lambda arguments definitions expected", env);
   SyxV **rest_define = NULL;
   syxv_list_for_each(env, define, defines, &rest_define) {
@@ -42,9 +37,13 @@ SyxV *syx_special_form_lambda(Syx_Env *env, SyxV *arguments) {
   if ((*rest_define)->kind != SYXV_KIND_NIL) {
     if ((*rest_define)->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("malformed lambda rest argument", env);
   }
-  SyxV *forms = arguments;
   if (forms->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed lambda body", env);
-  return make_syxv_closure(NULL, defines, forms, env);
+  return make_syxv_closure(name, defines, forms, env);
+}
+
+/** Creates a closure that captures current environment. */
+SyxV *syx_special_form_lambda(Syx_Env *env, SyxV *arguments) {
+  return syx__special_form_make_lambda(env, NULL, syxv_list_next(&arguments), arguments);
 }
 
 /** Binds a name in the current environment. */
@@ -52,10 +51,10 @@ SyxV *syx_special_form_define(Syx_Env *env, SyxV *arguments) {
   SyxV *name_s = syxv_list_next(&arguments);
   SyxV *value;
   if (name_s->kind == SYXV_KIND_PAIR) {
-    SyxV *pair = rc_acquire(make_syxv_pair(name_s->pair.right, arguments));
+    SyxV *defines = name_s->pair.right;
     name_s = name_s->pair.left;
-    value = syx_special_form_lambda(env, pair);
-    rc_release(pair);
+    if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", env);
+    value = syx__special_form_make_lambda(env, name_s->symbol.name, defines, arguments);
   } else if (name_s->kind != SYXV_KIND_SYMBOL) {
     RUNTIME_ERROR("Symbol expression expected as name", env);
   } else {

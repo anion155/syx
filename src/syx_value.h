@@ -148,6 +148,8 @@ void fprint_syxv(FILE *f, SyxV *value);
 #include <nob.h>
 #define RC_IMPL
 #include <rc.h>
+#define NANOID_IMPL
+#include <nanoid.h>
 #define SYX_EVAL_IMPL
 #include "syx_eval.h"
 #define SYX_UTILS_IMPL
@@ -299,7 +301,7 @@ SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval) {
 
 SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *forms, Syx_Env *env) {
   SyxV *value = make_syxv(SYXV_KIND_CLOSURE);
-  value->closure.name = name ? strdup(name) : NULL;
+  value->closure.name = name ? strdup(name) : nanoid("lambda-", 7);
   value->closure.defines = defines ? rc_acquire(defines) : NULL;
   value->closure.forms = forms ? rc_acquire(forms) : NULL;
   value->closure.env = env ? rc_acquire(env) : NULL;
