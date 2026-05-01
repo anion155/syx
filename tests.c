@@ -165,9 +165,9 @@ Test_Result run_test(Test_File test) {
   if (!snapshot.count) to_fail(TEST_RESULT_STATUS_FAIL, "Snapshot is empty");
 
   if (!sv_eq(output, snapshot)) {
-    if (ctx.s->update_snapshots_flag) TODO("implement update snapshot");
-    // TEST_RESULT_STATUS_UPDATE
-    to_fail(TEST_RESULT_STATUS_DIFF, "Output does not match snapshot");
+    if (!ctx.s->update_snapshots_flag) to_fail(TEST_RESULT_STATUS_DIFF, "Output does not match snapshot");
+    nob_write_entire_file(snapshot_path, output.data, output.count);
+    result.status = TEST_RESULT_STATUS_UPDATE;
   }
   result.output = output;
   result.snapshot = snapshot;
