@@ -46,6 +46,7 @@ typedef enum : unsigned int {
 
 typedef struct SyxV_Symbol {
   char *name;
+  size_t length;
   bool guarded;
 } SyxV_Symbol;
 
@@ -63,7 +64,7 @@ struct SyxV {
     syx_bool_t boolean;
     syx_integer_t integer;
     syx_fractional_t fractional;
-    syx_string_t string;
+    syx_string_view_t string;
     SyxV *quote;
     Syx_SpecialF specialf;
     Syx_Builtin builtin;
@@ -91,17 +92,17 @@ SyxV *make_syxv_list_opt(size_t count, SyxV **items);
 SyxV *make_syxv_bool(syx_bool_t value);
 SyxV *make_syxv_integer(syx_integer_t value);
 SyxV *make_syxv_fractional(syx_fractional_t value);
-SyxV *make_syxv_string(String_View value);
-SyxV *make_syxv_string_n(syx_string_t value, size_t size);
-SyxV *make_syxv_string_cstr(syx_string_t value);
+SyxV *make_syxv_string(syx_string_view_t value);
+SyxV *make_syxv_string_n(const char *value, size_t size);
+SyxV *make_syxv_string_cstr(const char *value);
 #define make_syxv_value(value)                       \
   _Generic(value,                                    \
       syx_bool_t: make_syxv_bool(value),             \
       syx_integer_t: make_syxv_integer(value),       \
       syx_fractional_t: make_syxv_fractional(value), \
-      syx_string_t: make_syxv_string(value))
+      syx_string_view_t: make_syxv_string(value),    \
+      const char *: make_syxv_string_cstr(value))
 SyxV *make_syxv_quote(SyxV *quote);
-
 SyxV *make_syxv_specialf(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env);
@@ -109,23 +110,20 @@ SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *en
 SyxV *syxv_list_next_nullable(SyxV **list);
 SyxV *syxv_list_next(SyxV **list);
 
-bool syxv__list_for_each_next(Syx_Env *env, SyxV **list, SyxV **value, SyxV ***cdr);
-#define syxv_list_for_each(env, value, list, ...) \
-  for (SyxV *value##_list = (list), *value; syxv__list_for_each_next((env), &value##_list, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
+bool syxv__list_for_each_next(SyxV **list, SyxV **value, SyxV ***cdr);
+#define syxv_list_for_each(value, list, ...) \
+  for (SyxV *value##_list = (list), *value; syxv__list_for_each_next(&value##_list, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
 
-bool syxv__list_map_next(Syx_Env *env, SyxV **source_it, SyxV ***target_it, SyxV ***value, SyxV ***cdr);
-#define syxv_list_map(env, value, list, results, ...) \
-  for (SyxV *value##_source_it = (list),              \
-            **value##_target_it = (results),          \
-            **value = NULL;                           \
-       syxv__list_map_next(                           \
-           (env),                                     \
-           &value##_source_it,                        \
-           &value##_target_it,                        \
-           &value,                                    \
+bool syxv__list_map_next(SyxV **source_it, SyxV ***target_it, SyxV ***value, SyxV ***cdr);
+#define syxv_list_map(value, list, results, ...) \
+  for (SyxV *value##_source_it = (list),         \
+            **value##_target_it = (results),     \
+            **value = NULL;                      \
+       syxv__list_map_next(                      \
+           &value##_source_it,                   \
+           &value##_target_it,                   \
+           &value,                               \
            WITH_DEFAULT(NULL, __VA_ARGS__));)
-
-#define define_syxv_constants_ht(name) define_constants_ht(name, SyxV *)
 
 typedef Ht(SyxV *, size_t, SyxV_Stringify_Cache) SyxV_Stringify_Cache;
 size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache);
@@ -150,16 +148,38 @@ void fprint_syxv(FILE *f, SyxV *value);
 #include <rc.h>
 #define NANOID_IMPL
 #include <nanoid.h>
-#define SYX_EVAL_IMPL
-#include "syx_eval.h"
 #define SYX_UTILS_IMPL
 #include "syx_utils.h"
+
+SyxV *make_syxv(SyxV_Kind kind) {
+  SyxV *value = rc_alloc(sizeof(SyxV), syxv_destructor);
+  value->kind = kind;
+  return value;
+}
+
+define_constant(struct {
+  SyxV *nil;
+  SyxV *t;
+  SyxV *f; }, SYXV_CONSTANTS) {
+  SYXV_CONSTANTS->nil = rc_acquire(make_syxv(SYXV_KIND_NIL));
+  SYXV_CONSTANTS->t = rc_acquire(make_syxv(SYXV_KIND_BOOL));
+  SYXV_CONSTANTS->t->boolean = true;
+  SYXV_CONSTANTS->f = rc_acquire(make_syxv(SYXV_KIND_BOOL));
+  SYXV_CONSTANTS->f->boolean = false;
+}
+
+define_constant(Ht(const char *, SyxV_Symbol *), SYXV_SYMBOLS) {
+  SYXV_SYMBOLS->hasheq = ht_cstr_hasheq;
+}
 
 void syxv_destructor(void *data) {
   SyxV *syxv = data;
   switch (syxv->kind) {
     case SYXV_KIND_NIL: break;
-    case SYXV_KIND_SYMBOL: rc_release(syxv->symbol.name); break;
+    case SYXV_KIND_SYMBOL: {
+      ht_delete(SYXV_SYMBOLS(), &syxv->symbol);
+      free(syxv->symbol.name);
+    } break;
     case SYXV_KIND_PAIR:
       rc_release(syxv->pair.left);
       rc_release(syxv->pair.right);
@@ -167,7 +187,7 @@ void syxv_destructor(void *data) {
     case SYXV_KIND_BOOL: break;
     case SYXV_KIND_INTEGER: break;
     case SYXV_KIND_FRACTIONAL: break;
-    case SYXV_KIND_STRING: free(syxv->string); break;
+    case SYXV_KIND_STRING: free((char *)syxv->string.data); break;
     case SYXV_KIND_QUOTE: rc_release(syxv->quote); break;
     case SYXV_KIND_SPECIALF: {
       if (syxv->specialf.name) free(syxv->specialf.name);
@@ -184,45 +204,26 @@ void syxv_destructor(void *data) {
   }
 }
 
-SyxV *make_syxv(SyxV_Kind kind) {
-  SyxV *value = rc_alloc(sizeof(SyxV), syxv_destructor);
-  value->kind = kind;
-  return value;
-}
-
-define_syxv_constants_ht(SYXV_CONSTANTS) {
-  SyxV *nil = rc_acquire(make_syxv(SYXV_KIND_NIL));
-  *ht_put(SYXV_CONSTANTS, "nil") = nil;
-  *ht_put(SYXV_CONSTANTS, "null") = nil;
-
-  SyxV *t = rc_acquire(make_syxv(SYXV_KIND_BOOL));
-  t->boolean = true;
-  *ht_put(SYXV_CONSTANTS, "#t") = t;
-  *ht_put(SYXV_CONSTANTS, "true") = t;
-
-  SyxV *f = rc_acquire(make_syxv(SYXV_KIND_BOOL));
-  f->boolean = false;
-  *ht_put(SYXV_CONSTANTS, "#f") = f;
-  *ht_put(SYXV_CONSTANTS, "false") = f;
-}
-
 SyxV *make_syxv_nil() {
-  return *ht_find(SYXV_CONSTANTS(), "nil");
+  return SYXV_CONSTANTS()->nil;
 }
 
-SyxV *make_syxv_symbol(String_View symbol) {
-  SyxV **constant = ht_find(SYXV_CONSTANTS(), symbol.data);
-  if (constant != NULL) return *constant;
-  bool guarded = false;
-  for (String_View it = symbol; it.count; sv_chop_left(&it, 1)) {
-    if (issymbol(*it.data)) continue;
-    guarded = true;
-    break;
+SyxV *make_syxv_symbol(String_View name) {
+  SyxV_Symbol **symbol = ht_find(SYXV_SYMBOLS(), name.data);
+  if (!symbol) {
+    char *key = strndup(name.data, name.count);
+    SyxV *syxv = make_syxv(SYXV_KIND_SYMBOL);
+    syxv->symbol.name = key;
+    syxv->symbol.length = name.count;
+    for (String_View it = name; it.count; sv_chop_left(&it, 1)) {
+      if (issymbol(*it.data)) continue;
+      syxv->symbol.guarded = true;
+      break;
+    }
+    *ht_put(SYXV_SYMBOLS(), key) = &syxv->symbol;
+    symbol = ht_find(SYXV_SYMBOLS(), key);
   }
-  SyxV *syxv = make_syxv(SYXV_KIND_SYMBOL);
-  syxv->symbol.name = rc_acquire(rc_manage_strndup(symbol.data, symbol.count));
-  syxv->symbol.guarded = guarded;
-  return syxv;
+  return (SyxV *)(((SyxV_Kind *)(*symbol)) - 1);
 }
 
 SyxV *make_syxv_symbol_n(char *symbol, size_t size) {
@@ -250,7 +251,7 @@ SyxV *make_syxv_list_opt(size_t count, SyxV **items) {
 }
 
 SyxV *make_syxv_bool(syx_bool_t value) {
-  return value ? *ht_find(SYXV_CONSTANTS(), "#t") : *ht_find(SYXV_CONSTANTS(), "#f");
+  return value ? SYXV_CONSTANTS()->t : SYXV_CONSTANTS()->f;
 }
 
 SyxV *make_syxv_integer(syx_integer_t value) {
@@ -267,15 +268,16 @@ SyxV *make_syxv_fractional(syx_fractional_t value) {
 
 SyxV *make_syxv_string(String_View value) {
   SyxV *syxv = make_syxv(SYXV_KIND_STRING);
-  syxv->string = strndup(value.data, value.count);
+  syxv->string.data = strndup(value.data, value.count);
+  syxv->string.count = value.count;
   return syxv;
 }
 
-SyxV *make_syxv_string_n(syx_string_t value, size_t size) {
+SyxV *make_syxv_string_n(const char *value, size_t size) {
   return make_syxv_string((String_View){.data = value, .count = size});
 }
 
-SyxV *make_syxv_string_cstr(syx_string_t value) {
+SyxV *make_syxv_string_cstr(const char *value) {
   return make_syxv_string(sv_from_cstr(value));
 }
 
@@ -326,10 +328,10 @@ SyxV *syxv_list_next(SyxV **list) {
   return item;
 }
 
-bool syxv__list_for_each_next(Syx_Env *env, SyxV **list, SyxV **value, SyxV ***cdr) {
+bool syxv__list_for_each_next(SyxV **list, SyxV **value, SyxV ***cdr) {
   if ((*list)->kind != SYXV_KIND_PAIR) {
     if (cdr != NULL) (*cdr) = list;
-    else if ((*list)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("list expected", env);
+    else if ((*list)->kind != SYXV_KIND_NIL) UNREACHABLE("list expected");
     return false;
   }
   (*value) = (*list)->pair.left;
@@ -337,11 +339,11 @@ bool syxv__list_for_each_next(Syx_Env *env, SyxV **list, SyxV **value, SyxV ***c
   return true;
 }
 
-bool syxv__list_map_next(Syx_Env *env, SyxV **source_it, SyxV ***target_it, SyxV ***value, SyxV ***cdr) {
+bool syxv__list_map_next(SyxV **source_it, SyxV ***target_it, SyxV ***value, SyxV ***cdr) {
   if (*value) rc_acquire(**value);
   if ((*source_it)->kind != SYXV_KIND_PAIR) {
     if (cdr != NULL) (*cdr) = (*target_it);
-    else if ((*source_it)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("list expected", env);
+    else if ((*source_it)->kind != SYXV_KIND_NIL) UNREACHABLE("list expected");
     else (**target_it) = rc_acquire(make_syxv_nil());
     return false;
   }
@@ -359,7 +361,7 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
 #define result (*_result)
   switch (value->kind) {
     case SYXV_KIND_NIL: nob_return_defer(2);
-    case SYXV_KIND_SYMBOL: nob_return_defer(strlen(value->symbol.name) + (value->symbol.guarded ? 2 : 0));
+    case SYXV_KIND_SYMBOL: nob_return_defer(value->symbol.length + (value->symbol.guarded ? 2 : 0));
     case SYXV_KIND_PAIR: {
       size_t width = 1;
       SyxV *it = value;
@@ -381,7 +383,7 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
     case SYXV_KIND_BOOL: nob_return_defer(2);
     case SYXV_KIND_INTEGER: nob_return_defer(get_integer_string_width(value->integer));
     case SYXV_KIND_FRACTIONAL: nob_return_defer(get_fractional_string_width(value->fractional, get_fractions_string_width(value->fractional)));
-    case SYXV_KIND_STRING: nob_return_defer(1 + strlen(value->string) + 1);
+    case SYXV_KIND_STRING: nob_return_defer(1 + value->string.count + 1);
     case SYXV_KIND_QUOTE: nob_return_defer(1 + get__syxv_string_width(value->quote, cache));
     case SYXV_KIND_SPECIALF: nob_return_defer(2 + strlen(value->specialf.name) + 1);
     case SYXV_KIND_BUILTIN: nob_return_defer(2 + strlen(value->builtin.name) + 1);
@@ -412,8 +414,8 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
     case SYXV_KIND_SYMBOL: {
       if (value->symbol.guarded) {
         *(string++) = '|';
-        memcpy(string, value->symbol.name, length - 2);
-        string[length - 2] = '|';
+        memcpy(string, value->symbol.name, value->symbol.length);
+        string[value->symbol.length] = '|';
       } else {
         memcpy(string, value->symbol.name, length);
       }
@@ -457,8 +459,8 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
     } break;
     case SYXV_KIND_STRING: {
       *(string++) = '"';
-      memcpy(string, value->string, length - 2);
-      string += length - 2;
+      memcpy(string, value->string.data, value->string.count);
+      string += value->string.count;
       *(string++) = '"';
     } break;
     case SYXV_KIND_QUOTE: {

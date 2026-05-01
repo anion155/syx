@@ -43,7 +43,7 @@ SyxV *syx_builtin_apply(Syx_Env *env, SyxV *arguments) {
   SyxV *call = rc_acquire(make_syxv_pair(fn, NULL));
   SyxV **it = &call->pair.right;
   SyxV **last_item = NULL;
-  syxv_list_for_each(env, argument, arguments, &last_item) {
+  syxv_list_for_each(argument, arguments, &last_item) {
     if ((*it)) RUNTIME_ERROR("only last argument allowed to be pair with both values", env);
     if (argument->kind == SYXV_KIND_PAIR) {
       (*it) = argument;
@@ -70,7 +70,7 @@ SyxV *syx_builtin_map(Syx_Env *env, SyxV *arguments) {
   if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("list expected", env);
   SyxV *results = NULL;
   SyxV *call = NULL;
-  syxv_list_map(env, item, list, &results) {
+  syxv_list_map(item, list, &results) {
     if (call) rc_release(call);
     call = rc_acquire(make_syxv_pair(fn, make_syxv_pair(*item, make_syxv_nil())));
     *item = syx_eval(env, call);
@@ -87,7 +87,7 @@ struct syx_upgradable_operator {
 
 SyxV *syx__builtin_operator_upgrade(Syx_Env *env, SyxV *arguments, struct syx_upgradable_operator *operator, syx_fractional_t initial_value) {
   syx_fractional_t value = initial_value;
-  syxv_list_for_each(env, argument, arguments) {
+  syxv_list_for_each(argument, arguments) {
     value = operator->fractional(value, syx_convert_to_fractional_v(env, argument));
   }
   return make_syxv_fractional(value);
@@ -99,7 +99,7 @@ SyxV *syx__builtin_operator(Syx_Env *env, SyxV *arguments, struct syx_upgradable
   if (first->kind == SYXV_KIND_FRACTIONAL) return syx__builtin_operator_upgrade(env, arguments, operator, first->fractional);
   if (first->kind == SYXV_KIND_NIL) value = operator->nil(env);
   else value = syx_convert_to_integer_v(env, first);
-  syxv_list_for_each(env, argument, arguments) {
+  syxv_list_for_each(argument, arguments) {
     if (argument->kind == SYXV_KIND_FRACTIONAL) return syx__builtin_operator_upgrade(env, argument_list, operator, value);
     value = operator->integer(value, syx_convert_to_integer_v(env, argument));
   }
@@ -180,7 +180,7 @@ typedef bool (*Syx_Compare)(Syx_Env *env, SyxV *left, SyxV *right);
 
 SyxV *syx__builtin_compare(Syx_Env *env, SyxV *arguments, Syx_Compare compare) {
   SyxV *previous = syxv_list_next(&arguments);
-  syxv_list_for_each(env, argument, arguments) {
+  syxv_list_for_each(argument, arguments) {
     if (!compare(env, previous, argument)) return make_syxv_bool(false);
     previous = argument;
   }
@@ -211,7 +211,7 @@ bool syx__builtin_equivalent_comparator(Syx_Env *env, SyxV *left, SyxV *right) {
         default: return false;
       }
     }
-    case SYXV_KIND_STRING: return right->kind == SYXV_KIND_SYMBOL && strcmp(left->string, right->string) == 0;
+    case SYXV_KIND_STRING: return right->kind == SYXV_KIND_SYMBOL && sv_eq(left->string, right->string) == 0;
     case SYXV_KIND_QUOTE: return right->kind == SYXV_KIND_QUOTE && syx__builtin_equivalent_comparator(env, left->quote, right->quote);
     case SYXV_KIND_SPECIALF: return false; // should work on left == right level
     case SYXV_KIND_BUILTIN: return false;  // should work on left == right level
@@ -242,7 +242,7 @@ SyxV *syx_builtin_equivalent(Syx_Env *env, SyxV *arguments) {
     }                                                                                                         \
     case SYXV_KIND_STRING: {                                                                                  \
       right = rc_acquire(syx_convert_to_string(env, right));                                                  \
-      bool result = strcmp(left->string, right->string) operator(0);                                          \
+      bool result = strcmp(left->string.data, right->string.data) operator(0);                                \
       rc_release(right);                                                                                      \
       return result;                                                                                          \
     }                                                                                                         \
@@ -381,7 +381,8 @@ typedef struct File_Constant {
   FILE *stream;
 } File_Constant;
 
-define_constants_ht(FD_CONSTANTS, File_Constant) {
+define_constant(Ht(const char *, File_Constant), FD_CONSTANTS) {
+  FD_CONSTANTS->hasheq = ht_cstr_hasheq;
   *ht_put(FD_CONSTANTS, "stdout") = (File_Constant){.fd = STDOUT_FILENO, .stream = stdout};
   *ht_put(FD_CONSTANTS, "stderr") = (File_Constant){.fd = STDERR_FILENO, .stream = stderr};
   *ht_put(FD_CONSTANTS, "stdin") = (File_Constant){.fd = STDIN_FILENO, .stream = stdin};
@@ -403,7 +404,7 @@ FILE *parse_optional_file_descriptor(SyxV **arguments) {
 SyxV *syx_builtin_print(Syx_Env *env, SyxV *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
   bool first = true;
-  syxv_list_for_each(env, argument, arguments) {
+  syxv_list_for_each(argument, arguments) {
     String_View sv = syx_convert_to_string_v(env, argument);
     if (!first && !io_putc(f, ' ')) return make_syxv_nil();
     if (!io_puts(f, sv)) return make_syxv_nil();
@@ -415,7 +416,7 @@ SyxV *syx_builtin_print(Syx_Env *env, SyxV *arguments) {
 /** Prints arguments to file, adds new line to the end. */
 SyxV *syx_builtin_println(Syx_Env *env, SyxV *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
-  syxv_list_for_each(env, argument, arguments) {
+  syxv_list_for_each(argument, arguments) {
     String_View sv = syx_convert_to_string_v(env, argument);
     if (!io_puts(f, sv)) return make_syxv_nil();
     if (!io_putc(f, ' ')) return make_syxv_nil();

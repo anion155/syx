@@ -26,7 +26,7 @@ SyxV *syx_special_form_begin(Syx_Env *env, SyxV *arguments) {
 SyxV *syx__special_form_make_lambda(Syx_Env *env, const char *name, SyxV *defines, SyxV *forms) {
   if (defines->kind == SYXV_KIND_NIL) RUNTIME_ERROR("malformed lambda arguments definitions expected", env);
   SyxV **rest_define = NULL;
-  syxv_list_for_each(env, define, defines, &rest_define) {
+  syxv_list_for_each(define, defines, &rest_define) {
     if (define->kind == SYXV_KIND_SYMBOL) continue;
     if (define->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed lambda arguments definitions list", env);
     if (define->pair.left->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("malformed lambda arguments definitions list", env);
@@ -80,7 +80,7 @@ SyxV *syx_special_form_let(Syx_Env *env, SyxV *arguments) {
   SyxV *bindings_src = syxv_list_next(&arguments);
   if (bindings_src->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("List of definitions expected", env);
   SyxV *bindings = NULL;
-  syxv_list_map(env, binding, bindings_src, &bindings) {
+  syxv_list_map(binding, bindings_src, &bindings) {
     if ((*binding)->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed let definition, list expected", env);
     if ((*binding)->pair.left->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("malformed let definition, symbol as name expected", env);
     if ((*binding)->pair.right->kind == SYXV_KIND_PAIR) {
@@ -90,7 +90,7 @@ SyxV *syx_special_form_let(Syx_Env *env, SyxV *arguments) {
         (*binding)->pair.left,
         syx_eval(env, (*binding)->pair.right->pair.left));
   }
-  syxv_list_for_each(env, binding, bindings) {
+  syxv_list_for_each(binding, bindings) {
     SyxV *name = binding->pair.left;
     SyxV *value = binding->pair.right;
     syx_env_define(body_env, &name->symbol, value);
@@ -129,7 +129,7 @@ SyxV *syx_special_form_if(Syx_Env *env, SyxV *arguments) {
 /** Multi-branch conditional */
 SyxV *syx_special_form_cond(Syx_Env *env, SyxV *arguments) {
   SyxV *result = NULL;
-  syxv_list_for_each(env, branch, arguments) {
+  syxv_list_for_each(branch, arguments) {
     if (branch->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed cond branch, list expected", env);
     if (branch->pair.left->kind == SYXV_KIND_SYMBOL && strcmp(branch->pair.left->symbol.name, "else") == 0) {
       return syx_eval_forms_list(env, branch->pair.right);
