@@ -1,5 +1,6 @@
 #include <libgen.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
 #define NOB_IMPL
 #include <nob.h>
 
@@ -23,6 +24,7 @@ struct NoNob_Context_Storage {
   const char *outputs_path;
   Test_Files tests;
   bool update_snapshots_flag;
+  struct winsize window;
 };
 
 #define NONOB_IMPL
@@ -78,6 +80,7 @@ typedef struct Test_Result {
     String_View output;
     String_View snapshot;
     String_View source_code;
+    String_View diff;
   };
 } Test_Result;
 
@@ -116,11 +119,35 @@ typedef struct Test_Results {
 #define ICON_FAIL F_WHITE "●" RESET
 #define ICON_NEW F_WHITE "◎" RESET
 
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+void fprint_diff(String_View source, String_View target) {
+  String_View src_it = source, trg_it = target;
+  String_View prev = {.data = src_it.data, .count = 0};
+  size_t line_number = 0;
+  size_t last_printed = 0;
+  size_t width = ctx.s->window.ws_col - 8;
+  while (src_it.count || trg_it.count) {
+    line_number += 1;
+    String_View src_line = nob_sv_chop_by_delim(&src_it, '\n');
+    String_View trg_line = nob_sv_chop_by_delim(&trg_it, '\n');
+    if (sv_eq(src_line, trg_line)) {
+      prev = src_line;
+      continue;
+    }
+    if (line_number - last_printed > 2) fprintf(stdout, "      | ...\n");
+    if (line_number - last_printed > 1) fprintf(stdout, "%5zu | %.*s\n", line_number - 1, (int)MIN(prev.count, width), prev.data);
+    fprintf(stdout, "%5zu" F_RED "<" RESET "| " F_RED "%.*s" RESET "\n", line_number, (int)MIN(src_line.count, width), src_line.data);
+    fprintf(stdout, "%5zu" F_GREEN ">" RESET "| " F_GREEN "%.*s" RESET "\n", line_number, (int)MIN(trg_line.count, width), trg_line.data);
+    last_printed = line_number;
+    prev = src_line;
+  }
+}
+
 Test_Result run_test(Test_File test) {
   const char *output_path = temp_sprintf("%s/%s.output", ctx.s->outputs_path, test.id);
   const char *error_path = temp_sprintf("%s/%s.error", ctx.s->outputs_path, test.id);
   const char *snapshot_path = temp_sprintf("%s.snapshot", test.absolute_path);
-  String_Builder sb = {0};
   fprintf(stdout, "\r " TAG_RUNS "  %s\n", test.relative_path);
   fflush(stdout);
 
@@ -131,9 +158,9 @@ Test_Result run_test(Test_File test) {
     result.reason = (_reason);    \
     goto finish;                  \
   } while (0)
-  if (!nob_read_entire_file(test.absolute_path, &sb)) to_fail(TEST_RESULT_STATUS_FAIL, "Failed to read source code");
-  String_View source_code = sb_to_sv(sb);
-  sb.count = 0;
+  String_Builder source_sb = {0};
+  if (!nob_read_entire_file(test.absolute_path, &source_sb)) to_fail(TEST_RESULT_STATUS_FAIL, "Failed to read source code");
+  String_View source_code = sb_to_sv(source_sb);
 
   result.elapsed = nob_nanos_since_unspecified_epoch();
   nob_cmd_append(&ctx.cmd, ctx.s->syx_path, "-x", test.absolute_path);
@@ -145,9 +172,9 @@ Test_Result run_test(Test_File test) {
   long double seconds = (long double)result.elapsed / (long double)NANOS_PER_SEC;
 
   if (!nob_file_exists(output_path)) to_fail(TEST_RESULT_STATUS_FAIL, "Test runner failed to store output");
-  if (!nob_read_entire_file(output_path, &sb)) to_fail(TEST_RESULT_STATUS_FAIL, "Failed to read test's output");
-  String_View output = sb_to_sv(sb);
-  sb.count = 0;
+  String_Builder output_sb = {0};
+  if (!nob_read_entire_file(output_path, &output_sb)) to_fail(TEST_RESULT_STATUS_FAIL, "Failed to read test's output");
+  String_View output = sb_to_sv(output_sb);
   if (!output.count) to_fail(TEST_RESULT_STATUS_FAIL, "Output is empty");
 
   if (!nob_file_exists(snapshot_path)) {
@@ -155,13 +182,13 @@ Test_Result run_test(Test_File test) {
     nob_write_entire_file(snapshot_path, output.data, output.count);
     result.status = TEST_RESULT_STATUS_NEW;
   }
-  if (!nob_read_entire_file(snapshot_path, &sb)) to_fail(TEST_RESULT_STATUS_FAIL, "Failed to read test's snapshot");
-  String_View snapshot = sb_to_sv(sb);
-  sb.count = 0;
+  String_Builder snapshot_sb = {0};
+  if (!nob_read_entire_file(snapshot_path, &snapshot_sb)) to_fail(TEST_RESULT_STATUS_FAIL, "Failed to read test's snapshot");
+  String_View snapshot = sb_to_sv(snapshot_sb);
   if (!snapshot.count) to_fail(TEST_RESULT_STATUS_FAIL, "Snapshot is empty");
 
   if (!sv_eq(output, snapshot)) {
-    if (!ctx.s->update_snapshots_flag) TODO("implement update snapshot");
+    if (ctx.s->update_snapshots_flag) TODO("implement update snapshot");
     // TEST_RESULT_STATUS_UPDATE
     to_fail(TEST_RESULT_STATUS_DIFF, "Output does not match snapshot");
   }
@@ -188,10 +215,8 @@ finish:
     case TEST_RESULT_STATUS_DIFF: {
       fprintf(stdout, "\r " TAG_FAIL "  %s " TAG_TIME "\n", test.relative_path, seconds);
       fprintf(stdout, "   " ICON_FAIL " > should\n");
-      fprintf(stdout, "   +\n");
-      fprintf(stdout, "   -\n");
+      fprint_diff(snapshot, output);
       fprintf(stdout, "\n");
-      // diff --unified --color=always file1.txt file2.txt | head -n 5
     } break;
     case TEST_RESULT_STATUS_EMPTY: {
       fprintf(stdout, "\r " TAG_FAIL "  %s " TAG_TIME "\n", test.relative_path, seconds);
@@ -214,6 +239,12 @@ int main(int argc, char **argv) {
   ctx.s->syx_path = temp_sprintf("%s/build/syx", ctx.s->root_path);
   ctx.s->tests_path = temp_sprintf("%s/tests", ctx.s->root_path);
   ctx.s->outputs_path = temp_sprintf("%s/build/tests-outputs", ctx.s->root_path);
+
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ctx.s->window) != 0) {
+    ctx.s->window.ws_row = 40;
+    ctx.s->window.ws_col = 80;
+  }
+
   flag_bool_var(&ctx.s->update_snapshots_flag, "update", false, "Update snapshots");
   nonob_parse_options();
 
