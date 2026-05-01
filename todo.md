@@ -1,4 +1,3 @@
-- tests suits runner
 - return syx value from parser
 - symbols hash table
 - string -> String_View
