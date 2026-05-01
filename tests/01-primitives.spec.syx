@@ -34,4 +34,4 @@ true
 '"test"
 if
 +
-(lambda (a b) (+ a b))
+(lambda test (a b) (+ a b))

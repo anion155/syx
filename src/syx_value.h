@@ -79,6 +79,7 @@ typedef struct SyxVs {
 } SyxVs;
 
 void syxv_destructor(void *data);
+SyxV *get_syxv_from_symbol(SyxV_Symbol *symbol);
 SyxV *make_syxv_nil();
 SyxV *make_syxv_symbol(String_View symbol);
 SyxV *make_syxv_symbol_n(char *symbol, size_t size);
@@ -204,6 +205,9 @@ void syxv_destructor(void *data) {
   }
 }
 
+SyxV *get_syxv_from_symbol(SyxV_Symbol *symbol){
+    return (SyxV *)((char *)symbol - offsetof(SyxV, symbol))}
+
 SyxV *make_syxv_nil() {
   return SYXV_CONSTANTS()->nil;
 }
@@ -223,7 +227,7 @@ SyxV *make_syxv_symbol(String_View name) {
     *ht_put(SYXV_SYMBOLS(), key) = &syxv->symbol;
     symbol = ht_find(SYXV_SYMBOLS(), key);
   }
-  return (SyxV *)(((SyxV_Kind *)(*symbol)) - 1);
+  return get_syxv_from_symbol(*symbol);
 }
 
 SyxV *make_syxv_symbol_n(char *symbol, size_t size) {

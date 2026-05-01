@@ -62,5 +62,5 @@ if
 ?<if>
 ++
 !<+>
-+(lambda (a b) (+ a b))
-(#<lambda-f_HjfhM> (a b) (+ a b))
++(lambda test (a b) (+ a b))
+(#<test> (a b) (+ a b))

@@ -43,7 +43,12 @@ SyxV *syx__special_form_make_lambda(Syx_Env *env, const char *name, SyxV *define
 
 /** Creates a closure that captures current environment. */
 SyxV *syx_special_form_lambda(Syx_Env *env, SyxV *arguments) {
-  return syx__special_form_make_lambda(env, NULL, syxv_list_next(&arguments), arguments);
+  SyxV *first = syxv_list_next(&arguments);
+  if (first->kind == SYXV_KIND_SYMBOL) {
+    return syx__special_form_make_lambda(env, first->symbol.name, syxv_list_next(&arguments), arguments);
+  } else {
+    return syx__special_form_make_lambda(env, NULL, first, arguments);
+  }
 }
 
 /** Binds a name in the current environment. */
