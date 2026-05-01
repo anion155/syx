@@ -121,29 +121,6 @@ typedef struct Test_Results {
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-void fprint_diff(String_View source, String_View target) {
-  String_View src_it = source, trg_it = target;
-  String_View prev = {.data = src_it.data, .count = 0};
-  size_t line_number = 0;
-  size_t last_printed = 0;
-  size_t width = ctx.s->window.ws_col - 8;
-  while (src_it.count || trg_it.count) {
-    line_number += 1;
-    String_View src_line = nob_sv_chop_by_delim(&src_it, '\n');
-    String_View trg_line = nob_sv_chop_by_delim(&trg_it, '\n');
-    if (sv_eq(src_line, trg_line)) {
-      prev = src_line;
-      continue;
-    }
-    if (line_number - last_printed > 2) fprintf(stdout, "      | ...\n");
-    if (line_number - last_printed > 1) fprintf(stdout, "%5zu | %.*s\n", line_number - 1, (int)MIN(prev.count, width), prev.data);
-    fprintf(stdout, "%5zu" F_RED "<" RESET "| " F_RED "%.*s" RESET "\n", line_number, (int)MIN(src_line.count, width), src_line.data);
-    fprintf(stdout, "%5zu" F_GREEN ">" RESET "| " F_GREEN "%.*s" RESET "\n", line_number, (int)MIN(trg_line.count, width), trg_line.data);
-    last_printed = line_number;
-    prev = src_line;
-  }
-}
-
 Test_Result run_test(Test_File test) {
   const char *output_path = temp_sprintf("%s/%s.output", ctx.s->outputs_path, test.id);
   const char *error_path = temp_sprintf("%s/%s.error", ctx.s->outputs_path, test.id);
@@ -215,7 +192,49 @@ finish:
     case TEST_RESULT_STATUS_DIFF: {
       fprintf(stdout, "\r " TAG_FAIL "  %s " TAG_TIME "\n", test.relative_path, seconds);
       fprintf(stdout, "   " ICON_FAIL " > should\n");
-      fprint_diff(snapshot, output);
+
+      const char *diff_path = temp_sprintf("%s/%s.diff", ctx.s->outputs_path, test.id);
+      nob_cmd_append(&ctx.cmd, "git", "diff", "--no-index", "--unified=1", snapshot_path, output_path);
+      nob_cmd_run(&ctx.cmd, .stdout_path = diff_path);
+      String_Builder diff_sb = {0};
+      nob_read_entire_file(diff_path, &diff_sb);
+      String_View it = sb_to_sv(diff_sb);
+      int width = ctx.s->window.ws_col - 3 - 1 - 3 - 3;
+      while (it.count) {
+        String_View line = sv_chop_by_delim(&it, '\n');
+        if (strncmp(line.data, "---", 3) == 0) {
+        } else if (strncmp(line.data, "+++", 3) == 0) {
+        } else if (strncmp(line.data, "@@", 2) == 0) {
+          fprintf(stdout, "      | ...\n");
+          int old_start, old_len, new_start, new_len, old_ind = 0, new_ind = 0;
+          char *p = strchr(line.data, '-');
+          if (p) {
+            old_start = strtol(p + 1, &p, 10);
+            if (*p == ',') old_len = strtol(p + 1, &p, 10);
+          }
+          p = strchr(p, '+');
+          if (p) {
+            new_start = strtol(p + 1, &p, 10);
+            if (*p == ',') new_len = strtol(p + 1, &p, 10);
+          }
+
+          while (it.count && (old_len || new_len)) {
+            line = sv_chop_by_delim(&it, '\n');
+            if (line.data[0] == ' ') {
+              old_len -= 1;
+              new_len -= 1;
+              fprintf(stdout, "%3d %3d | %.*s\n", old_start + old_ind++, new_start + new_ind++, MIN((int)line.count - 1, width), line.data + 1);
+            } else if (line.data[0] == '-') {
+              old_len -= 1;
+              fprintf(stdout, "%3d    " F_RED "-" RESET "| " F_RED "%.*s" RESET "\n", old_start + old_ind++, (int)MIN((int)line.count - 1, width), line.data + 1);
+            } else if (line.data[0] == '+') {
+              new_len -= 1;
+              fprintf(stdout, "    %3d" F_GREEN "+" RESET "| " F_GREEN "%.*s" RESET "\n", new_start + new_ind++, (int)MIN((int)line.count - 1, width), line.data + 1);
+            }
+          }
+        }
+      }
+
       fprintf(stdout, "\n");
     } break;
     case TEST_RESULT_STATUS_EMPTY: {
