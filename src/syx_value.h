@@ -257,55 +257,170 @@ bool syxv__list_map_next(Syx_Env *env, SyxV **source_it, SyxV ***target_it, SyxV
   return true;
 }
 
-void fprint_syxv(FILE *f, SyxV *value) {
+size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
+  size_t __result = 0;
+  size_t *_result = cache ? ht_find_or_put(cache, value) : &__result;
+#define result (*_result)
   switch (value->kind) {
-    case SYXV_KIND_NIL: return fprint_sexpr(f, (SExpr *)value);
-    case SYXV_KIND_SYMBOL: return fprint_sexpr(f, (SExpr *)value);
+    case SYXV_KIND_NIL: nob_return_defer(2);
+    case SYXV_KIND_SYMBOL: nob_return_defer(strlen(value->symbol.name) + (value->symbol.guarded ? 2 : 0));
     case SYXV_KIND_PAIR: {
-      fprintf(f, "(");
+      size_t width = 1;
       SyxV *it = value;
       SyxV *last_left = it->pair.left;
-      if (last_left->kind == SYXV_KIND_NIL) fprintf(f, "nil");
-      else fprint_syxv(f, last_left);
+      if (last_left->kind == SYXV_KIND_NIL) width += 2;
+      else width += get__syxv_string_width(last_left, cache);
       it = it->pair.right;
       while (it->kind == SYXV_KIND_PAIR) {
-        fprintf(f, " ");
+        width += 1 + get__syxv_string_width(it->pair.left, cache);
         last_left = it->pair.left;
-        fprint_syxv(f, last_left);
         it = it->pair.right;
       }
       if (it->kind != SYXV_KIND_NIL) {
-        fprintf(f, " . ");
-        fprint_syxv(f, it);
-      } else if (last_left->kind == SYXV_KIND_NIL) {
-        fprintf(f, " . nil");
+        width += 3 + get__syxv_string_width(it, cache);
       }
-      fprintf(f, ")");
-    } break;
-    case SYXV_KIND_BOOL: return fprint_sexpr(f, (SExpr *)value);
-    case SYXV_KIND_INTEGER: return fprint_sexpr(f, (SExpr *)value);
-    case SYXV_KIND_FRACTIONAL: return fprint_sexpr(f, (SExpr *)value);
-    case SYXV_KIND_STRING: return fprint_sexpr(f, (SExpr *)value);
-    case SYXV_KIND_QUOTE: {
-      fprintf(f, "'");
-      fprint_syxv(f, value->quote);
-    } break;
-    case SYXV_KIND_SPECIALF: fprintf(f, "?<%s>", value->specialf.name); break;
-    case SYXV_KIND_BUILTIN: fprintf(f, "!<%s>", value->builtin.name); break;
-    case SYXV_KIND_CLOSURE: fprint_syx_closure(f, &value->closure); break;
+      width += 1;
+      nob_return_defer(width);
+    }
+    case SYXV_KIND_BOOL: nob_return_defer(2);
+    case SYXV_KIND_INTEGER: nob_return_defer(get_integer_string_width(value->integer));
+    case SYXV_KIND_FRACTIONAL: nob_return_defer(get_fractional_string_width(value->fractional, get_fractions_string_width(value->fractional)));
+    case SYXV_KIND_STRING: nob_return_defer(1 + strlen(value->string) + 1);
+    case SYXV_KIND_QUOTE: nob_return_defer(1 + get__syxv_string_width(value->quote, cache));
+    case SYXV_KIND_SPECIALF: nob_return_defer(2 + strlen(value->specialf.name) + 1);
+    case SYXV_KIND_BUILTIN: nob_return_defer(2 + strlen(value->builtin.name) + 1);
+    case SYXV_KIND_CLOSURE: {
+      size_t width = 1 + 2 + strlen(value->closure.name) + 1 + 1 + get__syxv_string_width(value->closure.defines, cache);
+      SyxV *it = value->closure.forms;
+      while (it->kind == SYXV_KIND_PAIR) {
+        width += 1 + get__syxv_string_width(it->pair.left, cache);
+        it = it->pair.right;
+      }
+      width += 1;
+      nob_return_defer(width);
+    }
   }
+defer:
+  return result;
+#undef result
 }
 
-void fprint_syx_closure(FILE *f, Syx_Closure *closure) {
-  fprintf(f, "(#<%s> ", closure->name);
-  fprint_syxv(f, closure->defines);
-  SyxV *it = closure->forms;
-  while (it->kind == SYXV_KIND_PAIR) {
-    fprintf(f, " ");
-    fprint_syxv(f, it->pair.left);
-    it = it->pair.right;
+void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_Cache *cache) {
+  size_t *_cached;
+#define get_cached_width(subvalue) (cache && (_cached = ht_find(cache, (subvalue)), _cached != NULL) ? *_cached : get__syxv_string_width((subvalue), cache))
+  switch (value->kind) {
+    case SYXV_KIND_NIL: {
+      *(string++) = '(';
+      *(string++) = ')';
+    } break;
+    case SYXV_KIND_SYMBOL: {
+      if (value->symbol.guarded) {
+        *(string++) = '|';
+        memcpy(string, value->symbol.name, length - 2);
+        string[length - 2] = '|';
+      } else {
+        memcpy(string, value->symbol.name, length);
+      }
+    } break;
+    case SYXV_KIND_PAIR: {
+      *(string++) = '(';
+      SyxV *it = value;
+      SyxV *last_left = it->pair.left;
+      size_t first_width = get_cached_width(last_left);
+      stringify__syxv_n(last_left, first_width, string, cache);
+      string += first_width;
+      it = it->pair.right;
+      while (it->kind == SYXV_KIND_PAIR) {
+        *(string++) = ' ';
+        last_left = it->pair.left;
+        size_t width = get_cached_width(last_left);
+        stringify__syxv_n(last_left, width, string, cache);
+        string += width;
+        it = it->pair.right;
+      }
+      if (it->kind != SYXV_KIND_NIL) {
+        *(string++) = ' ';
+        *(string++) = '.';
+        *(string++) = ' ';
+        size_t width = get_cached_width(it);
+        stringify__syxv_n(it, width, string, cache);
+        string += width;
+      }
+      *(string++) = ')';
+    } break;
+    case SYXV_KIND_BOOL: {
+      *(string++) = '#';
+      *(string++) = value->boolean ? 't' : 'f';
+    } break;
+    case SYXV_KIND_INTEGER: {
+      stringify_integer_n(value->integer, length, string);
+    } break;
+    case SYXV_KIND_FRACTIONAL: {
+      size_t precision = get_fractions_string_width(value->fractional);
+      stringify_fractional_n(value->fractional, length - precision - 1, precision, string);
+    } break;
+    case SYXV_KIND_STRING: {
+      *(string++) = '"';
+      memcpy(string, value->string, length - 2);
+      string += length - 2;
+      *(string++) = '"';
+    } break;
+    case SYXV_KIND_QUOTE: {
+      *(string++) = '\'';
+      stringify__syxv_n(value->quote, length - 1, string, cache);
+    } break;
+    case SYXV_KIND_SPECIALF: {
+      *(string++) = '?';
+      *(string++) = '<';
+      memcpy(string, value->specialf.name, length - 3);
+      string[length - 3] = '>';
+    } break;
+    case SYXV_KIND_BUILTIN: {
+      *(string++) = '!';
+      *(string++) = '<';
+      memcpy(string, value->builtin.name, length - 3);
+      string[length - 3] = '>';
+    } break;
+    case SYXV_KIND_CLOSURE: {
+      *(string++) = '(';
+      *(string++) = '#';
+      *(string++) = '<';
+      size_t name_size = strlen(value->closure.name);
+      memcpy(string, value->closure.name, name_size);
+      string += name_size;
+      *(string++) = '>';
+      *(string++) = ' ';
+      size_t defines_size = get_cached_width(value->closure.defines);
+      stringify__syxv_n(value->closure.defines, defines_size, string, cache);
+      string += defines_size;
+
+      SyxV *it = value->closure.forms;
+      while (it->kind == SYXV_KIND_PAIR) {
+        *(string++) = ' ';
+        size_t left_width = get_cached_width(it->pair.left);
+        stringify__syxv_n(it->pair.left, left_width, string, cache);
+        string += left_width;
+        it = it->pair.right;
+      }
+      *string = ')';
+    } break;
   }
-  fprintf(f, ")");
+#undef get_cached_width
+}
+
+String_View stringify_syxv(SyxV *value) {
+  SyxV_Stringify_Cache cache = {0};
+  size_t width = get__syxv_string_width(value, &cache);
+  char *string = malloc(width + 1);
+  String_View result = {.data = string, .count = width};
+  stringify__syxv_n(value, width, string, &cache);
+  ht_free(&cache);
+  return result;
+}
+
+void fprint_syxv(FILE *f, SyxV *value) {
+  String_View sv = stringify_syxv(value);
+  fprintf(f, SV_Fmt, SV_Arg(sv));
 }
 
 #endif // SYX_VALUE_IMPL
