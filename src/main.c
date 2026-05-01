@@ -55,7 +55,7 @@ int run_syx(Syx_Run_Context *ctx, const char *source_cstr) {
     da_append(results, rc_acquire(result));
     if (syx_env_lookup_get(ctx->global_env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
   }
-  if (ctx->verbose == SYX_RUN_VERBOSE_LAST_RESULT) {
+  if (ctx->verbose == SYX_RUN_VERBOSE_LAST_RESULT && results->count) {
     print_syxv(results->items[results->count - 1]);
     printf("\n");
   }

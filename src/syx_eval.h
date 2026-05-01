@@ -58,6 +58,8 @@ SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value);
 
 #define SYX_VALUE_IMPL
 #include "syx_value.h"
+#define SYX_EVAL_CONSTANTS_IMPL
+#include "syx_eval_constants.h"
 #define SYX_EVAL_SPECIALF_IMPL
 #include "syx_eval_specialf.h"
 #define SYX_EVAL_BUILTINS_IMPL
@@ -168,6 +170,7 @@ void syx_env_set_cstr(Syx_Env *env, const char *name, SyxV *value) {
 
 Syx_Env *make_global_syx_env() {
   Syx_Env *env = make_syx_env(NULL, "<global>");
+  syx_env_define_constants(env);
   syx_env_define_special_forms(env);
   syx_env_define_builtins(env);
   //   syx_env_define_arithmetic(env);
@@ -253,7 +256,7 @@ SyxV *syx_eval(Syx_Env *env, SyxV *input) {
   if (input->kind == SYXV_KIND_QUOTE) return input->quote;
   if (input->kind == SYXV_KIND_SYMBOL) {
     SyxV *item = syx_env_lookup_get(env, input->symbol.name);
-    if (item == NULL) RUNTIME_ERROR("unbound symbol", env);
+    if (item == NULL) RUNTIME_ERROR(temp_sprintf("unbound symbol '%s'", input->symbol.name), env);
     return item;
   }
   if (input->kind != SYXV_KIND_PAIR) return input;

@@ -9,14 +9,14 @@
 +"quoted string"
 "quoted string"
 +true
-true
-+true
-true
+#t
++#t
+#t
 +false
-false
-+false
-false
-+()
+#f
++#f
+#f
++nil
 ()
 +''some-symbol
 'some-symbol

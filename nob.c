@@ -82,6 +82,7 @@ bool command_tests_run() {
   nob_cc_flags(&ctx.cmd);
   nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->vendor_path));
   nob_cmd_append(&ctx.cmd, "-std=c23");
+  nob_cmd_append(&ctx.cmd, "-ggdb");
   const char *tests_c = temp_sprintf("%s/tests.c", ctx.exe_path);
   nob_cc_inputs(&ctx.cmd, tests_c);
   nob_cc_output(&ctx.cmd, ctx.s->tests_path);

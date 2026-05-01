@@ -164,12 +164,13 @@ SyxV *parse__syxv_nullable(SyxV_Parser_Context *ctx) {
   if (current == SYXV_TOKEN_COMMENT) {
     size_t i = 0;
     while (i < ctx->it->count && !islineend(ctx->it->data[i])) i += 1;
-    i += 1;
     ctx->it->count -= i;
     ctx->it->data += i;
+    if (!ctx->it->count) return NULL;
+    sv_chop_left(ctx->it, 1);
+    if (!ctx->it->count) return NULL;
     current = ctx->it->data[0];
   }
-  if (!ctx->it->count) return NULL;
   if (current == SYXV_TOKEN_LIST_START) return parse__syxv_list(ctx);
   if (current == SYXV_TOKEN_QUOTES) return parse__syxv_quote(ctx);
   if (current == SYXV_TOKEN_DQUOTES) return parse__syxv_string(ctx);

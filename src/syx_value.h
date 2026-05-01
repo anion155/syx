@@ -189,17 +189,17 @@ SyxV *make_syxv(SyxV_Kind kind) {
 }
 
 define_syxv_constants_ht(SYXV_CONSTANTS) {
-  SyxV *nil = make_syxv(SYXV_KIND_NIL);
+  SyxV *nil = rc_acquire(make_syxv(SYXV_KIND_NIL));
   *ht_put(SYXV_CONSTANTS, "nil") = nil;
   *ht_put(SYXV_CONSTANTS, "null") = nil;
 
-  SyxV *t = make_syxv(SYXV_KIND_BOOL);
+  SyxV *t = rc_acquire(make_syxv(SYXV_KIND_BOOL));
   t->boolean = true;
   *ht_put(SYXV_CONSTANTS, "#t") = t;
   *ht_put(SYXV_CONSTANTS, "true") = t;
 
-  SyxV *f = make_syxv(SYXV_KIND_BOOL);
-  f->boolean = true;
+  SyxV *f = rc_acquire(make_syxv(SYXV_KIND_BOOL));
+  f->boolean = false;
   *ht_put(SYXV_CONSTANTS, "#f") = f;
   *ht_put(SYXV_CONSTANTS, "false") = f;
 }
