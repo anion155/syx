@@ -1,4 +1,3 @@
-- symbols hash table
 - string -> String_View
 - early exit
 - throwing error

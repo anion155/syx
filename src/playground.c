@@ -5,7 +5,6 @@
 
 int main() {
   SyxV *s1 = make_syxv_symbol_cstr("test");
-  SyxV *s2 = make_syxv_symbol_cstr("test");
-  printf("GG %s\n", s1 == s2 ? "true" : "false");
+  printf("GG %zu\n", get_syxv_string_width(s1));
   return 0;
 }

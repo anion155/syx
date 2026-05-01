@@ -141,7 +141,7 @@ void syxv_update_name(SyxV *value, const char *name) {
 }
 
 void syx_env_define(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value) {
-  rc_acquire(symbol->name);
+  rc_acquire(get_syxv_from_symbol(symbol));
   ensure_syxv_redefinable(env, symbol->name);
   *ht_find_or_put(&env->symbols, symbol->name) = rc_acquire(value);
   syxv_update_name(value, symbol->name);
@@ -156,7 +156,7 @@ void syx_env_define_cstr(Syx_Env *env, const char *name, SyxV *value) {
 }
 
 void syx_env_set(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value) {
-  rc_acquire(symbol->name);
+  rc_acquire(get_syxv_from_symbol(symbol));
   SyxV **item = ensure_syxv_redefinable(env, symbol->name);
   if (item == NULL) item = ht_put(&env->symbols, symbol->name);
   *item = rc_acquire(value);
@@ -265,14 +265,14 @@ SyxV *syx_eval(Syx_Env *env, SyxV *input) {
   SyxV *arguments = input->pair.right;
   SyxV *result;
   switch (head->kind) {
-    case SYXV_KIND_NIL:
-    case SYXV_KIND_SYMBOL:
-    case SYXV_KIND_PAIR:
-    case SYXV_KIND_BOOL:
-    case SYXV_KIND_INTEGER:
-    case SYXV_KIND_FRACTIONAL:
-    case SYXV_KIND_STRING:
-    case SYXV_KIND_QUOTE: RUNTIME_ERROR("is not a procedure", env);
+    case SYXV_KIND_NIL: RUNTIME_ERROR("nil is not a procedure", env);
+    case SYXV_KIND_SYMBOL: RUNTIME_ERROR("symbol is not a procedure", env);
+    case SYXV_KIND_PAIR: RUNTIME_ERROR("pair is not a procedure", env);
+    case SYXV_KIND_BOOL: RUNTIME_ERROR("bool is not a procedure", env);
+    case SYXV_KIND_INTEGER: RUNTIME_ERROR("integer is not a procedure", env);
+    case SYXV_KIND_FRACTIONAL: RUNTIME_ERROR("fractional is not a procedure", env);
+    case SYXV_KIND_STRING: RUNTIME_ERROR("string is not a procedure", env);
+    case SYXV_KIND_QUOTE: RUNTIME_ERROR("quote is not a procedure", env);
     case SYXV_KIND_SPECIALF: result = syx_eval_specialf(env, &head->specialf, arguments); break;
     case SYXV_KIND_BUILTIN: result = syx_eval_builtin(env, &head->builtin, arguments); break;
     case SYXV_KIND_CLOSURE: result = syx_eval_closure(env, &head->closure, arguments); break;

@@ -36,7 +36,8 @@ Evaluates forms in order and returns last result.
 ### lambda
 Creates a closure that captures current environment.
 Forms evaluated in order and last result is returned.
-`(lambda <arguments-names-list> ...<form>) = eval last <form>`
+`(lambda <name>? <arguments-names-list> ...<form>) = eval last <form>`
+Name is for debug purposes only
 
 ### define
 Binds value to a name in the current environment.
