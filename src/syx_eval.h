@@ -48,7 +48,7 @@ syx_integer_t syx_convert_to_integer_v(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value);
 syx_fractional_t syx_convert_to_fractional_v(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_fractional(Syx_Env *env, SyxV *value);
-String_View syx_convert_to_string_v(Syx_Env *env, SyxV *value);
+syx_string_view_t syx_convert_to_string_v(Syx_Env *env, SyxV *value);
 SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value);
 
 #endif // SYX_EVAL_H
@@ -192,7 +192,7 @@ SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments) {
 
 SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments) {
   SyxV *evaluated = NULL;
-  syxv_list_map(env, argument, arguments, &evaluated) {
+  syxv_list_map(argument, arguments, &evaluated) {
     *argument = syx_eval(env, *argument);
   }
   SyxV *result = builtin->eval(env, evaluated);
@@ -204,7 +204,7 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
   Syx_Env *call_env = rc_acquire(make_syx_env(closure->env, temp_sprintf("<%s>", closure->name)));
   SyxV *it = arguments;
   SyxV **last_name = NULL;
-  syxv_list_for_each(env, name_v, closure->defines, &last_name) {
+  syxv_list_for_each(name_v, closure->defines, &last_name) {
     SyxV_Symbol *symbol;
     if (name_v->kind == SYXV_KIND_PAIR) {
       symbol = &name_v->pair.left->symbol;
@@ -232,7 +232,7 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
     SyxV *rest = it;
     SyxV *evaluated = NULL;
     SyxV **last_argument = NULL;
-    syxv_list_map(env, argument, rest, &evaluated, &last_argument) {
+    syxv_list_map(argument, rest, &evaluated, &last_argument) {
       *argument = syx_eval(env, *argument);
     }
     if ((*last_argument)->kind != SYXV_KIND_NIL) {
@@ -240,7 +240,7 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
     }
     syx_env_define(call_env, symbol, rest);
   }
-  syxv_list_for_each(env, name_v, closure->defines) {
+  syxv_list_for_each(name_v, closure->defines) {
     if (name_v->kind != SYXV_KIND_PAIR) continue;
     const char *name = name_v->pair.left->symbol.name;
     SyxV **value = ht_find(&call_env->symbols, name);
@@ -284,7 +284,7 @@ SyxV *syx_eval(Syx_Env *env, SyxV *input) {
 SyxV *syx__eval_forms_list_opt(Syx_Env *env, SyxV *forms_list, Syx_Eval_Forms_List_Opt opt) {
   SyxV *result = NULL;
   if (opt.default_result) result = rc_acquire(opt.default_result);
-  syxv_list_for_each(env, form, forms_list) {
+  syxv_list_for_each(form, forms_list) {
     if (result) rc_release(result);
     result = rc_acquire(syx_eval(env, form));
     if (opt.should_stop != NULL && opt.should_stop(env, result)) return rc_move(result);
@@ -301,7 +301,7 @@ bool syx_convert_to_bool_v(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_BOOL: return value->boolean;
     case SYXV_KIND_INTEGER: return ((syx_bool_t)value->integer);
     case SYXV_KIND_FRACTIONAL: return ((syx_bool_t)value->fractional);
-    case SYXV_KIND_STRING: return (*value->string != 0);
+    case SYXV_KIND_STRING: return (bool)value->string.count;
     case SYXV_KIND_QUOTE: return syx_convert_to_bool_v(env, value->quote);
     case SYXV_KIND_SPECIALF: return (true);
     case SYXV_KIND_BUILTIN: return (true);
@@ -323,7 +323,7 @@ syx_integer_t syx_convert_to_integer_v(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_INTEGER: return value->integer;
     case SYXV_KIND_FRACTIONAL: return (syx_integer_t)value->fractional;
     case SYXV_KIND_STRING: {
-      String_View sv = sv_from_cstr(value->string);
+      String_View sv = value->string;
       syx_integer_t result = 0;
       if (!parse_integer(&sv, &result)) UNREACHABLE("illegal conversion of string to integer number");
       return result;
@@ -341,7 +341,7 @@ SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_PAIR: return NULL;
     case SYXV_KIND_INTEGER: return value;
     case SYXV_KIND_STRING: {
-      String_View sv = sv_from_cstr(value->string);
+      String_View sv = value->string;
       syx_integer_t result = 0;
       if (!parse_integer(&sv, &result)) return NULL;
       return make_syxv_integer(result);
@@ -362,7 +362,7 @@ syx_fractional_t syx_convert_to_fractional_v(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_INTEGER: return (syx_fractional_t)value->integer;
     case SYXV_KIND_FRACTIONAL: return value->fractional;
     case SYXV_KIND_STRING: {
-      String_View sv = sv_from_cstr(value->string);
+      String_View sv = value->string;
       syx_fractional_t result = 0;
       if (!parse_fractional(&sv, &result)) UNREACHABLE("illegal conversion of string to fractional number");
       return result;
@@ -380,7 +380,7 @@ SyxV *syx_convert_to_fractional(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_PAIR: return NULL;
     case SYXV_KIND_FRACTIONAL: return value;
     case SYXV_KIND_STRING: {
-      String_View sv = sv_from_cstr(value->string);
+      String_View sv = value->string;
       syx_fractional_t result = 0;
       if (!parse_fractional(&sv, &result)) return NULL;
       return make_syxv_fractional(result);
@@ -392,7 +392,7 @@ SyxV *syx_convert_to_fractional(Syx_Env *env, SyxV *value) {
   }
 }
 
-String_View syx_convert_to_string_v(Syx_Env *env, SyxV *value) {
+syx_string_view_t syx_convert_to_string_v(Syx_Env *env, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_NIL: return sv_from_cstr("nil");
     case SYXV_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to string");
@@ -400,7 +400,7 @@ String_View syx_convert_to_string_v(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_BOOL: return sv_from_cstr(value->boolean ? "true" : "false");
     case SYXV_KIND_INTEGER: return stringify_integer(value->integer);
     case SYXV_KIND_FRACTIONAL: return stringify_fractional(value->fractional);
-    case SYXV_KIND_STRING: return sv_from_cstr(value->string);
+    case SYXV_KIND_STRING: return value->string;
     case SYXV_KIND_QUOTE: return syx_convert_to_string_v(env, value->quote);
     case SYXV_KIND_SPECIALF: UNREACHABLE("illegal conversion of special form to string");
     case SYXV_KIND_BUILTIN: UNREACHABLE("illegal conversion of builtin function to string");

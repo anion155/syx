@@ -17,7 +17,8 @@ void da_destructor(void *data);
 typedef bool syx_bool_t;
 typedef long long int syx_integer_t;
 typedef long double syx_fractional_t;
-typedef char *syx_string_t;
+
+typedef String_View syx_string_view_t;
 
 bool parse_integer(String_View *sv, syx_integer_t *result);
 bool parse_fractions(String_View *sv, syx_fractional_t *result);
@@ -39,15 +40,16 @@ void stringify_fractional_n(syx_fractional_t value, size_t integer_width, size_t
 String_View stringify__fractional(syx_fractional_t value, ssize_t precision);
 #define stringify_fractional(value, ...) stringify__fractional((value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
 
-#define define_constants_ht(name, data_type)              \
-  typedef Ht(const char *, data_type, name##_t) name##_t; \
-  name##_t _##name = {.hasheq = ht_cstr_hasheq};          \
-  void make_##name(name##_t *name);                       \
-  name##_t *name() {                                      \
-    if (_##name.count) return &_##name;                   \
-    make_##name(&_##name);                                \
-    return &_##name;                                      \
-  }                                                       \
+#define define_constant(type, name)     \
+  typedef type name##_t;                \
+  name##_t *_##name = NULL;             \
+  void make_##name(name##_t *name);     \
+  name##_t *name() {                    \
+    if (_##name) return _##name;        \
+    _##name = malloc(sizeof(name##_t)); \
+    make_##name(_##name);               \
+    return _##name;                     \
+  }                                     \
   void make_##name(name##_t *name)
 
 struct escape_char_print {
