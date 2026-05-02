@@ -1,0 +1,8 @@
+test, this string should be visible in output 
+()
++"now both are visible"
+"now both are visible"
++(println "now both are visible")
+now both are visible 
+()
++(setopt x false)

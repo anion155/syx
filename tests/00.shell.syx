@@ -1,0 +1,10 @@
+"test, this string should not be visible in output"
+(println "test, this string should be visible in output")
+
+(setopt x true)
+
+"now both are visible"
+(println "now both are visible")
+
+(setopt x false)
+"test, this string should again be invisible"
