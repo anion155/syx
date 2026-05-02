@@ -205,8 +205,9 @@ void syxv_destructor(void *data) {
   }
 }
 
-SyxV *get_syxv_from_symbol(SyxV_Symbol *symbol){
-    return (SyxV *)((char *)symbol - offsetof(SyxV, symbol))}
+SyxV *get_syxv_from_symbol(SyxV_Symbol *symbol) {
+  return (SyxV *)((char *)symbol - offsetof(SyxV, symbol));
+};
 
 SyxV *make_syxv_nil() {
   return SYXV_CONSTANTS()->nil;
