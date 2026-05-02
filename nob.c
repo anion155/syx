@@ -90,6 +90,8 @@ bool command_tests_run() {
   Nob_File_Paths deps = {0};
   da_append(&deps, tests_c);
   da_append(&deps, temp_sprintf("%s/nonob.h", ctx.s->vendor_path));
+  da_append(&deps, temp_sprintf("%s/tests.h", ctx.s->vendor_path));
+  nonob_append_cmd_to_ccjson();
   if (nob_needs_rebuild(ctx.s->tests_path, deps.items, deps.count)) {
     if (!nob_cmd_run(&ctx.cmd)) return false;
   } else {
