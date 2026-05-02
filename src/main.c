@@ -27,48 +27,68 @@
 
 #define SYXV_EXIT_QUIT_STORAGE "SYXV_EXIT_QUIT_STORAGE"
 
-typedef enum Syx_Run_Verbose {
-  SYX_RUN_VERBOSE_QUITE = 0,
-  SYX_RUN_VERBOSE_LAST_RESULT,
-  SYX_RUN_VERBOSE_EVERY_RESULT,
-  SYX_RUN_VERBOSE_ALL,
-} Syx_Run_Verbose;
+// typedef enum Syx_Run_Verbose {
+//   SYX_RUN_VERBOSE_QUITE = 0,
+//   SYX_RUN_VERBOSE_LAST_RESULT,
+//   SYX_RUN_VERBOSE_EVERY_RESULT,
+//   SYX_RUN_VERBOSE_ALL,
+// } Syx_Run_Verbose;
 
 typedef struct Syx_Run_Context {
   Syx_Env *global_env;
-  Syx_Run_Verbose verbose;
+  // Syx_Run_Verbose verbose;
+  bool opt_xtrace;
+  bool opt_print;
 } Syx_Run_Context;
 
-int run_syx(Syx_Run_Context *ctx, const char *source_cstr) {
+Syx_Run_Context ctx = {0};
+
+define_constant(Ht(const char *, bool *), ctx_options) {
+  ctx_options->hasheq = ht_cstr_hasheq;
+  *ht_put(ctx_options, "x") = &ctx.opt_xtrace;
+  *ht_put(ctx_options, "p") = &ctx.opt_print;
+}
+
+int run_syx(const char *source_cstr) {
   SyxVs *results = rc_acquire(rc_alloc(sizeof(SyxVs), da_destructor));
   parser_syxvs_for_each(value, source_cstr) {
-    if (ctx->verbose >= SYX_RUN_VERBOSE_ALL) {
+    if (ctx.opt_xtrace) {
       printf("+");
       print_syxv(value);
       printf("\n");
     }
-    SyxV *result = syx_eval(ctx->global_env, value);
-    if (ctx->verbose >= SYX_RUN_VERBOSE_EVERY_RESULT) {
+    SyxV *result = syx_eval(ctx.global_env, value);
+    if (ctx.opt_xtrace) {
       print_syxv(result);
       printf("\n");
     }
     da_append(results, rc_acquire(result));
-    if (syx_env_lookup_get(ctx->global_env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
+    if (syx_env_lookup_get(ctx.global_env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
   }
-  if (ctx->verbose == SYX_RUN_VERBOSE_LAST_RESULT && results->count) {
+  if (!ctx.opt_xtrace && ctx.opt_print && results->count) {
     print_syxv(results->items[results->count - 1]);
     printf("\n");
   }
   rc_release(results);
-  SyxV *quit = syx_env_lookup_get(ctx->global_env, SYXV_EXIT_QUIT_STORAGE);
+  SyxV *quit = syx_env_lookup_get(ctx.global_env, SYXV_EXIT_QUIT_STORAGE);
   if (!quit) return -1;
-  return syx_convert_to_integer_v(ctx->global_env, quit);
+  return syx_convert_to_integer_v(ctx.global_env, quit);
 }
 
 SyxV *eval_quit(Syx_Env *env, SyxV *arguments) {
   SyxV *result = syxv_list_next(&arguments);
   if (result->kind == SYXV_KIND_NIL) result = make_syxv_integer(0);
   syx_env_define_cstr(syx_env_global(env), SYXV_EXIT_QUIT_STORAGE, result);
+  return NULL;
+}
+
+SyxV *eval_setopt(Syx_Env *env, SyxV *arguments) {
+  SyxV *name = syxv_list_next(&arguments);
+  if (name->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("option name expected", env);
+  bool **option = ht_find(ctx_options(), name->symbol.name);
+  if (option == NULL) RUNTIME_ERROR("option not found", env);
+  SyxV *value = syx_eval(env, syxv_list_next(&arguments));
+  (**option) = syx_convert_to_bool_v(env, value);
   return NULL;
 }
 
@@ -85,9 +105,8 @@ void usage(FILE *stream) {
 int main(int argc, char **argv) {
   srand(time(NULL));
 
-  bool *verbose_all = flag_bool("x", false, "Print every expression before evaluation");
-  bool *verbose_results = flag_bool("d", false, "Print every expression evaluation result");
-  bool *verbose_last = flag_bool("p", false, "Print result of last evaluation");
+  bool *opt_xtrace = flag_bool("x", false, "Print every expression before evaluation");
+  bool *opt_print = flag_bool("p", false, "Print result of last evaluation");
   Flag_List *commands = flag_list("c", "Commands to run");
   bool *help = flag_bool("h", false, "Show this help message");
   if (!flag_parse(argc, argv)) {
@@ -102,37 +121,37 @@ int main(int argc, char **argv) {
   argc = flag_rest_argc();
   argv = flag_rest_argv();
 
+  if (commands->count) ctx.opt_print = true;
+  else if (argc == 1) ctx.opt_print = false;
+  else ctx.opt_print = true;
+
+  if (*opt_xtrace) ctx.opt_xtrace = *opt_xtrace;
+  else if (*opt_print) ctx.opt_print = true;
+
   Syx_Env *global_env = rc_acquire(make_global_syx_env());
-  Syx_Run_Context ctx = {.global_env = global_env};
+  ctx.global_env = global_env;
 
-  if (commands->count) ctx.verbose = SYX_RUN_VERBOSE_LAST_RESULT;
-  else if (argc == 1) ctx.verbose = SYX_RUN_VERBOSE_QUITE;
-  else ctx.verbose = SYX_RUN_VERBOSE_LAST_RESULT;
-
-  if (*verbose_all) ctx.verbose = SYX_RUN_VERBOSE_ALL;
-  else if (*verbose_results) ctx.verbose = SYX_RUN_VERBOSE_EVERY_RESULT;
-  else if (*verbose_last) ctx.verbose = SYX_RUN_VERBOSE_LAST_RESULT;
-
-  syx_env_define_cstr(global_env, "quit", make_syxv_builtin("quit", eval_quit));
+  syx_env_define_cstr(global_env, "quit", make_syxv_builtin(NULL, eval_quit));
+  syx_env_define_cstr(global_env, "setopt", make_syxv_specialf(NULL, eval_setopt));
 
   int result = 0;
   if (commands->count) {
     String_Builder sb = {0};
     da_foreach(const char *, command, commands) sb_append_cstr(&sb, *command);
-    int run_result = run_syx(&ctx, sb_to_sv(sb).data);
+    int run_result = run_syx(sb_to_sv(sb).data);
     if (run_result >= 0) nob_return_defer(run_result);
   } else if (argc == 1) {
     String_Builder sb = {0};
     if (!nob_read_entire_file(argv[0], &sb)) UNREACHABLE("Failed to read file");
     String_View script = sb_to_sv(sb);
-    int run_result = run_syx(&ctx, script.data);
+    int run_result = run_syx(script.data);
     if (run_result >= 0) nob_return_defer(run_result);
   } else {
     printf("Syx Language REPL\n");
     char *line_ptr;
     while ((line_ptr = readline("> ")) != NULL) {
       if (*line_ptr) add_history(line_ptr);
-      int run_result = run_syx(&ctx, line_ptr);
+      int run_result = run_syx(line_ptr);
       free(line_ptr);
       if (run_result >= 0) nob_return_defer(run_result);
     }

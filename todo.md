@@ -1,5 +1,7 @@
-- string -> String_View
 - early exit
 - throwing error
 - catching error
 - automatic fractional -> integer
+- unit tests for parser
+- unit tests for evaluator
+- unit tests for utilities
