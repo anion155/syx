@@ -1,0 +1,40 @@
+; BASIC VALUES & LITERALS
+(setopt x true)
+
+;; primitives should be evaluated to the exactly the same values
+nil         ; (expected nil)
+()          ; (expected ())
+#f          ; (expected #f)
+#t          ; (expected #t)
+false       ; (expected false)
+true        ; (expected true)
+123         ; (expected 123)
+-123        ; (expected -123)
+123.456     ; (expected 123.456)
+-123.456    ; (expected -123.456)
+"test"      ; (expected "test")
+
+;; quoted values should be evaluated as this exact raw values
+'nil                     ; nil
+'symbol                  ; symbol
+'()                      ; ()
+'(a b)                   ; (a b)
+'(a b . c)               ; (a b . c)
+'#f                      ; #f
+'#t                      ; #t
+'false                   ; false
+'true                    ; true
+'123                     ; 123
+'-123                    ; -123
+'123.456                 ; 123.456
+'-123.456                ; -123.456
+'"test"                  ; "test"
+''"test"                 ; '"test"
+'if                      ; if
+'+                       ; +
+'(lambda (a b) (+ a b))  ; (lambda (a b) (+ a b))
+
+;; functions should be evaluated to actual function values
+if                          ; ?<if>
++                           ; !<+>
+(lambda test (a b) (+ a b)) ; (#<test> (a b) (+ a b))
