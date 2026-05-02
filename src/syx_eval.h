@@ -8,7 +8,7 @@
 
 #include "syx_value.h"
 
-#define RUNTIME_ERROR(message, env) UNREACHABLE((UNUSED(env), (message)))
+#define RUNTIME_ERROR(message, ctx) UNREACHABLE((UNUSED((ctx)), (message)))
 
 typedef Ht(const char *, SyxV *) Syx_Env_Symbols;
 
@@ -17,6 +17,12 @@ struct Syx_Env {
   Syx_Env_Symbols symbols;
   char *description;
 };
+
+struct Syx_Eval_Ctx {
+  Syx_Env *env;
+};
+
+Syx_Eval_Ctx make_syx_ctx(Syx_Env *env);
 
 void syx_env_destructor(void *data);
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description);
@@ -29,27 +35,27 @@ void syx_env_set(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value);
 void syx_env_set_cstr(Syx_Env *env, const char *name, SyxV *value);
 Syx_Env *make_global_syx_env();
 
-SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments);
-SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments);
-SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments);
-SyxV *syx_eval(Syx_Env *env, SyxV *input);
+SyxV *syx_eval_specialf(Syx_Eval_Ctx *ctx, Syx_SpecialF *specialf, SyxV *arguments);
+SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments);
+SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments);
+SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input);
 
 typedef struct {
-  bool (*should_stop)(Syx_Env *env, SyxV *evaluated);
+  bool (*should_stop)(Syx_Eval_Ctx *ctx, SyxV *evaluated);
   SyxV *default_result;
 } Syx_Eval_Forms_List_Opt;
 
-SyxV *syx__eval_forms_list_opt(Syx_Env *env, SyxV *forms_list, Syx_Eval_Forms_List_Opt opt);
+SyxV *syx__eval_forms_list_opt(Syx_Eval_Ctx *ctx, SyxV *forms_list, Syx_Eval_Forms_List_Opt opt);
 #define syx_eval_forms_list(env, forms_list, ...) syx__eval_forms_list_opt((env), (forms_list), (Syx_Eval_Forms_List_Opt){__VA_ARGS__})
 
-bool syx_convert_to_bool_v(Syx_Env *env, SyxV *value);
-SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value);
-syx_integer_t syx_convert_to_integer_v(Syx_Env *env, SyxV *value);
-SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value);
-syx_fractional_t syx_convert_to_fractional_v(Syx_Env *env, SyxV *value);
-SyxV *syx_convert_to_fractional(Syx_Env *env, SyxV *value);
-syx_string_view_t syx_convert_to_string_v(Syx_Env *env, SyxV *value);
-SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value);
+bool syx_convert_to_bool_v(Syx_Eval_Ctx *ctx, SyxV *value);
+SyxV *syx_convert_to_bool(Syx_Eval_Ctx *ctx, SyxV *value);
+syx_integer_t syx_convert_to_integer_v(Syx_Eval_Ctx *ctx, SyxV *value);
+SyxV *syx_convert_to_integer(Syx_Eval_Ctx *ctx, SyxV *value);
+syx_fractional_t syx_convert_to_fractional_v(Syx_Eval_Ctx *ctx, SyxV *value);
+SyxV *syx_convert_to_fractional(Syx_Eval_Ctx *ctx, SyxV *value);
+syx_string_view_t syx_convert_to_string_v(Syx_Eval_Ctx *ctx, SyxV *value);
+SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value);
 
 #endif // SYX_EVAL_H
 
@@ -64,6 +70,10 @@ SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value);
 #include "syx_eval_specialf.h"
 #define SYX_EVAL_BUILTINS_IMPL
 #include "syx_eval_builtins.h"
+
+Syx_Eval_Ctx make_syx_ctx(Syx_Env *env) {
+  return (Syx_Eval_Ctx){.env = env};
+}
 
 void syx_env_destructor(void *data) {
   Syx_Env *env = data;
@@ -184,23 +194,23 @@ Syx_Env *make_global_syx_env() {
   return env;
 }
 
-SyxV *syx_eval_specialf(Syx_Env *env, Syx_SpecialF *specialf, SyxV *arguments) {
-  SyxV *result = specialf->eval(env, arguments);
+SyxV *syx_eval_specialf(Syx_Eval_Ctx *ctx, Syx_SpecialF *specialf, SyxV *arguments) {
+  SyxV *result = specialf->eval(ctx, arguments);
   if (!result) return make_syxv_nil();
   return result;
 }
 
-SyxV *syx_eval_builtin(Syx_Env *env, Syx_Builtin *builtin, SyxV *arguments) {
+SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments) {
   SyxV *evaluated = NULL;
   syxv_list_map(argument, arguments, &evaluated) {
-    *argument = syx_eval(env, *argument);
+    *argument = syx_eval(ctx, *argument);
   }
-  SyxV *result = builtin->eval(env, evaluated);
+  SyxV *result = builtin->eval(ctx, evaluated);
   if (!result) return make_syxv_nil();
   return result;
 }
 
-SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
+SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments) {
   Syx_Env *call_env = rc_acquire(make_syx_env(closure->env, temp_sprintf("<%s>", closure->name)));
   SyxV *it = arguments;
   SyxV **last_name = NULL;
@@ -214,17 +224,17 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
   continue_same_param:
     if (ht_find(&call_env->symbols, symbol->name)) continue;
     if (it->kind == SYXV_KIND_NIL) TODO("Implement smaller arguments passed or currying");
-    if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", env);
+    if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", ctx);
     if (it->pair.left->kind == SYXV_KIND_SYMBOL && it->pair.left->symbol.name[0] == ':') {
       TODO("redone named param binding");
       const char *named_param = it->pair.left->symbol.name + 1;
       it = it->pair.right;
-      if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", env);
-      syx_env_define_cstr(call_env, named_param, syx_eval(env, it->pair.left));
+      if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", ctx);
+      syx_env_define_cstr(call_env, named_param, syx_eval(ctx, it->pair.left));
       it = it->pair.right;
       goto continue_same_param;
     }
-    syx_env_define(call_env, symbol, syx_eval(env, it->pair.left));
+    syx_env_define(call_env, symbol, syx_eval(ctx, it->pair.left));
     it = it->pair.right;
   }
   if ((*last_name)->kind != SYXV_KIND_NIL) {
@@ -233,10 +243,10 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
     SyxV *evaluated = NULL;
     SyxV **last_argument = NULL;
     syxv_list_map(argument, rest, &evaluated, &last_argument) {
-      *argument = syx_eval(env, *argument);
+      *argument = syx_eval(ctx, *argument);
     }
     if ((*last_argument)->kind != SYXV_KIND_NIL) {
-      *last_argument = rc_acquire(syx_eval(env, *last_argument));
+      *last_argument = rc_acquire(syx_eval(ctx, *last_argument));
     }
     syx_env_define(call_env, symbol, rest);
   }
@@ -245,55 +255,56 @@ SyxV *syx_eval_closure(Syx_Env *env, Syx_Closure *closure, SyxV *arguments) {
     const char *name = name_v->pair.left->symbol.name;
     SyxV **value = ht_find(&call_env->symbols, name);
     if (value != NULL) continue;
-    (*value) = rc_acquire(syx_eval(env, name_v->pair.right));
+    (*value) = rc_acquire(syx_eval(ctx, name_v->pair.right));
   }
-  SyxV *result = syx_eval_forms_list(call_env, closure->forms);
+  Syx_Eval_Ctx call_ctx = {.env = call_env};
+  SyxV *result = syx_eval_forms_list(&call_ctx, closure->forms);
   rc_release(call_env);
   return result;
 }
 
-SyxV *syx_eval(Syx_Env *env, SyxV *input) {
+SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
   if (input->kind == SYXV_KIND_QUOTE) return input->quote;
   if (input->kind == SYXV_KIND_SYMBOL) {
-    SyxV *item = syx_env_lookup_get(env, input->symbol.name);
-    if (item == NULL) RUNTIME_ERROR(temp_sprintf("unbound symbol '%s'", input->symbol.name), env);
+    SyxV *item = syx_env_lookup_get(ctx->env, input->symbol.name);
+    if (item == NULL) RUNTIME_ERROR(temp_sprintf("unbound symbol '%s'", input->symbol.name), ctx);
     return item;
   }
   if (input->kind != SYXV_KIND_PAIR) return input;
   if (!input->pair.left) return input;
-  SyxV *head = rc_acquire(syx_eval(env, input->pair.left));
+  SyxV *head = rc_acquire(syx_eval(ctx, input->pair.left));
   SyxV *arguments = input->pair.right;
   SyxV *result;
   switch (head->kind) {
-    case SYXV_KIND_NIL: RUNTIME_ERROR("nil is not a procedure", env);
-    case SYXV_KIND_SYMBOL: RUNTIME_ERROR("symbol is not a procedure", env);
-    case SYXV_KIND_PAIR: RUNTIME_ERROR("pair is not a procedure", env);
-    case SYXV_KIND_BOOL: RUNTIME_ERROR("bool is not a procedure", env);
-    case SYXV_KIND_INTEGER: RUNTIME_ERROR("integer is not a procedure", env);
-    case SYXV_KIND_FRACTIONAL: RUNTIME_ERROR("fractional is not a procedure", env);
-    case SYXV_KIND_STRING: RUNTIME_ERROR("string is not a procedure", env);
-    case SYXV_KIND_QUOTE: RUNTIME_ERROR("quote is not a procedure", env);
-    case SYXV_KIND_SPECIALF: result = syx_eval_specialf(env, &head->specialf, arguments); break;
-    case SYXV_KIND_BUILTIN: result = syx_eval_builtin(env, &head->builtin, arguments); break;
-    case SYXV_KIND_CLOSURE: result = syx_eval_closure(env, &head->closure, arguments); break;
+    case SYXV_KIND_NIL: RUNTIME_ERROR("nil is not a procedure", ctx);
+    case SYXV_KIND_SYMBOL: RUNTIME_ERROR("symbol is not a procedure", ctx);
+    case SYXV_KIND_PAIR: RUNTIME_ERROR("pair is not a procedure", ctx);
+    case SYXV_KIND_BOOL: RUNTIME_ERROR("bool is not a procedure", ctx);
+    case SYXV_KIND_INTEGER: RUNTIME_ERROR("integer is not a procedure", ctx);
+    case SYXV_KIND_FRACTIONAL: RUNTIME_ERROR("fractional is not a procedure", ctx);
+    case SYXV_KIND_STRING: RUNTIME_ERROR("string is not a procedure", ctx);
+    case SYXV_KIND_QUOTE: RUNTIME_ERROR("quote is not a procedure", ctx);
+    case SYXV_KIND_SPECIALF: result = syx_eval_specialf(ctx, &head->specialf, arguments); break;
+    case SYXV_KIND_BUILTIN: result = syx_eval_builtin(ctx, &head->builtin, arguments); break;
+    case SYXV_KIND_CLOSURE: result = syx_eval_closure(ctx, &head->closure, arguments); break;
   }
   rc_release(head);
   return result;
 }
 
-SyxV *syx__eval_forms_list_opt(Syx_Env *env, SyxV *forms_list, Syx_Eval_Forms_List_Opt opt) {
+SyxV *syx__eval_forms_list_opt(Syx_Eval_Ctx *ctx, SyxV *forms_list, Syx_Eval_Forms_List_Opt opt) {
   SyxV *result = NULL;
   if (opt.default_result) result = rc_acquire(opt.default_result);
   syxv_list_for_each(form, forms_list) {
     if (result) rc_release(result);
-    result = rc_acquire(syx_eval(env, form));
-    if (opt.should_stop != NULL && opt.should_stop(env, result)) return rc_move(result);
+    result = rc_acquire(syx_eval(ctx, form));
+    if (opt.should_stop != NULL && opt.should_stop(ctx, result)) return rc_move(result);
   }
-  if (result == NULL) RUNTIME_ERROR("empty forms list", env);
+  if (result == NULL) RUNTIME_ERROR("empty forms list", ctx);
   return rc_move(result);
 }
 
-bool syx_convert_to_bool_v(Syx_Env *env, SyxV *value) {
+bool syx_convert_to_bool_v(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_NIL: return (false);
     case SYXV_KIND_SYMBOL: return (true);
@@ -302,40 +313,40 @@ bool syx_convert_to_bool_v(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_INTEGER: return ((syx_bool_t)value->integer);
     case SYXV_KIND_FRACTIONAL: return ((syx_bool_t)value->fractional);
     case SYXV_KIND_STRING: return (bool)value->string.count;
-    case SYXV_KIND_QUOTE: return syx_convert_to_bool_v(env, value->quote);
+    case SYXV_KIND_QUOTE: return syx_convert_to_bool_v(ctx, value->quote);
     case SYXV_KIND_SPECIALF: return (true);
     case SYXV_KIND_BUILTIN: return (true);
     case SYXV_KIND_CLOSURE: return (true);
   }
 }
 
-SyxV *syx_convert_to_bool(Syx_Env *env, SyxV *value) {
+SyxV *syx_convert_to_bool(Syx_Eval_Ctx *ctx, SyxV *value) {
   if (value->kind == SYXV_KIND_BOOL) return value;
-  return make_syxv_bool(syx_convert_to_bool_v(env, value));
+  return make_syxv_bool(syx_convert_to_bool_v(ctx, value));
 }
 
-syx_integer_t syx_convert_to_integer_v(Syx_Env *env, SyxV *value) {
+syx_integer_t syx_convert_to_integer_v(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_NIL: return 0;
-    case SYXV_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to integer number");
-    case SYXV_KIND_PAIR: UNREACHABLE("illegal conversion of pair to integer number");
+    case SYXV_KIND_SYMBOL: RUNTIME_ERROR("illegal conversion of symbol to integer number", ctx);
+    case SYXV_KIND_PAIR: RUNTIME_ERROR("illegal conversion of pair to integer number", ctx);
     case SYXV_KIND_BOOL: return value->boolean ? 1 : 0;
     case SYXV_KIND_INTEGER: return value->integer;
     case SYXV_KIND_FRACTIONAL: return (syx_integer_t)value->fractional;
     case SYXV_KIND_STRING: {
       String_View sv = value->string;
       syx_integer_t result = 0;
-      if (!parse_integer(&sv, &result)) UNREACHABLE("illegal conversion of string to integer number");
+      if (!parse_integer(&sv, &result)) RUNTIME_ERROR("illegal conversion of string to integer number", ctx);
       return result;
     }
-    case SYXV_KIND_QUOTE: return syx_convert_to_integer_v(env, value->quote);
-    case SYXV_KIND_SPECIALF: UNREACHABLE("illegal conversion of special form to integer number");
-    case SYXV_KIND_BUILTIN: UNREACHABLE("illegal conversion of builtin function to integer number");
-    case SYXV_KIND_CLOSURE: UNREACHABLE("illegal conversion of closure to integer number");
+    case SYXV_KIND_QUOTE: return syx_convert_to_integer_v(ctx, value->quote);
+    case SYXV_KIND_SPECIALF: RUNTIME_ERROR("illegal conversion of special form to integer number", ctx);
+    case SYXV_KIND_BUILTIN: RUNTIME_ERROR("illegal conversion of builtin function to integer number", ctx);
+    case SYXV_KIND_CLOSURE: RUNTIME_ERROR("illegal conversion of closure to integer number", ctx);
   }
 }
 
-SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value) {
+SyxV *syx_convert_to_integer(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_SYMBOL: return NULL;
     case SYXV_KIND_PAIR: return NULL;
@@ -349,32 +360,32 @@ SyxV *syx_convert_to_integer(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_SPECIALF: return NULL;
     case SYXV_KIND_BUILTIN: return NULL;
     case SYXV_KIND_CLOSURE: return NULL;
-    default: return make_syxv_integer(syx_convert_to_integer_v(env, value));
+    default: return make_syxv_integer(syx_convert_to_integer_v(ctx, value));
   }
 }
 
-syx_fractional_t syx_convert_to_fractional_v(Syx_Env *env, SyxV *value) {
+syx_fractional_t syx_convert_to_fractional_v(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_NIL: return 0.0;
-    case SYXV_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to fractional number");
-    case SYXV_KIND_PAIR: UNREACHABLE("illegal conversion of pair to fractional number");
+    case SYXV_KIND_SYMBOL: RUNTIME_ERROR("illegal conversion of symbol to fractional number", ctx);
+    case SYXV_KIND_PAIR: RUNTIME_ERROR("illegal conversion of pair to fractional number", ctx);
     case SYXV_KIND_BOOL: return value->boolean ? 1.0 : 0.0;
     case SYXV_KIND_INTEGER: return (syx_fractional_t)value->integer;
     case SYXV_KIND_FRACTIONAL: return value->fractional;
     case SYXV_KIND_STRING: {
       String_View sv = value->string;
       syx_fractional_t result = 0;
-      if (!parse_fractional(&sv, &result)) UNREACHABLE("illegal conversion of string to fractional number");
+      if (!parse_fractional(&sv, &result)) RUNTIME_ERROR("illegal conversion of string to fractional number", ctx);
       return result;
     }
-    case SYXV_KIND_QUOTE: return syx_convert_to_fractional_v(env, value->quote);
-    case SYXV_KIND_SPECIALF: UNREACHABLE("illegal conversion of special form to fractional number");
-    case SYXV_KIND_BUILTIN: UNREACHABLE("illegal conversion of builtin function to fractional number");
-    case SYXV_KIND_CLOSURE: UNREACHABLE("illegal conversion of closure to fractional number");
+    case SYXV_KIND_QUOTE: return syx_convert_to_fractional_v(ctx, value->quote);
+    case SYXV_KIND_SPECIALF: RUNTIME_ERROR("illegal conversion of special form to fractional number", ctx);
+    case SYXV_KIND_BUILTIN: RUNTIME_ERROR("illegal conversion of builtin function to fractional number", ctx);
+    case SYXV_KIND_CLOSURE: RUNTIME_ERROR("illegal conversion of closure to fractional number", ctx);
   }
 }
 
-SyxV *syx_convert_to_fractional(Syx_Env *env, SyxV *value) {
+SyxV *syx_convert_to_fractional(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_SYMBOL: return NULL;
     case SYXV_KIND_PAIR: return NULL;
@@ -388,27 +399,27 @@ SyxV *syx_convert_to_fractional(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_SPECIALF: return NULL;
     case SYXV_KIND_BUILTIN: return NULL;
     case SYXV_KIND_CLOSURE: return NULL;
-    default: return make_syxv_fractional(syx_convert_to_fractional_v(env, value));
+    default: return make_syxv_fractional(syx_convert_to_fractional_v(ctx, value));
   }
 }
 
-syx_string_view_t syx_convert_to_string_v(Syx_Env *env, SyxV *value) {
+syx_string_view_t syx_convert_to_string_v(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_NIL: return sv_from_cstr("nil");
-    case SYXV_KIND_SYMBOL: UNREACHABLE("illegal conversion of symbol to string");
-    case SYXV_KIND_PAIR: UNREACHABLE("illegal conversion of pair to string");
+    case SYXV_KIND_SYMBOL: RUNTIME_ERROR("illegal conversion of symbol to string", ctx);
+    case SYXV_KIND_PAIR: RUNTIME_ERROR("illegal conversion of pair to string", ctx);
     case SYXV_KIND_BOOL: return sv_from_cstr(value->boolean ? "true" : "false");
     case SYXV_KIND_INTEGER: return stringify_integer(value->integer);
     case SYXV_KIND_FRACTIONAL: return stringify_fractional(value->fractional);
     case SYXV_KIND_STRING: return value->string;
-    case SYXV_KIND_QUOTE: return syx_convert_to_string_v(env, value->quote);
-    case SYXV_KIND_SPECIALF: UNREACHABLE("illegal conversion of special form to string");
-    case SYXV_KIND_BUILTIN: UNREACHABLE("illegal conversion of builtin function to string");
-    case SYXV_KIND_CLOSURE: UNREACHABLE("illegal conversion of closure to string");
+    case SYXV_KIND_QUOTE: return syx_convert_to_string_v(ctx, value->quote);
+    case SYXV_KIND_SPECIALF: RUNTIME_ERROR("illegal conversion of special form to string", ctx);
+    case SYXV_KIND_BUILTIN: RUNTIME_ERROR("illegal conversion of builtin function to string", ctx);
+    case SYXV_KIND_CLOSURE: RUNTIME_ERROR("illegal conversion of closure to string", ctx);
   }
 }
 
-SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value) {
+SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_SYMBOL: return NULL;
     case SYXV_KIND_PAIR: return NULL;
@@ -416,7 +427,7 @@ SyxV *syx_convert_to_string(Syx_Env *env, SyxV *value) {
     case SYXV_KIND_SPECIALF: return NULL;
     case SYXV_KIND_BUILTIN: return NULL;
     case SYXV_KIND_CLOSURE: return NULL;
-    default: return make_syxv_string(syx_convert_to_string_v(env, value));
+    default: return make_syxv_string(syx_convert_to_string_v(ctx, value));
   }
 }
 

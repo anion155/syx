@@ -27,68 +27,60 @@
 
 #define SYXV_EXIT_QUIT_STORAGE "SYXV_EXIT_QUIT_STORAGE"
 
-// typedef enum Syx_Run_Verbose {
-//   SYX_RUN_VERBOSE_QUITE = 0,
-//   SYX_RUN_VERBOSE_LAST_RESULT,
-//   SYX_RUN_VERBOSE_EVERY_RESULT,
-//   SYX_RUN_VERBOSE_ALL,
-// } Syx_Run_Verbose;
-
 typedef struct Syx_Run_Context {
-  Syx_Env *global_env;
-  // Syx_Run_Verbose verbose;
+  Syx_Eval_Ctx eval_ctx;
   bool opt_xtrace;
   bool opt_print;
 } Syx_Run_Context;
 
-Syx_Run_Context ctx = {0};
+Syx_Run_Context script_ctx = {0};
 
 define_constant(Ht(const char *, bool *), ctx_options) {
   ctx_options->hasheq = ht_cstr_hasheq;
-  *ht_put(ctx_options, "x") = &ctx.opt_xtrace;
-  *ht_put(ctx_options, "p") = &ctx.opt_print;
+  *ht_put(ctx_options, "x") = &script_ctx.opt_xtrace;
+  *ht_put(ctx_options, "p") = &script_ctx.opt_print;
 }
 
 int run_syx(const char *source_cstr) {
   SyxVs *results = rc_acquire(rc_alloc(sizeof(SyxVs), da_destructor));
   parser_syxvs_for_each(value, source_cstr) {
-    if (ctx.opt_xtrace) {
+    if (script_ctx.opt_xtrace) {
       printf("+");
       print_syxv(value);
       printf("\n");
     }
-    SyxV *result = syx_eval(ctx.global_env, value);
-    if (ctx.opt_xtrace) {
+    SyxV *result = syx_eval(&script_ctx.eval_ctx, value);
+    if (script_ctx.opt_xtrace) {
       print_syxv(result);
       printf("\n");
     }
     da_append(results, rc_acquire(result));
-    if (syx_env_lookup_get(ctx.global_env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
+    if (syx_env_lookup_get(script_ctx.eval_ctx.env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
   }
-  if (!ctx.opt_xtrace && ctx.opt_print && results->count) {
+  if (!script_ctx.opt_xtrace && script_ctx.opt_print && results->count) {
     print_syxv(results->items[results->count - 1]);
     printf("\n");
   }
   rc_release(results);
-  SyxV *quit = syx_env_lookup_get(ctx.global_env, SYXV_EXIT_QUIT_STORAGE);
+  SyxV *quit = syx_env_lookup_get(script_ctx.eval_ctx.env, SYXV_EXIT_QUIT_STORAGE);
   if (!quit) return -1;
-  return syx_convert_to_integer_v(ctx.global_env, quit);
+  return syx_convert_to_integer_v(&script_ctx.eval_ctx, quit);
 }
 
-SyxV *eval_quit(Syx_Env *env, SyxV *arguments) {
+SyxV *eval_quit(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *result = syxv_list_next(&arguments);
   if (result->kind == SYXV_KIND_NIL) result = make_syxv_integer(0);
-  syx_env_define_cstr(syx_env_global(env), SYXV_EXIT_QUIT_STORAGE, result);
+  syx_env_define_cstr(syx_env_global(ctx->env), SYXV_EXIT_QUIT_STORAGE, result);
   return NULL;
 }
 
-SyxV *eval_setopt(Syx_Env *env, SyxV *arguments) {
+SyxV *eval_setopt(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *name = syxv_list_next(&arguments);
-  if (name->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("option name expected", env);
+  if (name->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("option name expected", ctx);
   bool **option = ht_find(ctx_options(), name->symbol.name);
-  if (option == NULL) RUNTIME_ERROR("option not found", env);
-  SyxV *value = syx_eval(env, syxv_list_next(&arguments));
-  (**option) = syx_convert_to_bool_v(env, value);
+  if (option == NULL) RUNTIME_ERROR("option not found", ctx);
+  SyxV *value = syx_eval(ctx, syxv_list_next(&arguments));
+  (**option) = syx_convert_to_bool_v(ctx, value);
   return NULL;
 }
 
@@ -121,15 +113,15 @@ int main(int argc, char **argv) {
   argc = flag_rest_argc();
   argv = flag_rest_argv();
 
-  if (commands->count) ctx.opt_print = true;
-  else if (argc == 1) ctx.opt_print = false;
-  else ctx.opt_print = true;
+  if (commands->count) script_ctx.opt_print = true;
+  else if (argc == 1) script_ctx.opt_print = false;
+  else script_ctx.opt_print = true;
 
-  if (*opt_xtrace) ctx.opt_xtrace = *opt_xtrace;
-  else if (*opt_print) ctx.opt_print = true;
+  if (*opt_xtrace) script_ctx.opt_xtrace = *opt_xtrace;
+  else if (*opt_print) script_ctx.opt_print = true;
 
   Syx_Env *global_env = rc_acquire(make_global_syx_env());
-  ctx.global_env = global_env;
+  script_ctx.eval_ctx = make_syx_ctx(global_env);
 
   syx_env_define_cstr(global_env, "quit", make_syxv_builtin(NULL, eval_quit));
   syx_env_define_cstr(global_env, "setopt", make_syxv_specialf(NULL, eval_setopt));

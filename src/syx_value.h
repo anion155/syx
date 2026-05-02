@@ -9,9 +9,10 @@
 #include "syx_utils.h"
 
 typedef struct SyxV SyxV;
+typedef struct Syx_Eval_Ctx Syx_Eval_Ctx;
 typedef struct Syx_Env Syx_Env;
 
-typedef SyxV *(*Syx_Evaluator)(Syx_Env *env, SyxV *arguments);
+typedef SyxV *(*Syx_Evaluator)(Syx_Eval_Ctx *ctx, SyxV *arguments);
 
 typedef struct Syx_SpecialF {
   char *name;
