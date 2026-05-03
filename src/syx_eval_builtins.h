@@ -60,7 +60,9 @@ SyxV *syx_builtin_apply(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   }
   if ((*last_item)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("Invalid arguments list", ctx);
   (*it) = rc_acquire(make_syxv_nil());
-  return syx_eval(ctx, call);
+  SyxV *result = rc_acquire(syx_eval(ctx, call));
+  syx_eval_early_exit(result, result);
+  return rc_move(result);
 }
 
 /** Applies a function to each element of a list and returns a new list of results. */
@@ -74,6 +76,7 @@ SyxV *syx_builtin_map(Syx_Eval_Ctx *ctx, SyxV *arguments) {
     if (call) rc_release(call);
     call = rc_acquire(make_syxv_pair(fn, make_syxv_pair(*item, make_syxv_nil())));
     *item = syx_eval(ctx, call);
+    syx_eval_early_exit(*item, results);
   }
   if (call) rc_release(call);
   return results;
@@ -216,6 +219,7 @@ bool syx__builtin_equivalent_comparator(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *rig
     case SYXV_KIND_SPECIALF: return false; // should work on left == right level
     case SYXV_KIND_BUILTIN: return false;  // should work on left == right level
     case SYXV_KIND_CLOSURE: return false;  // should work on left == right level
+    case SYXV_KIND_THROW: return false;    // should work on left == right level
   }
 }
 
@@ -315,6 +319,7 @@ bool syx__builtin_identity_comparator(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *right
     case SYXV_KIND_SPECIALF: return false; // should work on left == right level
     case SYXV_KIND_BUILTIN: return false;  // should work on left == right level
     case SYXV_KIND_CLOSURE: return false;  // should work on left == right level
+    case SYXV_KIND_THROW: return false;    // should work on left == right level
   }
 }
 

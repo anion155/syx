@@ -4,13 +4,13 @@
 +()
 ()
 +#f
-#f
+false
 +#t
-#t
+true
 +false
-#f
+false
 +true
-#t
+true
 +123
 123
 +-123
@@ -61,5 +61,7 @@ if
 ?<if>
 ++
 !<+>
++(lambda (a b) (+ a b))
+(#<> (a b) (+ a b))
 +(lambda test (a b) (+ a b))
 (#<test> (a b) (+ a b))

@@ -37,4 +37,5 @@ true        ; (expected true)
 ;; functions should be evaluated to actual function values
 if                          ; ?<if>
 +                           ; !<+>
+(lambda (a b) (+ a b))      ; (#<> (a b) (+ a b))
 (lambda test (a b) (+ a b)) ; (#<test> (a b) (+ a b))

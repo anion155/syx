@@ -62,9 +62,10 @@ SyxV *syx_special_form_define(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   } else if (name_s->kind != SYXV_KIND_SYMBOL) {
     RUNTIME_ERROR("Symbol expression expected as name", ctx);
   } else {
-    value = syx_eval(ctx, syxv_list_next(&arguments));
+    value = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
+    syx_eval_early_exit(value, value);
   }
-  syx_env_define(ctx->env, &name_s->symbol, value);
+  syx_env_define(ctx->env, &name_s->symbol, rc_move(value));
   return make_syxv_nil();
 }
 
@@ -72,8 +73,9 @@ SyxV *syx_special_form_define(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *name_s = syxv_list_next(&arguments);
   if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", ctx);
-  SyxV *value = syx_eval(ctx, syxv_list_next(&arguments));
-  syx_env_set(ctx->env, &name_s->symbol, value);
+  SyxV *value = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
+  syx_eval_early_exit(value, value);
+  syx_env_set(ctx->env, &name_s->symbol, rc_move(value));
   return make_syxv_nil();
 }
 
@@ -93,6 +95,7 @@ SyxV *syx_special_form_let(Syx_Eval_Ctx *ctx, SyxV *arguments) {
     (*binding) = make_syxv_pair(
         (*binding)->pair.left,
         syx_eval(ctx, (*binding)->pair.right->pair.left));
+    syx_eval_early_exit((*binding), bindings);
   }
   syxv_list_for_each(binding, bindings) {
     SyxV *name = binding->pair.left;
@@ -124,11 +127,15 @@ SyxV *syx_special_form_or(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 /** if - Evaluates condition then evaluates only one branch */
 SyxV *syx_special_form_if(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *result = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
+  syx_eval_early_exit(result, result);
   bool cond = syx_convert_to_bool_v(ctx, result);
   SyxV *then_body = syxv_list_next(&arguments);
   SyxV *else_body = syxv_list_next(&arguments);
-  if (cond) return syx_eval(ctx, then_body);
-  else return syx_eval(ctx, else_body);
+  if (cond) result = syx_eval(ctx, then_body);
+  else result = syx_eval(ctx, else_body);
+  rc_acquire(result);
+  syx_eval_early_exit(result, result);
+  return rc_move(result);
 }
 
 /** Multi-branch conditional */
@@ -141,6 +148,7 @@ SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, SyxV *arguments) {
     }
     if (result) rc_release(result);
     result = rc_acquire(syx_eval(ctx, branch->pair.left));
+    syx_eval_early_exit(result, result);
     bool cond = syx_convert_to_bool_v(ctx, result);
     if (!cond) continue;
     SyxV *right = branch->pair.right;
@@ -150,6 +158,7 @@ SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, SyxV *arguments) {
       if (apply_right->kind == SYXV_KIND_PAIR && apply_right->pair.right->kind == SYXV_KIND_NIL) {
         SyxV *call = rc_acquire(make_syxv_list(apply_right->pair.left, result, NULL));
         SyxV *call_result = rc_acquire(syx_eval(ctx, call));
+        syx_eval_early_exit(call_result, result, call);
         rc_release(call);
         rc_release(result);
         return rc_move(call_result);
@@ -160,6 +169,13 @@ SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   }
   if (result == NULL) RUNTIME_ERROR("cond empty branches list", ctx);
   return result;
+}
+
+/** Create throw value. */
+SyxV *syx_special_form_throw(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+  SyxV *reason = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
+  syx_eval_early_exit(reason, reason);
+  return make_syxv_throw(ctx->frame, rc_move(reason));
 }
 
 void syx_env_define_special_forms(Syx_Env *env) {
@@ -174,6 +190,7 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define_cstr(env, "or", make_syxv_specialf(NULL, syx_special_form_or));
   syx_env_define_cstr(env, "if", make_syxv_specialf(NULL, syx_special_form_if));
   syx_env_define_cstr(env, "cond", make_syxv_specialf(NULL, syx_special_form_cond));
+  syx_env_define_cstr(env, "throw", make_syxv_specialf(NULL, syx_special_form_throw));
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL

@@ -27,13 +27,13 @@
 
 #define SYXV_EXIT_QUIT_STORAGE "SYXV_EXIT_QUIT_STORAGE"
 
-typedef struct Syx_Run_Context {
+typedef struct Syx_Script_Context {
   Syx_Eval_Ctx eval_ctx;
   bool opt_xtrace;
   bool opt_print;
-} Syx_Run_Context;
+} Syx_Script_Context;
 
-Syx_Run_Context script_ctx = {0};
+Syx_Script_Context script_ctx = {0};
 
 define_constant(Ht(const char *, bool *), ctx_options) {
   ctx_options->hasheq = ht_cstr_hasheq;
@@ -50,6 +50,7 @@ int run_syx(const char *source_cstr) {
       printf("\n");
     }
     SyxV *result = syx_eval(&script_ctx.eval_ctx, value);
+    if (!syx_eval_report_error(result)) break;
     if (script_ctx.opt_xtrace) {
       print_syxv(result);
       printf("\n");
@@ -121,7 +122,7 @@ int main(int argc, char **argv) {
   else if (*opt_print) script_ctx.opt_print = true;
 
   Syx_Env *global_env = rc_acquire(make_global_syx_env());
-  script_ctx.eval_ctx = make_syx_ctx(global_env);
+  script_ctx.eval_ctx = make_syx_eval_ctx(global_env);
 
   syx_env_define_cstr(global_env, "quit", make_syxv_builtin(NULL, eval_quit));
   syx_env_define_cstr(global_env, "setopt", make_syxv_specialf(NULL, eval_setopt));
