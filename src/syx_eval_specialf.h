@@ -24,7 +24,6 @@ SyxV *syx_special_form_begin(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 }
 
 SyxV *syx__special_form_make_lambda(Syx_Eval_Ctx *ctx, const char *name, SyxV *defines, SyxV *forms) {
-  if (defines->kind == SYXV_KIND_NIL) RUNTIME_ERROR("malformed lambda arguments definitions expected", ctx);
   SyxV **rest_define = NULL;
   syxv_list_for_each(define, defines, &rest_define) {
     if (define->kind == SYXV_KIND_SYMBOL) continue;

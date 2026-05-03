@@ -427,7 +427,12 @@ SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_SPECIALF: return NULL;
     case SYXV_KIND_BUILTIN: return NULL;
     case SYXV_KIND_CLOSURE: return NULL;
-    default: return make_syxv_string(syx_convert_to_string_v(ctx, value));
+    default: {
+      syx_string_view_t str = syx_convert_to_string_v(ctx, value);
+      SyxV *syxv = make_syxv_string(str);
+      // TODO: delete str
+      return syxv;
+    }
   }
 }
 

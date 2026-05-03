@@ -2,12 +2,10 @@
 - throwing error
 - catching error
 - automatic fractional -> integer
-- unit tests for parser
-  deps: #tests-1
-- unit tests for evaluator
-  deps: #tests-1
-- unit tests for utilities
-  deps: #tests-1
-
-[tests.h]
-- compiler test runner #tests-1
+- int -> int* memory storage, like in strings
+- `.<constructor>(...<values>)` - as struct constructor, structs are basically mapped to real memory
+- `(.<constructor>(...<values>) <index>|<name> <value>?)` - as getter/setter
+- compiler test runner
+- unit tests for parser : compiler test runner
+- unit tests for evaluator : compiler test runner
+- unit tests for utilities : compiler test runner

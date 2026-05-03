@@ -172,8 +172,10 @@ void stringify_integer_n(syx_integer_t value, size_t length, char *string) {
     string[0] = '-';
     string += 1;
   }
-  for (struct { size_t index; syx_integer_t it; } s = {0, value}; s.index < length; s.index += 1, s.it /= 10) {
-    string[length - s.index - 1] = '0' + (value < 0 ? -(s.it % 10) : s.it % 10);
+  size_t index = 0;
+  syx_integer_t it = value;
+  for (; index < length; index += 1, it /= 10) {
+    string[length - index - 1] = '0' + (value < 0 ? -(it % 10) : it % 10);
   }
 }
 

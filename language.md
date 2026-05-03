@@ -76,6 +76,11 @@ Evaluates left to right, returns first truthy or last value. Short-circuits.
 ### cond
 `(cond ...(<condition> ...<form>) (else ...<form>)) => first matching result | nil`
 
+### throw
+Create value of type `throw` that is should trigger early return of said value after any evaluation.
+It carries first argument (as reason) and evaluation stack reference.
+`(throw <value>)`
+
 ## Builtins List
 
 ### cons
@@ -110,7 +115,7 @@ Sequentially applies all arguments. Integers promoted to fractional if any argum
 
 ### =
 Applies structural check between each consequence pairs.
-`(= <value> ...<value>) => #t if all equal`
+`(= <value> ...<value>) => true if all equal`
 
 `<value>` can be any of this:
 - `bool`
@@ -122,23 +127,23 @@ Applies structural check between each consequence pairs.
 - `symbol` - compared by reference
 
 Examples:
-`(= #t #t) => #t`
-`(= 1 1) => #t`
-`(= 1 1.0) => #t`
-`(= "a" "a") => #t`
-`(= '(1 2) '(1 2)) => #t`
-`(= ''1 ''1) => #t`
-`(= if if) => #t`
-`(= (lambda (a) a) (lambda (a) a)) => #f`
-`(= 'a 'a) => #t`
-`(define a 1) (define b 1) (= a b) => #f`
+`(= #t #t) => true`
+`(= 1 1) => true`
+`(= 1 1.0) => true`
+`(= "a" "a") => true`
+`(= '(1 2) '(1 2)) => true`
+`(= ''1 ''1) => true`
+`(= if if) => true`
+`(= (lambda (a) a) (lambda (a) a)) => false`
+`(= 'a 'a) => true`
+`(define a 1) (define b 1) (= a b) => false`
 
 ### Comparison <, >, <=, >=
 Applies operators between each consequence pairs.
-`(< <value> ...<value>) => #t if strictly increasing`
-`(> <value> ...<value>) => #t if strictly decreasing`
-`(<= <value> ...<value>) => #t if non-decreasing`
-`(>= <value> ...<value>) => #t if non-increasing`
+`(< <value> ...<value>) => true if strictly increasing`
+`(> <value> ...<value>) => true if strictly decreasing`
+`(<= <value> ...<value>) => true if non-decreasing`
+`(>= <value> ...<value>) => true if non-increasing`
 
 `<value>` can be any of this:
 - `number`
@@ -148,31 +153,31 @@ Applies operators between each consequence pairs.
 
 ### eq?
 Applies identity check between each consequence pairs.
-`(eq? <value> ...<value>) => #t if all equal`
+`(eq? <value> ...<value>) => true if all equal`
 
 Examples:
-`(eq? #t #t) => #t`
-`(eq? #t #f) => #f`
-`(eq? 1 1) => #t`
-`(eq? 1 1.0) => #f`
-`(eq? "a" "a") => #f`
-`(eq? '(1 2) '(1 2)) => #f`
-`(define a '(1 2)) (eq? a a) => #t`
-`(eq? ''1 ''1) => #f`
-`(define a ''1) (eq? a a) => #t`
-`(eq? if if) => #t`
-`(eq? (lambda (a) a) (lambda (a) a)) => #f`
-`(define b (lambda (a) a)) (eq? b b) => #t`
-`(eq? 'a 'a) => #t`
-`(define a 1) (define b 1) (eq? a b) => #f`
+`(eq? #t #t) => true`
+`(eq? #t #f) => false`
+`(eq? 1 1) => true`
+`(eq? 1 1.0) => false`
+`(eq? "a" "a") => false`
+`(eq? '(1 2) '(1 2)) => false`
+`(define a '(1 2)) (eq? a a) => true`
+`(eq? ''1 ''1) => false`
+`(define a ''1) (eq? a a) => true`
+`(eq? if if) => true`
+`(eq? (lambda (a) a) (lambda (a) a)) => false`
+`(define b (lambda (a) a)) (eq? b b) => true`
+`(eq? 'a 'a) => true`
+`(define a 1) (define b 1) (eq? a b) => false`
 
 ### nil?, symbol?, pair?, list?, bool?, number?, integer?, fractional?, string?, quote?, procedure?, special-form?, builtin?, closure?
 Type checks first argument.
 `(<type>? <value>) => bool`
 
 ### not
-Returns `#f` if argument is truthy, `#t` if falsy.
-`(not <value>) => #t | #f`
+Returns `false` if argument is truthy, `true` if falsy.
+`(not <value>) => true | false`
 
 ## Miscellaneous Builtins
 

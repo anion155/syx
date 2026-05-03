@@ -25,7 +25,7 @@ typedef enum Test_Result_Status {
   TEST_RESULT_STATUS_FAIL,
 } Test_Result_Status;
 
-typedef struct {
+typedef struct Test_Result {
   const char *id;
   const char *kind;
   int status;

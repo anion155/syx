@@ -170,7 +170,7 @@ SyxV *syx_builtin_div(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   return syx__builtin_operator(ctx, arguments, &operator);
 }
 
-/** Returns `#f` if argument is truthy, `#t` if falsy. */
+/** Returns `false` if argument is truthy, `true` if falsy. */
 SyxV *syx_builtin_not(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *argument = syxv_list_next(&arguments);
   return make_syxv_bool(!syx_convert_to_bool_v(ctx, argument));
@@ -408,6 +408,7 @@ SyxV *syx_builtin_print(Syx_Eval_Ctx *ctx, SyxV *arguments) {
     String_View sv = syx_convert_to_string_v(ctx, argument);
     if (!first && !io_putc(f, ' ')) return make_syxv_nil();
     if (!io_puts(f, sv)) return make_syxv_nil();
+    // TODO: delete sv
     first = false;
   }
   return make_syxv_nil();
@@ -419,6 +420,7 @@ SyxV *syx_builtin_println(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   syxv_list_for_each(argument, arguments) {
     String_View sv = syx_convert_to_string_v(ctx, argument);
     if (!io_puts(f, sv)) return make_syxv_nil();
+    // TODO: delete sv
     if (!io_putc(f, ' ')) return make_syxv_nil();
   }
   if (!io_putc(f, '\n')) return make_syxv_nil();
@@ -449,8 +451,10 @@ SyxV *syx_builtin_printf(Syx_Eval_Ctx *ctx, SyxV *arguments) {
     SyxV *argument = syxv_list_next(&arguments);
     String_View sv = syx_convert_to_string_v(ctx, argument);
     if (!io_puts(f, sv)) return make_syxv_nil();
+    // TODO: delete sv
   }
   if (io_put_sv_diff(f, &str, &it) < 0) return make_syxv_nil();
+  // TODO: delete fmt
   return make_syxv_nil();
 }
 

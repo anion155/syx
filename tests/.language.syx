@@ -10,29 +10,29 @@
 (car (cdr '(1 2 3)))        ; 2
 
 ;; 3. TYPE PREDICATES
-(number? 1)                 ; #t
-(number? 1.0)               ; #t
-(integer? 1)                ; #t
-(integer? 1.0)              ; #f
-(fractional? 1.0)           ; #t
-(string? "a")               ; #t
-(symbol? 'a)                ; #t
-(pair? '(a . b))            ; #t
-(list? '(a b c))            ; #t
-(list? '(a . b))            ; #f
-(nil? nil)                  ; #t
-(bool? #t)                  ; #t
+(number? 1)                 ; true
+(number? 1.0)               ; true
+(integer? 1)                ; true
+(integer? 1.0)              ; false
+(fractional? 1.0)           ; true
+(string? "a")               ; true
+(symbol? 'a)                ; true
+(pair? '(a . b))            ; true
+(list? '(a b c))            ; true
+(list? '(a . b))            ; false
+(nil? nil)                  ; true
+(bool? #t)                  ; true
 
 ;; 4. EQUALITY LOGIC
-(= 1 1.0)                   ; #t
-(= "abc" "abc")             ; #t
-(= '(1 2) '(1 2))           ; #t
-(= 'a 'a)                   ; #t
-(eq? 1 1)                   ; #t
-(eq? 1 1.0)                 ; #f
-(eq? "a" "a")               ; #f
-(eq? '(1) '(1))             ; #f
-(eq? 'a 'a)                 ; #t
+(= 1 1.0)                   ; true
+(= "abc" "abc")             ; true
+(= '(1 2) '(1 2))           ; true
+(= 'a 'a)                   ; true
+(eq? 1 1)                   ; true
+(eq? 1 1.0)                 ; false
+(eq? "a" "a")               ; false
+(eq? '(1) '(1))             ; false
+(eq? 'a 'a)                 ; true
 
 ;; 5. SPECIAL FORMS & LOGIC
 (quote (a b))               ; (a b)
@@ -41,7 +41,7 @@
 (if #f 'yes 'no)            ; no
 (if #f 'yes)                ; nil
 (and 1 2 3)                 ; 3
-(and #f 1)                  ; #f
+(and #f 1)                  ; false
 (or #f 5)                   ; 5
 (cond ((= 1 2) 'no) ((= 1 1) 'yes) (else 'none)) ; yes
 

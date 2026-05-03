@@ -4,8 +4,8 @@
 ;; primitives should be evaluated to the exactly the same values
 nil         ; (expected nil)
 ()          ; (expected ())
-#f          ; (expected #f)
-#t          ; (expected #t)
+#f          ; (expected false)
+#t          ; (expected true)
 false       ; (expected false)
 true        ; (expected true)
 123         ; (expected 123)
@@ -20,8 +20,8 @@ true        ; (expected true)
 '()                      ; ()
 '(a b)                   ; (a b)
 '(a b . c)               ; (a b . c)
-'#f                      ; #f
-'#t                      ; #t
+'#f                      ; false
+'#t                      ; true
 'false                   ; false
 'true                    ; true
 '123                     ; 123
