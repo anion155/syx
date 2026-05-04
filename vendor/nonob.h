@@ -165,6 +165,7 @@ void nonob_parse_options() {
   }
   ctx.argc = flag_rest_argc();
   ctx.argv = flag_rest_argv();
+  if (ctx.argc > 0 && strcmp(ctx.argv[0], "--") == 0) nob_shift(ctx.argv, ctx.argc);
   ht_foreach(command, &ctx.commands) {
     flag_c_set_program_name(command->flags, flag_program_name());
   }
@@ -205,6 +206,7 @@ bool nonob__run_command(const char *default_command) {
     }
     ctx.argc = flag_c_rest_argc(flags);
     ctx.argv = flag_c_rest_argv(flags);
+    if (ctx.argc > 0 && strcmp(ctx.argv[0], "--") == 0) nob_shift(ctx.argv, ctx.argc);
   }
 
   return command->run();

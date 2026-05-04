@@ -59,7 +59,7 @@ bool command_run_run(NoNob_Command *command) {
   return true;
 }
 
-#define command_debug_init NULL
+void command_debug_init(NoNob_Command *command) {}
 
 bool command_debug_run() {
   ctx.s->build_debug = true;
@@ -68,6 +68,7 @@ bool command_debug_run() {
   nob_cmd_append(&ctx.cmd, "lldb");
   nob_cmd_append(&ctx.cmd, ctx.s->syx_path);
   nob_cmd_append(&ctx.cmd, "--");
+  if (ctx.argc > 0 && strcmp(ctx.argv[0], "--") == 0) nob_shift(ctx.argv, ctx.argc);
   if (ctx.argc) nob_da_append_many(&ctx.cmd, ctx.argv, ctx.argc);
   if (!nob_cmd_run(&ctx.cmd)) return false;
 
@@ -100,6 +101,7 @@ bool command_tests_run() {
   }
 
   nob_cmd_append(&ctx.cmd, ctx.s->tests_path);
+  if (ctx.argc > 0 && strcmp(ctx.argv[0], "--") == 0) nob_shift(ctx.argv, ctx.argc);
   if (ctx.argc) nob_da_append_many(&ctx.cmd, ctx.argv, ctx.argc);
   if (!nob_cmd_run(&ctx.cmd)) return false;
 
