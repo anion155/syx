@@ -1,0 +1,2 @@
+(define (find-index list target index) (cond ((println index list)) ((nil? list) -1) ((= (car list) target) index) (else (find-index (cdr list) target (+ index 1)))))
+(find-index '(1 2 3) '2)

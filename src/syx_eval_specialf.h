@@ -185,41 +185,54 @@ SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *body = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
   SyxV *catch_symbol = make_syxv_symbol_cstr("catch");
   SyxV *finally_symbol = make_syxv_symbol_cstr("finally");
+  SyxV *result = NULL;
   syxv_list_for_each(branch, arguments) {
     if (branch->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed try handlers, list expected", ctx);
     if (branch->pair.left == catch_symbol) {
       if (body->kind != SYXV_KIND_THROW) continue;
       SyxV *list = branch->pair.right;
-      if (list->kind == SYXV_KIND_NIL) return (rc_release(body), make_syxv_nil());
+      if (list->kind == SYXV_KIND_NIL) {
+        if (result) rc_release(result);
+        result = rc_acquire(make_syxv_nil());
+        continue;
+      }
       if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed try's catch handler, list expected", ctx);
       if (list->pair.left->kind != SYXV_KIND_SYMBOL) {
-        rc_release(body);
-        return syx_eval_forms_list(ctx, list, .default_result = make_syxv_nil());
+        if (result) rc_release(result);
+        result = rc_acquire(syx_eval_forms_list(ctx, list));
+        syx_eval_early_exit(result, body);
+        continue;
       }
       SyxV *error_name = list->pair.left;
       SyxV *handler = list->pair.right;
       Syx_Eval_Ctx *handler_ctx = inherit_syx_eval_ctx(ctx, .env = make_syx_env(ctx->env, NULL));
       handler_ctx->env->description = strdup(temp_sprintf("try-catch<%p>", handler_ctx->env));
       syx_env_define(handler_ctx->env, &error_name->symbol, body->throw.reason);
-      rc_release(body);
-      SyxV *result = rc_acquire(syx_eval_forms_list(handler_ctx, handler, .default_result = make_syxv_nil()));
+      if (result) rc_release(result);
+      result = rc_acquire(syx_eval_forms_list(handler_ctx, handler, .default_result = make_syxv_nil()));
+      syx_eval_early_exit(result, body);
       rc_release(handler_ctx);
-      return rc_move(result);
+      continue;
     }
     if (branch->pair.left == finally_symbol) {
       SyxV *list = branch->pair.right;
-      if (list->kind == SYXV_KIND_NIL) return rc_move(body);
       if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed try's finally handler, list expected", ctx);
-      SyxV *handler = list->pair.right;
-      SyxV *result = rc_acquire(syx_eval_forms_list(ctx, handler, .default_result = make_syxv_nil()));
-      syx_eval_early_exit(result, body);
-      rc_release(result);
-      return rc_move(body);
+      SyxV *finally_result = rc_acquire(syx_eval_forms_list(ctx, list));
+      syx_eval_early_exit(finally_result, body, result);
+      rc_release(finally_result);
+      continue;
     }
     RUNTIME_ERROR("malformed try's handlers list", ctx);
   }
-  if (body->kind == SYXV_KIND_THROW) return (rc_release(body), make_syxv_nil());
-  return rc_move(body);
+  if (!result) return rc_move(body);
+  return rc_move(result);
+}
+
+/** Special form to trigger an immediate exit from the current function, carrying a value. */
+SyxV *syx_special_form_return(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+  SyxV *value = syx_eval(ctx, syxv_list_next(&arguments));
+  syx_eval_early_exit(value);
+  return make_syxv_return_value(value);
 }
 
 void syx_env_define_special_forms(Syx_Env *env) {
@@ -236,6 +249,7 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define_cstr(env, "cond", make_syxv_specialf(NULL, syx_special_form_cond));
   syx_env_define_cstr(env, "throw", make_syxv_specialf(NULL, syx_special_form_throw));
   syx_env_define_cstr(env, "try", make_syxv_specialf(NULL, syx_special_form_try));
+  syx_env_define_cstr(env, "return", make_syxv_specialf(NULL, syx_special_form_return));
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL

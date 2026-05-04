@@ -1,0 +1,8 @@
+(setopt x true)
+
+(define (test)
+  (begin
+    (println "Step 1")
+    (return 2)
+    (println "Step 3")))
+(test)

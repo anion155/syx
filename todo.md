@@ -1,11 +1,12 @@
-- attach stack frame to error object on throw
-- defer execution
-- early exit
+- recursive function delete it self
 - automatic fractional -> integer
 - int -> int* memory storage, like in strings
 - `.<constructor>(...<values>)` - as struct constructor, structs are basically mapped to real memory
 - `(.<constructor>(...<values>) <index>|<name> <value>?)` - as getter/setter
+- attach stack frame to error object on throw
 - compiler test runner
 - unit tests for parser : compiler test runner
 - unit tests for evaluator : compiler test runner
 - unit tests for utilities : compiler test runner
+- defer execution
+- return from upper function

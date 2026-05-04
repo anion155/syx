@@ -25,8 +25,6 @@
 #define SYX_EVAL_IMPL
 #include "syx_eval.h"
 
-#define SYXV_EXIT_QUIT_STORAGE "SYXV_EXIT_QUIT_STORAGE"
-
 typedef struct Syx_Script_Context {
   Syx_Eval_Ctx *eval_ctx;
   bool opt_xtrace;
@@ -50,29 +48,28 @@ int run_syx(const char *source_cstr) {
       printf("\n");
     }
     SyxV *result = syx_eval(script_ctx.eval_ctx, value);
+    if (result->kind == SYXV_KIND_RETURN_VALUE) return syx_convert_to_integer_v(script_ctx.eval_ctx, result);
     if (!syx_eval_report_error(script_ctx.eval_ctx, result)) return -1;
     if (script_ctx.opt_xtrace) {
       print_syxv(result);
       printf("\n");
     }
     da_append(results, rc_acquire(result));
-    if (syx_env_lookup_get(script_ctx.eval_ctx->env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
   }
   if (!script_ctx.opt_xtrace && script_ctx.opt_print && results->count) {
     print_syxv(results->items[results->count - 1]);
     printf("\n");
   }
   rc_release(results);
-  SyxV *quit = syx_env_lookup_get(script_ctx.eval_ctx->env, SYXV_EXIT_QUIT_STORAGE);
-  if (!quit) return -1;
-  return syx_convert_to_integer_v(script_ctx.eval_ctx, quit);
+  return -1;
 }
 
 SyxV *eval_quit(Syx_Eval_Ctx *ctx, SyxV *arguments) {
-  SyxV *result = syxv_list_next(&arguments);
-  if (result->kind == SYXV_KIND_NIL) result = make_syxv_integer(0);
-  syx_env_define_cstr(syx_env_global(ctx->env), SYXV_EXIT_QUIT_STORAGE, result);
-  return NULL;
+  UNUSED(ctx);
+  UNUSED(arguments);
+  // SyxV *result = syxv_list_next(&arguments);
+  // if (result->kind == SYXV_KIND_NIL) result = make_syxv_integer(0);
+  TODO("eval_quit");
 }
 
 SyxV *eval_setopt(Syx_Eval_Ctx *ctx, SyxV *arguments) {

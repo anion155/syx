@@ -45,6 +45,7 @@ typedef enum : unsigned int {
   SYXV_KIND_BUILTIN,
   SYXV_KIND_CLOSURE,
   SYXV_KIND_THROW,
+  SYXV_KIND_RETURN_VALUE,
 } SyxV_Kind;
 
 typedef struct SyxV_Symbol {
@@ -78,6 +79,7 @@ struct SyxV {
     Syx_Builtin builtin;
     Syx_Closure closure;
     SyxV_Throw throw;
+    SyxV *return_value;
   };
 };
 
@@ -117,6 +119,7 @@ SyxV *make_syxv_specialf(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env);
 SyxV *make_syxv_throw(Syx_Frame *stack_frame, SyxV *reason);
+SyxV *make_syxv_return_value(SyxV *return_value);
 
 SyxV *syxv_list_next_nullable(SyxV **list);
 SyxV *syxv_list_next(SyxV **list);
@@ -215,6 +218,7 @@ void syxv_destructor(void *data) {
       if (syxv->throw.stack_frame) rc_release(syxv->throw.stack_frame);
       if (syxv->throw.reason) rc_release(syxv->throw.reason);
     } break;
+    case SYXV_KIND_RETURN_VALUE: rc_release(syxv->return_value); break;
   }
 }
 
@@ -335,6 +339,12 @@ SyxV *make_syxv_throw(Syx_Frame *stack_frame, SyxV *reason) {
   return value;
 }
 
+SyxV *make_syxv_return_value(SyxV *return_value) {
+  SyxV *value = make_syxv(SYXV_KIND_RETURN_VALUE);
+  value->return_value = return_value ? rc_acquire(return_value) : NULL;
+  return value;
+}
+
 SyxV *syxv_list_next_nullable(SyxV **list) {
   if (!(*list)) return NULL;
   if ((*list)->kind != SYXV_KIND_PAIR) {
@@ -446,11 +456,8 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
       width += 1;
       return width;
     }
-    case SYXV_KIND_THROW: {
-      size_t width = 2 + 5;
-      if (value->throw.reason) width += 1 + stringify__cached_syxv(value->throw.reason, cache, NULL);
-      return width + 1;
-    }
+    case SYXV_KIND_THROW: UNREACHABLE("throw object can't be convderted");
+    case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be convderted");
   }
 }
 
@@ -559,20 +566,8 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
       }
       *string = ')';
     } break;
-    case SYXV_KIND_THROW: {
-      *(string++) = '(';
-      *(string++) = '#';
-      *(string++) = 'e';
-      *(string++) = 'r';
-      *(string++) = 'r';
-      *(string++) = 'o';
-      *(string++) = 'r';
-      if (value->throw.reason) {
-        *(string++) = ' ';
-        string += stringify__cached_syxv(value->throw.reason, cache, string);
-      }
-      *(string++) = ')';
-    } break;
+    case SYXV_KIND_THROW: UNREACHABLE("throw object can't be converted");
+    case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be convderted");
   }
 }
 

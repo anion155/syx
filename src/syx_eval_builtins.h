@@ -33,7 +33,7 @@ SyxV *syx_builtin_car(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 /** Returns the right element of a pair. */
 SyxV *syx_builtin_cdr(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *list = syxv_list_next(&arguments);
-  if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Pair expected as car argument", ctx);
+  if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Pair expected as cdr argument", ctx);
   return list->pair.right;
 }
 
@@ -76,7 +76,7 @@ SyxV *syx_builtin_map(Syx_Eval_Ctx *ctx, SyxV *arguments) {
     if (call) rc_release(call);
     call = rc_acquire(make_syxv_pair(fn, make_syxv_pair(*item, make_syxv_nil())));
     *item = syx_eval(ctx, call);
-    syx_eval_early_exit(*item, results);
+    syx_eval_early_exit(*item, call, results);
   }
   if (call) rc_release(call);
   return results;
@@ -219,7 +219,8 @@ bool syx__builtin_equivalent_comparator(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *rig
     case SYXV_KIND_SPECIALF: return false; // should work on left == right level
     case SYXV_KIND_BUILTIN: return false;  // should work on left == right level
     case SYXV_KIND_CLOSURE: return false;  // should work on left == right level
-    case SYXV_KIND_THROW: return false;    // should work on left == right level
+    case SYXV_KIND_THROW: UNREACHABLE("should never get throw object here");
+    case SYXV_KIND_RETURN_VALUE: UNREACHABLE("should never get return value object here");
   }
 }
 
@@ -319,7 +320,8 @@ bool syx__builtin_identity_comparator(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *right
     case SYXV_KIND_SPECIALF: return false; // should work on left == right level
     case SYXV_KIND_BUILTIN: return false;  // should work on left == right level
     case SYXV_KIND_CLOSURE: return false;  // should work on left == right level
-    case SYXV_KIND_THROW: return false;    // should work on left == right level
+    case SYXV_KIND_THROW: UNREACHABLE("should never get thrown value here");
+    case SYXV_KIND_RETURN_VALUE: UNREACHABLE("should never get return value object here");
   }
 }
 
