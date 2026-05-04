@@ -95,6 +95,8 @@ void usage(FILE *stream) {
   flag_print_options(stream);
 }
 
+#define HIST_FILE "history.txt"
+
 int main(int argc, char **argv) {
   srand(time(NULL));
 
@@ -140,9 +142,13 @@ int main(int argc, char **argv) {
     if (run_result >= 0) nob_return_defer(run_result);
   } else {
     printf("Syx Language REPL\n");
+    read_history(HIST_FILE);
     char *line_ptr;
     while ((line_ptr = readline("> ")) != NULL) {
-      if (*line_ptr) add_history(line_ptr);
+      if (*line_ptr) {
+        add_history(line_ptr);
+        write_history(HIST_FILE);
+      }
       int run_result = run_syx(line_ptr);
       free(line_ptr);
       if (run_result >= 0) nob_return_defer(run_result);
