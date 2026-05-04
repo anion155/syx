@@ -55,17 +55,13 @@ SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Builtin *builtin, 
 SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Closure *closure, SyxV *arguments);
 SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input);
 
-#define syx_eval_early_exit(value, ...)                      \
-  do {                                                       \
-    if ((value)->kind == SYXV_KIND_THROW) {                  \
-      rc_acquire((value));                                   \
-      void *items[] = {__VA_ARGS__};                         \
-      const size_t count = sizeof(items) / sizeof(items[0]); \
-      for (size_t index = 0; index < count; index += 1) {    \
-        rc_release(items[index]);                            \
-      }                                                      \
-      return rc_move((value));                               \
-    }                                                        \
+bool syx_eval_should_early_exit(SyxV *value, void *items[], size_t count);
+#define syx_eval_early_exit(value, ...)                                  \
+  do {                                                                   \
+    SyxV *_value = (value);                                              \
+    void *items[] = {__VA_ARGS__};                                       \
+    const size_t count = sizeof(items) / sizeof(items[0]);               \
+    if (syx_eval_should_early_exit(_value, items, count)) return _value; \
   } while (0)
 
 bool syx_eval_report_error(Syx_Eval_Ctx *ctx, SyxV *value);
@@ -376,8 +372,8 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
   }
   if (input->kind != SYXV_KIND_PAIR) return input;
   if (!input->pair.left) return input;
-  SyxV *head = rc_acquire(syx_eval(ctx, input->pair.left));
-  syx_eval_early_exit(head, head);
+  SyxV *head = syx_eval(ctx, input->pair.left);
+  syx_eval_early_exit(head);
   SyxV *arguments = input->pair.right;
   SyxV *result;
   switch (head->kind) {
@@ -394,8 +390,19 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
     case SYXV_KIND_CLOSURE: result = syx_eval_closure(ctx, head, &head->closure, arguments); break;
     case SYXV_KIND_THROW: RUNTIME_ERROR("quote is not a procedure", ctx);
   }
-  // rc_release(head);
   return result;
+}
+
+bool syx_eval_should_early_exit(SyxV *value, void *items[], size_t count) {
+  if (value->kind == SYXV_KIND_THROW) {
+    rc_acquire(value);
+    for (size_t index = 0; index < count; index += 1) {
+      rc_release(items[index]);
+    }
+    rc_move(value);
+    return true;
+  }
+  return false;
 }
 
 bool syx_eval_report_error(Syx_Eval_Ctx *ctx, SyxV *value) {
@@ -418,7 +425,7 @@ SyxV *syx__eval_forms_list_opt(Syx_Eval_Ctx *ctx, SyxV *forms_list, Syx_Eval_For
   syxv_list_for_each(form, forms_list) {
     if (result) rc_release(result);
     result = rc_acquire(syx_eval(ctx, form));
-    syx_eval_early_exit(result, result);
+    syx_eval_early_exit(result);
     if (opt.should_stop != NULL && opt.should_stop(ctx, result)) return rc_move(result);
   }
   if (result == NULL) RUNTIME_ERROR("empty forms list", ctx);

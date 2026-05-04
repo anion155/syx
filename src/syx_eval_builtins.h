@@ -60,9 +60,9 @@ SyxV *syx_builtin_apply(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   }
   if ((*last_item)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("Invalid arguments list", ctx);
   (*it) = rc_acquire(make_syxv_nil());
-  SyxV *result = rc_acquire(syx_eval(ctx, call));
-  syx_eval_early_exit(result, result);
-  return rc_move(result);
+  SyxV *result = syx_eval(ctx, call);
+  syx_eval_early_exit(result);
+  return result;
 }
 
 /** Applies a function to each element of a list and returns a new list of results. */

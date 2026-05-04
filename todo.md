@@ -1,6 +1,5 @@
-- early exit
-- throwing error
 - catching error
+- early exit
 - automatic fractional -> integer
 - int -> int* memory storage, like in strings
 - `.<constructor>(...<values>)` - as struct constructor, structs are basically mapped to real memory
