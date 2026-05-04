@@ -81,8 +81,8 @@ SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 
 /** Create new variable bindings in parallel on new environment and execute a series of forms in that environment. */
 SyxV *syx_special_form_let(Syx_Eval_Ctx *ctx, SyxV *arguments) {
-  Syx_Env *body_env = rc_acquire(make_syx_env(ctx->env, NULL));
-  body_env->description = strdup(temp_sprintf("let<%p>", body_env));
+  Syx_Eval_Ctx *body_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = make_syx_env(ctx->env, NULL)));
+  body_ctx->env->description = rc_acquire(strdup(temp_sprintf("let<%p>", body_ctx->env)));
   SyxV *bindings_src = syxv_list_next(&arguments);
   if (bindings_src->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("List of definitions expected", ctx);
   SyxV *bindings = NULL;
@@ -100,10 +100,11 @@ SyxV *syx_special_form_let(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   syxv_list_for_each(binding, bindings) {
     SyxV *name = binding->pair.left;
     SyxV *value = binding->pair.right;
-    syx_env_define(body_env, &name->symbol, value);
+    syx_env_define(body_ctx->env, &name->symbol, value);
   }
-  Syx_Eval_Ctx body_ctx = {.env = body_env};
-  return syx_eval_forms_list(&body_ctx, arguments);
+  SyxV *result = syx_eval_forms_list(body_ctx, arguments);
+  rc_release(body_ctx);
+  return result;
 }
 
 bool syx_special_form_and_reduce(Syx_Eval_Ctx *ctx, SyxV *evaluated) {
@@ -175,7 +176,7 @@ SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 SyxV *syx_special_form_throw(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *reason = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
   syx_eval_early_exit(reason, reason);
-  return make_syxv_throw(ctx->frame, rc_move(reason));
+  return make_syxv_throw(ctx->frame_stack->latest, rc_move(reason));
 }
 
 void syx_env_define_special_forms(Syx_Env *env) {

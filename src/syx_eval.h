@@ -23,15 +23,21 @@ struct Syx_Frame {
   SyxV *callable;
 };
 
+typedef struct Syx_Frame_Stack {
+  Syx_Frame *latest;
+} Syx_Frame_Stack;
+
 struct Syx_Eval_Ctx {
   Syx_Env *env;
-  Syx_Frame *frame;
+  Syx_Frame_Stack *frame_stack;
 };
 
-Syx_Eval_Ctx make_syx_eval_ctx(Syx_Env *env);
+Syx_Eval_Ctx *make_global_syx_eval_ctx();
+Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
+#define inherit_syx_eval_ctx(parent, ...) inherit_syx_eval_ctx_opt((parent), ((Syx_Eval_Ctx){__VA_ARGS__}))
 void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, SyxV *callable);
 void syx_ctx_pop_frame(Syx_Eval_Ctx *ctx);
-String_View stringify_call_stack(Syx_Eval_Ctx *ctx);
+String_View stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame);
 
 void syx_env_destructor(void *data);
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description);
@@ -62,7 +68,7 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input);
     }                                                        \
   } while (0)
 
-bool syx_eval_report_error(SyxV *value);
+bool syx_eval_report_error(Syx_Eval_Ctx *ctx, SyxV *value);
 
 typedef struct Syx_Eval_Forms_List_Opt {
   bool (*should_stop)(Syx_Eval_Ctx *ctx, SyxV *evaluated);
@@ -101,26 +107,51 @@ void syx_frame_destructor(void *data) {
   if (frame->prev) rc_release(frame->prev);
 }
 
-Syx_Eval_Ctx make_syx_eval_ctx(Syx_Env *env) {
-  return (Syx_Eval_Ctx){.env = env, .frame = NULL};
+void syx_frame_stack_destructor(void *data) {
+  Syx_Frame_Stack *stack = (Syx_Frame_Stack *)data;
+  if (stack->latest) rc_release(stack->latest);
+}
+
+void syx_eval_ctx_destructor(void *data) {
+  Syx_Eval_Ctx *ctx = (Syx_Eval_Ctx *)data;
+  rc_release(ctx->env);
+  rc_release(ctx->frame_stack);
+}
+
+Syx_Eval_Ctx *make_global_syx_eval_ctx() {
+  Syx_Eval_Ctx *ctx = rc_alloc(sizeof(Syx_Eval_Ctx), syx_eval_ctx_destructor);
+  ctx->env = rc_acquire(make_global_syx_env());
+  ctx->frame_stack = rc_acquire(rc_alloc(sizeof(Syx_Frame_Stack), syx_frame_stack_destructor));
+  ctx->frame_stack->latest = NULL;
+  return ctx;
+}
+
+Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt) {
+  Syx_Eval_Ctx *ctx = rc_alloc(sizeof(Syx_Eval_Ctx), syx_eval_ctx_destructor);
+  ctx->env = rc_acquire(opt.env ? opt.env : parent->env);
+  ctx->frame_stack = rc_acquire(opt.frame_stack ? opt.frame_stack : parent->frame_stack);
+  return ctx;
 }
 
 void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, SyxV *callable) {
+  Syx_Frame *prev = ctx->frame_stack->latest;
   Syx_Frame *next = rc_alloc(sizeof(Syx_Frame), syx_frame_destructor);
   next->callable = rc_acquire(callable);
-  next->prev = ctx->frame ? rc_acquire(ctx->frame) : NULL;
-  ctx->frame = next;
+  if (prev) {
+    next->prev = rc_acquire(prev);
+    rc_release(prev);
+  }
+  ctx->frame_stack->latest = rc_acquire(next);
 }
 
 void syx_ctx_pop_frame(Syx_Eval_Ctx *ctx) {
-  Syx_Frame *current = ctx->frame;
-  ctx->frame = current->prev;
+  Syx_Frame *current = ctx->frame_stack->latest;
+  ctx->frame_stack->latest = current->prev ? rc_acquire(current->prev) : NULL;
   rc_release(current);
 }
 
-String_View stringify_call_stack(Syx_Eval_Ctx *ctx) {
+String_View stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame) {
   String_Builder sb = {0};
-  Syx_Frame *frame = ctx->frame;
   while (frame) {
     const char *name;
     switch (frame->callable->kind) {
@@ -267,7 +298,7 @@ SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Builtin *builtin, 
     syx_eval_early_exit(*argument, evaluated);
   }
   syx_ctx_push_frame(ctx, callable);
-  SyxV *result = rc_acquire(builtin->eval(ctx, evaluated));
+  SyxV *result = builtin->eval(ctx, evaluated);
   if (!result) result = make_syxv_nil();
   rc_acquire(result);
   syx_ctx_pop_frame(ctx);
@@ -275,7 +306,8 @@ SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Builtin *builtin, 
 }
 
 SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Closure *closure, SyxV *arguments) {
-  Syx_Env *call_env = rc_acquire(make_syx_env(closure->env, temp_sprintf("<%s>", closure->name)));
+  const char *env_description = closure->name ? temp_sprintf("#<%s>", closure->name) : "#<>";
+  Syx_Eval_Ctx *call_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = make_syx_env(ctx->env, env_description)));
   SyxV *it = arguments;
   SyxV **last_name = NULL;
   syxv_list_for_each(name_v, closure->defines, &last_name) {
@@ -286,7 +318,7 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Closure *closure, 
       symbol = &name_v->symbol;
     }
   continue_same_param:
-    if (ht_find(&call_env->symbols, symbol->name)) continue;
+    if (ht_find(&call_ctx->env->symbols, symbol->name)) continue;
     if (it->kind == SYXV_KIND_NIL) TODO("Implement smaller arguments passed or currying");
     if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", ctx);
     if (it->pair.left->kind == SYXV_KIND_SYMBOL && it->pair.left->symbol.name[0] == ':') {
@@ -295,14 +327,14 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Closure *closure, 
       it = it->pair.right;
       if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", ctx);
       SyxV *left = syx_eval(ctx, it->pair.left);
-      syx_eval_early_exit(left, call_env);
-      syx_env_define_cstr(call_env, named_param, left);
+      syx_eval_early_exit(left, call_ctx);
+      syx_env_define_cstr(call_ctx->env, named_param, left);
       it = it->pair.right;
       goto continue_same_param;
     }
     SyxV *left = syx_eval(ctx, it->pair.left);
-    syx_eval_early_exit(left, call_env);
-    syx_env_define(call_env, symbol, left);
+    syx_eval_early_exit(left, call_ctx);
+    syx_env_define(call_ctx->env, symbol, left);
     it = it->pair.right;
   }
   if ((*last_name)->kind != SYXV_KIND_NIL) {
@@ -312,27 +344,26 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Closure *closure, 
     SyxV **last_argument = NULL;
     syxv_list_map(argument, rest, &evaluated, &last_argument) {
       *argument = syx_eval(ctx, *argument);
-      syx_eval_early_exit(*argument, call_env, evaluated);
+      syx_eval_early_exit(*argument, call_ctx, evaluated);
     }
     if ((*last_argument)->kind != SYXV_KIND_NIL) {
       *last_argument = rc_acquire(syx_eval(ctx, *last_argument));
-      syx_eval_early_exit(*last_argument, call_env, evaluated);
+      syx_eval_early_exit(*last_argument, call_ctx, evaluated);
     }
-    syx_env_define(call_env, symbol, rest);
+    syx_env_define(call_ctx->env, symbol, rest);
   }
   syxv_list_for_each(name_v, closure->defines) {
     if (name_v->kind != SYXV_KIND_PAIR) continue;
     const char *name = name_v->pair.left->symbol.name;
-    SyxV **value = ht_find(&call_env->symbols, name);
+    SyxV **value = ht_find(&call_ctx->env->symbols, name);
     if (value != NULL) continue;
     (*value) = rc_acquire(syx_eval(ctx, name_v->pair.right));
-    syx_eval_early_exit(*value, call_env);
+    syx_eval_early_exit(*value, call_ctx);
   }
-  Syx_Eval_Ctx call_ctx = {.env = call_env};
   syx_ctx_push_frame(ctx, callable);
-  SyxV *result = syx_eval_forms_list(&call_ctx, closure->forms);
+  SyxV *result = syx_eval_forms_list(call_ctx, closure->forms);
   syx_ctx_pop_frame(ctx);
-  rc_release(call_env);
+  rc_release(call_ctx);
   return result;
 }
 
@@ -367,9 +398,17 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
   return result;
 }
 
-bool syx_eval_report_error(SyxV *value) {
+bool syx_eval_report_error(Syx_Eval_Ctx *ctx, SyxV *value) {
   if (value->kind != SYXV_KIND_THROW) return true;
-  fprint_syxv(stderr, value);
+  SyxV *reason = syx_convert_to_string(ctx, value->throw.reason);
+  fprintf(stderr, "Unahndled exception: ");
+  if (reason) fprintf(stderr, SV_Fmt "\n", SV_Arg(reason->string));
+  else fprintf(stderr, "unknown\n");
+  if (value->throw.stack_frame) {
+    String_View frames_stack = stringify_call_stack(ctx, value->throw.stack_frame);
+    fprintf(stderr, SV_Fmt "\n", SV_Arg(frames_stack));
+    // TODO free frames_stack
+  }
   return false;
 }
 

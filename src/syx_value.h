@@ -191,8 +191,8 @@ void syxv_destructor(void *data) {
       free(syxv->symbol.name);
     } break;
     case SYXV_KIND_PAIR:
-      rc_release(syxv->pair.left);
-      rc_release(syxv->pair.right);
+      if (syxv->pair.left) rc_release(syxv->pair.left);
+      if (syxv->pair.right) rc_release(syxv->pair.right);
       break;
     case SYXV_KIND_BOOL: break;
     case SYXV_KIND_INTEGER: break;
@@ -330,7 +330,7 @@ SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *forms, Syx_Env *e
 
 SyxV *make_syxv_throw(Syx_Frame *stack_frame, SyxV *reason) {
   SyxV *value = make_syxv(SYXV_KIND_THROW);
-  value->throw.stack_frame = rc_acquire(stack_frame);
+  value->throw.stack_frame = stack_frame ? rc_acquire(stack_frame) : NULL;
   value->throw.reason = reason ? rc_acquire(reason) : NULL;
   return value;
 }

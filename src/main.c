@@ -28,7 +28,7 @@
 #define SYXV_EXIT_QUIT_STORAGE "SYXV_EXIT_QUIT_STORAGE"
 
 typedef struct Syx_Script_Context {
-  Syx_Eval_Ctx eval_ctx;
+  Syx_Eval_Ctx *eval_ctx;
   bool opt_xtrace;
   bool opt_print;
 } Syx_Script_Context;
@@ -49,23 +49,23 @@ int run_syx(const char *source_cstr) {
       print_syxv(value);
       printf("\n");
     }
-    SyxV *result = syx_eval(&script_ctx.eval_ctx, value);
-    if (!syx_eval_report_error(result)) break;
+    SyxV *result = syx_eval(script_ctx.eval_ctx, value);
+    if (!syx_eval_report_error(script_ctx.eval_ctx, result)) return -1;
     if (script_ctx.opt_xtrace) {
       print_syxv(result);
       printf("\n");
     }
     da_append(results, rc_acquire(result));
-    if (syx_env_lookup_get(script_ctx.eval_ctx.env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
+    if (syx_env_lookup_get(script_ctx.eval_ctx->env, SYXV_EXIT_QUIT_STORAGE) != NULL) break;
   }
   if (!script_ctx.opt_xtrace && script_ctx.opt_print && results->count) {
     print_syxv(results->items[results->count - 1]);
     printf("\n");
   }
   rc_release(results);
-  SyxV *quit = syx_env_lookup_get(script_ctx.eval_ctx.env, SYXV_EXIT_QUIT_STORAGE);
+  SyxV *quit = syx_env_lookup_get(script_ctx.eval_ctx->env, SYXV_EXIT_QUIT_STORAGE);
   if (!quit) return -1;
-  return syx_convert_to_integer_v(&script_ctx.eval_ctx, quit);
+  return syx_convert_to_integer_v(script_ctx.eval_ctx, quit);
 }
 
 SyxV *eval_quit(Syx_Eval_Ctx *ctx, SyxV *arguments) {
@@ -121,11 +121,10 @@ int main(int argc, char **argv) {
   if (*opt_xtrace) script_ctx.opt_xtrace = *opt_xtrace;
   else if (*opt_print) script_ctx.opt_print = true;
 
-  Syx_Env *global_env = rc_acquire(make_global_syx_env());
-  script_ctx.eval_ctx = make_syx_eval_ctx(global_env);
+  script_ctx.eval_ctx = make_global_syx_eval_ctx();
 
-  syx_env_define_cstr(global_env, "quit", make_syxv_builtin(NULL, eval_quit));
-  syx_env_define_cstr(global_env, "setopt", make_syxv_specialf(NULL, eval_setopt));
+  syx_env_define_cstr(script_ctx.eval_ctx->env, "quit", make_syxv_builtin(NULL, eval_quit));
+  syx_env_define_cstr(script_ctx.eval_ctx->env, "setopt", make_syxv_specialf(NULL, eval_setopt));
 
   int result = 0;
   if (commands->count) {
@@ -151,6 +150,6 @@ int main(int argc, char **argv) {
   }
 
 defer:
-  rc_release(global_env);
+  rc_release(script_ctx.eval_ctx);
   return result;
 }
