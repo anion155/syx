@@ -562,11 +562,11 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
     case SYXV_KIND_THROW: {
       *(string++) = '(';
       *(string++) = '#';
-      *(string++) = 't';
-      *(string++) = 'h';
+      *(string++) = 'e';
+      *(string++) = 'r';
       *(string++) = 'r';
       *(string++) = 'o';
-      *(string++) = 'w';
+      *(string++) = 'r';
       if (value->throw.reason) {
         *(string++) = ' ';
         string += stringify__cached_syxv(value->throw.reason, cache, string);

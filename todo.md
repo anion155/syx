@@ -1,4 +1,5 @@
-- catching error
+- attach stack frame to error object on throw
+- defer execution
 - early exit
 - automatic fractional -> integer
 - int -> int* memory storage, like in strings

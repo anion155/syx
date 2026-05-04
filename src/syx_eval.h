@@ -110,8 +110,8 @@ void syx_frame_stack_destructor(void *data) {
 
 void syx_eval_ctx_destructor(void *data) {
   Syx_Eval_Ctx *ctx = (Syx_Eval_Ctx *)data;
-  rc_release(ctx->env);
   rc_release(ctx->frame_stack);
+  rc_release(ctx->env);
 }
 
 Syx_Eval_Ctx *make_global_syx_eval_ctx() {
@@ -396,9 +396,7 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
 bool syx_eval_should_early_exit(SyxV *value, void *items[], size_t count) {
   if (value->kind == SYXV_KIND_THROW) {
     rc_acquire(value);
-    for (size_t index = 0; index < count; index += 1) {
-      rc_release(items[index]);
-    }
+    for (size_t index = 0; index < count; index += 1) rc_release(items[index]);
     rc_move(value);
     return true;
   }
@@ -408,7 +406,7 @@ bool syx_eval_should_early_exit(SyxV *value, void *items[], size_t count) {
 bool syx_eval_report_error(Syx_Eval_Ctx *ctx, SyxV *value) {
   if (value->kind != SYXV_KIND_THROW) return true;
   SyxV *reason = syx_convert_to_string(ctx, value->throw.reason);
-  fprintf(stderr, "Unahndled exception: ");
+  fprintf(stderr, "Unhandled exception: ");
   if (reason) fprintf(stderr, SV_Fmt "\n", SV_Arg(reason->string));
   else fprintf(stderr, "unknown\n");
   if (value->throw.stack_frame) {

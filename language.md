@@ -81,6 +81,10 @@ Create value of type `throw` that is should trigger early return of said value a
 It carries first argument (as reason) and evaluation stack reference.
 `(throw <value>)`
 
+### try/catch/finally
+Special form for intercepting throw values and ensuring cleanup logic is executed.
+`(try <body> (catch <symbol> ...<handler>)? (finally ...<cleanup>)?)`
+
 ## Builtins List
 
 ### cons

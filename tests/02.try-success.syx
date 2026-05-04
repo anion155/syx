@@ -1,0 +1,28 @@
+(setopt x true)
+
+(try 1) ; 1
+(try 1 (finally)) ; 1
+(try 1 (finally 2)) ; 1
+(try 1 (finally 2 3)) ; 1
+(try 1 (catch)) ; 1
+(try 1 (catch a)) ; 1
+(try 1 (catch a 2)) ; 1
+(try 1 (catch 2 3)) ; 1
+(try 1 (catch) (finally)) ; 1
+(try 1 (catch) (finally 2)) ; 1
+(try 1 (catch) (finally 2 3)) ; 1
+(try 1 (catch a) (finally)) ; 1
+(try 1 (catch a) (finally 2)) ; 1
+(try 1 (catch a) (finally 2 3)) ; 1
+(try 1 (catch a 2) (finally)) ; 1
+(try 1 (catch a 2) (finally 2)) ; 1
+(try 1 (catch a 2) (finally 2 3)) ; 1
+(try 1 (catch a 2 3) (finally)) ; 1
+(try 1 (catch a 2 3) (finally 2)) ; 1
+(try 1 (catch a 2 3) (finally 2 3)) ; 1
+(try 1 (catch 2) (finally)) ; 1
+(try 1 (catch 2) (finally 2)) ; 1
+(try 1 (catch 2) (finally 2 3)) ; 1
+(try 1 (catch 2 3) (finally)) ; 1
+(try 1 (catch 2 3) (finally 2)) ; 1
+(try 1 (catch 2 3) (finally 2 3)) ; 1
