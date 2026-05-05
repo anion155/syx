@@ -136,13 +136,14 @@ int main(int argc, char **argv) {
     if (!nob_read_entire_file(argv[0], &sb)) UNREACHABLE("Failed to read file");
     String_View script = sb_to_sv(sb);
     int run_result = run_syx(script.data);
+    sb_free(sb);
     if (run_result >= 0) nob_return_defer(run_result);
   } else {
     printf("Syx Language REPL\n");
     read_history(HIST_FILE);
     char *line_ptr;
     while ((line_ptr = readline("> ")) != NULL) {
-      if (*line_ptr) {
+      if (line_ptr && *line_ptr) {
         add_history(line_ptr);
         write_history(HIST_FILE);
       }

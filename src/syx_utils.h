@@ -19,6 +19,7 @@ typedef long long int syx_integer_t;
 typedef long double syx_fractional_t;
 
 typedef String_View syx_string_view_t;
+typedef String_Builder syx_string_t;
 
 bool parse_integer(String_View *sv, syx_integer_t *result);
 bool parse_fractions(String_View *sv, syx_fractional_t *result);
@@ -26,7 +27,7 @@ bool parse_fractional(String_View *sv, syx_fractional_t *result);
 
 size_t get_integer_string_width(syx_integer_t value);
 void stringify_integer_n(syx_integer_t value, size_t length, char *string);
-String_View stringify_integer(syx_integer_t value);
+syx_string_t stringify_integer(syx_integer_t value);
 
 #define FRAC_MINIMAL_DIFFERENCE 1e-9
 #define MAX_FRAC_FRACTIONAL_WIDTH 15
@@ -37,7 +38,7 @@ size_t fractions__precision(syx_fractional_t value, ssize_t precision);
 
 size_t get_fractional_string_width(syx_fractional_t value, size_t precision);
 void stringify_fractional_n(syx_fractional_t value, size_t integer_width, size_t precision, char *string);
-String_View stringify__fractional(syx_fractional_t value, ssize_t precision);
+syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision);
 #define stringify_fractional(value, ...) stringify__fractional((value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
 
 #define define_constant(type, name)     \
@@ -179,10 +180,10 @@ void stringify_integer_n(syx_integer_t value, size_t length, char *string) {
   }
 }
 
-String_View stringify_integer(syx_integer_t value) {
+syx_string_t stringify_integer(syx_integer_t value) {
   size_t length = get_integer_string_width(value);
   char *string = malloc(length + 1);
-  String_View result = {.data = string, .count = length};
+  syx_string_t result = {.items = string, .count = length, .capacity = length + 1};
   stringify_integer_n(value, length, string);
   return result;
 }
@@ -232,14 +233,14 @@ void stringify_fractional_n(syx_fractional_t value, size_t integer_width, size_t
   return;
 }
 
-String_View stringify__fractional(syx_fractional_t value, ssize_t precision) {
+syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision) {
   syx_fractional_t round_const = value < 0 ? -0.5 : 0.5;
   if (precision == 0) return stringify_integer((syx_integer_t)value + round_const);
   size_t _precision = fractions__precision(value, precision);
-  String_View res = {.count = get_fractional_string_width(value, _precision)};
-  char *string = malloc(res.count + 1);
-  res.data = string;
-  stringify_fractional_n(value, get_integer_string_width(value), _precision, string);
+  syx_string_t res = {.count = get_fractional_string_width(value, _precision)};
+  res.capacity = res.count + 1;
+  res.items = malloc(res.count + 1);
+  stringify_fractional_n(value, get_integer_string_width(value), _precision, res.items);
   return res;
 }
 

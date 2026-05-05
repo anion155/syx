@@ -8,7 +8,7 @@ int main() {
                                make_syxv_pair(make_syxv_symbol_cstr("a"), make_syxv_pair(make_syxv_symbol_cstr("b"), make_syxv_nil())),
                                make_syxv_pair(make_syxv_symbol_cstr("a"), make_syxv_nil()),
                                NULL);
-  String_View sv = stringify_syxv(s1);
-  printf("GG " SV_Fmt "\n", SV_Arg(sv));
+  String_Builder sb = stringify_syxv(s1);
+  printf("GG %s\n", sb.items);
   return 0;
 }

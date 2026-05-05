@@ -104,7 +104,8 @@ SyxV *make_syxv_list_opt(size_t count, SyxV **items);
 SyxV *make_syxv_bool(syx_bool_t value);
 SyxV *make_syxv_integer(syx_integer_t value);
 SyxV *make_syxv_fractional(syx_fractional_t value);
-SyxV *make_syxv_string(syx_string_view_t value);
+SyxV *make_syxv_string(syx_string_t value);
+SyxV *make_syxv_string_sv(syx_string_view_t value);
 SyxV *make_syxv_string_n(const char *value, size_t size);
 SyxV *make_syxv_string_cstr(const char *value);
 #define make_syxv_value(value)                       \
@@ -112,7 +113,8 @@ SyxV *make_syxv_string_cstr(const char *value);
       syx_bool_t: make_syxv_bool(value),             \
       syx_integer_t: make_syxv_integer(value),       \
       syx_fractional_t: make_syxv_fractional(value), \
-      syx_string_view_t: make_syxv_string(value),    \
+      syx_string_t: make_syxv_string(value),         \
+      syx_string_view_t: make_syxv_string_sv(value), \
       const char *: make_syxv_string_cstr(value))
 SyxV *make_syxv_quote(SyxV *quote);
 SyxV *make_syxv_specialf(const char *name, Syx_Evaluator eval);
@@ -139,12 +141,12 @@ bool syxv__list_map_next(SyxV **source_it, SyxV ***target_it, SyxV ***value, Syx
            &value,                               \
            WITH_DEFAULT(NULL, __VA_ARGS__));)
 
-typedef Ht(SyxV *, String_View, SyxV_Stringify_Cache) SyxV_Stringify_Cache;
+typedef Ht(SyxV *, String_Builder, SyxV_Stringify_Cache) SyxV_Stringify_Cache;
 size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache);
 #define get_syxv_string_width(value, ...) get__syxv_string_width((value), WITH_DEFAULT(NULL, __VA_ARGS__))
 void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_Cache *cache);
 #define stringify_syxv_n(value, length, string, ...) stringify__syxv_n((value), (length), (string), WITH_DEFAULT(NULL, __VA_ARGS__))
-String_View stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache);
+String_Builder stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache);
 #define stringify_syxv(value, ...) stringify__syxv((value), WITH_DEFAULT(NULL, __VA_ARGS__))
 
 void fprint_syxv(FILE *f, SyxV *value);
@@ -288,7 +290,14 @@ SyxV *make_syxv_fractional(syx_fractional_t value) {
   return syxv;
 }
 
-SyxV *make_syxv_string(String_View value) {
+SyxV *make_syxv_string(syx_string_t value) {
+  SyxV *syxv = make_syxv(SYXV_KIND_STRING);
+  syxv->string.data = strndup(value.items, value.count);
+  syxv->string.count = value.count;
+  return syxv;
+}
+
+SyxV *make_syxv_string_sv(syx_string_view_t value) {
   SyxV *syxv = make_syxv(SYXV_KIND_STRING);
   syxv->string.data = strndup(value.data, value.count);
   syxv->string.count = value.count;
@@ -296,11 +305,14 @@ SyxV *make_syxv_string(String_View value) {
 }
 
 SyxV *make_syxv_string_n(const char *value, size_t size) {
-  return make_syxv_string((String_View){.data = value, .count = size});
+  SyxV *syxv = make_syxv(SYXV_KIND_STRING);
+  syxv->string.data = strndup(value, size);
+  syxv->string.count = size;
+  return syxv;
 }
 
 SyxV *make_syxv_string_cstr(const char *value) {
-  return make_syxv_string(sv_from_cstr(value));
+  return make_syxv_string_sv(sv_from_cstr(value));
 }
 
 SyxV *make_syxv_quote(SyxV *quote) {
@@ -396,20 +408,20 @@ size_t stringify__cached_syxv(SyxV *value, SyxV_Stringify_Cache *cache, char *st
     if (string) stringify__syxv_n(value, width, string, NULL);
     return width;
   }
-  String_View *cached = ht_find(cache, value);
+  syx_string_t *cached = ht_find(cache, value);
   if (cached != NULL) {
-    if (string) memcpy(string, cached->data, cached->count);
+    if (string) memcpy(string, cached->items, cached->count);
     return cached->count;
   }
-  String_View sv = stringify__syxv(value, cache);
+  syx_string_t sb = stringify__syxv(value, cache);
   cached = ht_put(cache, value);
-  *cached = sv;
-  if (string) memcpy(string, cached->data, cached->count);
+  *cached = sb;
+  if (string) memcpy(string, cached->items, cached->count);
   return cached->count;
 }
 
 size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
-  String_View *cached = cache ? ht_find(cache, value) : NULL;
+  syx_string_t *cached = cache ? ht_find(cache, value) : NULL;
   if (cached) return (*cached).count;
   switch (value->kind) {
     case SYXV_KIND_NIL: return 2;
@@ -462,9 +474,9 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
 }
 
 void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_Cache *cache) {
-  String_View *cached = cache ? ht_find(cache, value) : NULL;
+  syx_string_t *cached = cache ? ht_find(cache, value) : NULL;
   if (cached) {
-    memcpy(string, cached->data, cached->count);
+    memcpy(string, cached->items, cached->count);
     return;
   }
   switch (value->kind) {
@@ -571,21 +583,21 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
   }
 }
 
-String_View stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache) {
+syx_string_t stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache) {
   SyxV_Stringify_Cache local_cache = {0};
   if (!cache) cache = &local_cache;
   size_t width = get__syxv_string_width(value, cache);
   char *string = malloc(width + 1);
-  String_View result = {.data = string, .count = width};
+  syx_string_t result = {.items = string, .count = width, .capacity = width + 1};
   stringify__syxv_n(value, width, string, cache);
-  ht_free(cache);
+  ht_free(&local_cache);
   return result;
 }
 
 void fprint_syxv(FILE *f, SyxV *value) {
-  String_View sv = stringify_syxv(value);
-  fprintf(f, SV_Fmt, SV_Arg(sv));
-  // TODO: delete sv
+  syx_string_t sb = stringify_syxv(value);
+  fprintf(f, "%s", sb.items);
+  sb_free(sb);
 }
 
 #endif // SYX_VALUE_IMPL

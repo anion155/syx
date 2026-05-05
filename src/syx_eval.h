@@ -37,7 +37,7 @@ Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
 #define inherit_syx_eval_ctx(parent, ...) inherit_syx_eval_ctx_opt((parent), ((Syx_Eval_Ctx){__VA_ARGS__}))
 void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, SyxV *callable);
 void syx_ctx_pop_frame(Syx_Eval_Ctx *ctx);
-String_View stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame);
+syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame);
 
 void syx_env_destructor(void *data);
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description);
@@ -80,7 +80,7 @@ syx_integer_t syx_convert_to_integer_v(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *syx_convert_to_integer(Syx_Eval_Ctx *ctx, SyxV *value);
 syx_fractional_t syx_convert_to_fractional_v(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *syx_convert_to_fractional(Syx_Eval_Ctx *ctx, SyxV *value);
-syx_string_view_t syx_convert_to_string_v(Syx_Eval_Ctx *ctx, SyxV *value);
+syx_string_t syx_convert_to_string_v(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value);
 
 #endif // SYX_EVAL_H
@@ -146,8 +146,8 @@ void syx_ctx_pop_frame(Syx_Eval_Ctx *ctx) {
   rc_release(current);
 }
 
-String_View stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame) {
-  String_Builder sb = {0};
+syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame) {
+  syx_string_t sb = {0};
   while (frame) {
     const char *name;
     switch (frame->callable->kind) {
@@ -159,7 +159,7 @@ String_View stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame) {
     sb_appendf(&sb, " at %s\n", name);
     frame = frame->prev;
   }
-  return sb_to_sv(sb);
+  return sb;
 }
 
 void syx_env_destructor(void *data) {
@@ -423,9 +423,9 @@ bool syx_eval_report_error(Syx_Eval_Ctx *ctx, SyxV *value) {
   if (reason) fprintf(stderr, SV_Fmt "\n", SV_Arg(reason->string));
   else fprintf(stderr, "unknown\n");
   if (value->throw.stack_frame) {
-    String_View frames_stack = stringify_call_stack(ctx, value->throw.stack_frame);
-    fprintf(stderr, SV_Fmt "\n", SV_Arg(frames_stack));
-    // TODO free frames_stack
+    syx_string_t frames_stack = stringify_call_stack(ctx, value->throw.stack_frame);
+    fprintf(stderr, "%s\n", frames_stack.items);
+    sb_free(frames_stack);
   }
   return false;
 }
@@ -548,14 +548,14 @@ SyxV *syx_convert_to_fractional(Syx_Eval_Ctx *ctx, SyxV *value) {
   }
 }
 
-syx_string_view_t syx_convert_to_string_v(Syx_Eval_Ctx *ctx, SyxV *value) {
+syx_string_t syx_convert_to_string_v(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
-    case SYXV_KIND_NIL: return sv_from_cstr("nil");
+    case SYXV_KIND_NIL: return "nil";
     case SYXV_KIND_SYMBOL: RUNTIME_ERROR("illegal conversion of symbol to string", ctx);
-    case SYXV_KIND_PAIR: return stringify_syxv(value);
+    case SYXV_KIND_PAIR: return sb_to_sv(stringify_syxv(value));
     case SYXV_KIND_BOOL: return sv_from_cstr(value->boolean ? "true" : "false");
-    case SYXV_KIND_INTEGER: return stringify_integer(value->integer);
-    case SYXV_KIND_FRACTIONAL: return stringify_fractional(value->fractional);
+    case SYXV_KIND_INTEGER: return sb_to_sv(stringify_integer(value->integer));
+    case SYXV_KIND_FRACTIONAL: return sb_to_sv(stringify_fractional(value->fractional));
     case SYXV_KIND_STRING: return value->string;
     case SYXV_KIND_QUOTE: return syx_convert_to_string_v(ctx, value->quote);
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR("illegal conversion of special form to string", ctx);
