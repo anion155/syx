@@ -44,7 +44,7 @@ typedef enum : unsigned int {
   SYXV_KIND_SPECIALF,
   SYXV_KIND_BUILTIN,
   SYXV_KIND_CLOSURE,
-  SYXV_KIND_THROW,
+  SYXV_KIND_THROWN,
   SYXV_KIND_RETURN_VALUE,
 } SyxV_Kind;
 
@@ -59,10 +59,10 @@ typedef struct SyxV_Pair {
   SyxV *right;
 } SyxV_Pair;
 
-typedef struct SyxV_Throw {
+typedef struct SyxV_Thrown {
   SyxV *reason;
   Syx_Frame *stack_frame;
-} SyxV_Throw;
+} SyxV_Thrown;
 
 struct SyxV {
   SyxV_Kind kind;
@@ -78,7 +78,7 @@ struct SyxV {
     Syx_SpecialF specialf;
     Syx_Builtin builtin;
     Syx_Closure closure;
-    SyxV_Throw throw;
+    SyxV_Thrown thrown;
     SyxV *return_value;
   };
 };
@@ -183,7 +183,7 @@ define_constant(struct SYXV_CONSTANTS_t {
   SYXV_CONSTANTS->f->boolean = false;
 }
 
-define_constant(Ht(const char *, SyxV_Symbol *), SYXV_SYMBOLS) {
+define_constant(Ht(const char *, SyxV *), SYXV_SYMBOLS) {
   SYXV_SYMBOLS->hasheq = ht_cstr_hasheq;
 }
 
@@ -192,7 +192,7 @@ void syxv_destructor(void *data) {
   switch (syxv->kind) {
     case SYXV_KIND_NIL: break;
     case SYXV_KIND_SYMBOL: {
-      ht_delete(SYXV_SYMBOLS(), &syxv->symbol);
+      ht_delete(SYXV_SYMBOLS(), syxv);
       free(syxv->symbol.name);
     } break;
     case SYXV_KIND_PAIR:
@@ -216,9 +216,9 @@ void syxv_destructor(void *data) {
       rc_release(syxv->closure.defines);
       rc_release(syxv->closure.forms);
     } break;
-    case SYXV_KIND_THROW: {
-      if (syxv->throw.stack_frame) rc_release(syxv->throw.stack_frame);
-      if (syxv->throw.reason) rc_release(syxv->throw.reason);
+    case SYXV_KIND_THROWN: {
+      if (syxv->thrown.stack_frame) rc_release(syxv->thrown.stack_frame);
+      if (syxv->thrown.reason) rc_release(syxv->thrown.reason);
     } break;
     case SYXV_KIND_RETURN_VALUE: rc_release(syxv->return_value); break;
   }
@@ -233,21 +233,20 @@ SyxV *make_syxv_nil() {
 }
 
 SyxV *make_syxv_symbol(String_View name) {
-  SyxV_Symbol **symbol = ht_find(SYXV_SYMBOLS(), name.data);
+  SyxV **symbol = ht_find(SYXV_SYMBOLS(), name.data);
   if (!symbol) {
     char *key = strndup(name.data, name.count);
-    SyxV *syxv = make_syxv(SYXV_KIND_SYMBOL);
-    syxv->symbol.name = key;
-    syxv->symbol.length = name.count;
+    symbol = ht_put(SYXV_SYMBOLS(), key);
+    *symbol = rc_acquire(make_syxv(SYXV_KIND_SYMBOL));
+    (*symbol)->symbol.name = key;
+    (*symbol)->symbol.length = name.count;
     for (String_View it = name; it.count; sv_chop_left(&it, 1)) {
       if (issymbol(*it.data)) continue;
-      syxv->symbol.guarded = true;
+      (*symbol)->symbol.guarded = true;
       break;
     }
-    *ht_put(SYXV_SYMBOLS(), key) = &syxv->symbol;
-    symbol = ht_find(SYXV_SYMBOLS(), key);
   }
-  return get_syxv_from_symbol(*symbol);
+  return (*symbol);
 }
 
 SyxV *make_syxv_symbol_n(char *symbol, size_t size) {
@@ -345,9 +344,9 @@ SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *forms, Syx_Env *e
 }
 
 SyxV *make_syxv_throw(Syx_Frame *stack_frame, SyxV *reason) {
-  SyxV *value = make_syxv(SYXV_KIND_THROW);
-  value->throw.stack_frame = stack_frame ? rc_acquire(stack_frame) : NULL;
-  value->throw.reason = reason ? rc_acquire(reason) : NULL;
+  SyxV *value = make_syxv(SYXV_KIND_THROWN);
+  value->thrown.stack_frame = stack_frame ? rc_acquire(stack_frame) : NULL;
+  value->thrown.reason = reason ? rc_acquire(reason) : NULL;
   return value;
 }
 
@@ -414,7 +413,7 @@ size_t stringify__cached_syxv(SyxV *value, SyxV_Stringify_Cache *cache, char *st
     return cached->count;
   }
   syx_string_t sb = stringify__syxv(value, cache);
-  cached = ht_put(cache, value);
+  cached = ht_put(cache, rc_acquire(value));
   *cached = sb;
   if (string) memcpy(string, cached->items, cached->count);
   return cached->count;
@@ -468,7 +467,7 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
       width += 1;
       return width;
     }
-    case SYXV_KIND_THROW: UNREACHABLE("throw object can't be convderted");
+    case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be convderted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be convderted");
   }
 }
@@ -578,19 +577,29 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
       }
       *string = ')';
     } break;
-    case SYXV_KIND_THROW: UNREACHABLE("throw object can't be converted");
+    case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be convderted");
   }
 }
 
+void syxv_stringify_cache_destructor(void *data) {
+  SyxV_Stringify_Cache *cache = data;
+  ht_foreach(item, cache) {
+    rc_release(ht_key(cache, item));
+    sb_free(*item);
+  }
+  ht_free(cache);
+}
+
 syx_string_t stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache) {
-  SyxV_Stringify_Cache local_cache = {0};
-  if (!cache) cache = &local_cache;
-  size_t width = get__syxv_string_width(value, cache);
+  SyxV_Stringify_Cache *_cache;
+  if (cache) _cache = rc_acquire(cache);
+  else _cache = rc_acquire(rc_alloc(sizeof(SyxV_Stringify_Cache), syxv_stringify_cache_destructor));
+  size_t width = get__syxv_string_width(value, _cache);
   char *string = malloc(width + 1);
   syx_string_t result = {.items = string, .count = width, .capacity = width + 1};
-  stringify__syxv_n(value, width, string, cache);
-  ht_free(&local_cache);
+  stringify__syxv_n(value, width, string, _cache);
+  rc_release(_cache);
   return result;
 }
 

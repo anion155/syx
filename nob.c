@@ -10,6 +10,7 @@ struct NoNob_Context_Storage {
   const char *tests_path;
 
   bool build_debug;
+  bool run_memory_test;
   bool run_watch;
 };
 
@@ -44,6 +45,7 @@ bool command_build_run() {
 
 void command_run_init(NoNob_Command *command) {
   flag_c_bool_var(command->flags, &ctx.s->run_watch, "w", false, "Re run app on input files changes");
+  flag_c_bool_var(command->flags, &ctx.s->run_memory_test, "leak-check", false, "Enable memory leak detection");
 }
 
 int watch_and_rebuild() { TODO("watch_and_rebuild"); }
@@ -52,6 +54,11 @@ bool command_run_run(NoNob_Command *command) {
   if (ctx.s->run_watch) return watch_and_rebuild();
   if (!command_build_run()) return false;
 
+#if defined(__APPLE__)
+  if (ctx.s->run_memory_test) nob_cmd_append(&ctx.cmd, "leaks", "--atExit", "--");
+#elif defined(__linux__)
+  if (ctx.s->run_memory_test) nob_cmd_append(&ctx.cmd, "valgrind", "--leak-check=full");
+#endif
   nob_cmd_append(&ctx.cmd, ctx.s->syx_path);
   if (ctx.argc) nob_da_append_many(&ctx.cmd, ctx.argv, ctx.argc);
   if (!nob_cmd_run(&ctx.cmd)) return false;

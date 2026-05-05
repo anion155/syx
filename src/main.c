@@ -39,37 +39,48 @@ define_constant(Ht(const char *, bool *), ctx_options) {
   *ht_put(ctx_options, "p") = &script_ctx.opt_print;
 }
 
-int run_syx(const char *source_cstr) {
-  SyxVs *results = rc_acquire(rc_alloc(sizeof(SyxVs), da_destructor));
+SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
+  SyxV *result = NULL;
   parser_syxvs_for_each(value, source_cstr) {
     if (script_ctx.opt_xtrace) {
       printf("+");
       print_syxv(value);
       printf("\n");
     }
-    SyxV *result = syx_eval(script_ctx.eval_ctx, value);
-    if (result->kind == SYXV_KIND_RETURN_VALUE) return syx_convert_to_integer_v(script_ctx.eval_ctx, result);
-    if (!syx_eval_report_error(script_ctx.eval_ctx, result)) return -1;
+    if (result) rc_release(result);
+    result = rc_acquire(syx_eval(ctx, value));
+    if (result->kind == SYXV_KIND_RETURN_VALUE) {
+      SyxV *return_value = rc_acquire(result->return_value);
+      rc_release(result);
+      return rc_move(return_value);
+    }
+    syx_eval_early_exit(result, parser_syxvs_for_each_iterator());
     if (script_ctx.opt_xtrace) {
       print_syxv(result);
       printf("\n");
     }
-    da_append(results, rc_acquire(result));
   }
-  if (!script_ctx.opt_xtrace && script_ctx.opt_print && results->count) {
-    print_syxv(results->items[results->count - 1]);
+  if (!script_ctx.opt_xtrace && script_ctx.opt_print && result) {
+    print_syxv(result);
     printf("\n");
   }
-  rc_release(results);
+  if (result) rc_release(result);
+  return result;
+}
+
+int run_syx(const char *source_cstr) {
+  SyxV *result = syx_parse_and_eval(script_ctx.eval_ctx, source_cstr);
+  if (result->kind == SYXV_KIND_RETURN_VALUE) return syx_convert_to_integer_v(script_ctx.eval_ctx, result);
+  if (result->kind == SYXV_KIND_THROWN) return -1;
   return -1;
 }
 
 SyxV *eval_quit(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   UNUSED(ctx);
   UNUSED(arguments);
+  TODO("eval_quit");
   // SyxV *result = syxv_list_next(&arguments);
   // if (result->kind == SYXV_KIND_NIL) result = make_syxv_integer(0);
-  TODO("eval_quit");
 }
 
 SyxV *eval_setopt(Syx_Eval_Ctx *ctx, SyxV *arguments) {
@@ -80,6 +91,23 @@ SyxV *eval_setopt(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *value = syx_eval(ctx, syxv_list_next(&arguments));
   (**option) = syx_convert_to_bool_v(ctx, value);
   return NULL;
+}
+
+SyxV *eval_import(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+  SyxV *name = syx_eval(ctx, syxv_list_next(&arguments));
+  if (name->kind != SYXV_KIND_STRING) RUNTIME_ERROR("module name expected", ctx);
+  String_Builder module_sb = {0};
+  if (!nob_read_entire_file(name->string.data, &module_sb)) UNREACHABLE("Failed to read file");
+  char *module_content = module_sb.items;
+  module_sb.items = rc_acquire(rc_manage_strndup(module_content, module_sb.count));
+  free(module_content);
+  syx_ctx_push_frame(ctx, make_syxv_symbol_cstr("import"));
+  Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = make_syx_env(ctx->env, temp_sprintf("(import \"%s\")", name->string.data))));
+  SyxV *result = syx_parse_and_eval(import_ctx, module_sb.items);
+  rc_release(import_ctx);
+  syx_ctx_pop_frame(ctx);
+  syx_eval_early_exit(result, module_sb.items);
+  return result;
 }
 
 void usage(FILE *stream) {
@@ -124,6 +152,7 @@ int main(int argc, char **argv) {
 
   syx_env_define_cstr(script_ctx.eval_ctx->env, "quit", make_syxv_builtin(NULL, eval_quit));
   syx_env_define_cstr(script_ctx.eval_ctx->env, "setopt", make_syxv_specialf(NULL, eval_setopt));
+  syx_env_define_cstr(script_ctx.eval_ctx->env, "import", make_syxv_specialf(NULL, eval_import));
 
   int result = 0;
   if (commands->count) {

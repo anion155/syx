@@ -81,6 +81,7 @@ SyxV *syx_convert_to_integer(Syx_Eval_Ctx *ctx, SyxV *value);
 syx_fractional_t syx_convert_to_fractional_v(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *syx_convert_to_fractional(Syx_Eval_Ctx *ctx, SyxV *value);
 syx_string_t syx_convert_to_string_v(Syx_Eval_Ctx *ctx, SyxV *value);
+syx_string_view_t syx_convert_to_string_sv(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value);
 
 #endif // SYX_EVAL_H
@@ -216,7 +217,7 @@ SyxV **ensure_syxv_redefinable(Syx_Env *env, const char *name) {
       case SYXV_KIND_SPECIALF: RUNTIME_ERROR("trying to redefine special form", env);
       case SYXV_KIND_BUILTIN: RUNTIME_ERROR("trying to redefine builtin", env);
       case SYXV_KIND_CLOSURE: break;
-      case SYXV_KIND_THROW: UNREACHABLE("throw object should not be stored in env");
+      case SYXV_KIND_THROWN: UNREACHABLE("thrown object should not be stored in env");
       case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be stored in env");
     }
   }
@@ -379,7 +380,7 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
   }
   if (input->kind != SYXV_KIND_PAIR) return input;
   if (!input->pair.left) return input;
-  SyxV *head = syx_eval(ctx, input->pair.left);
+  SyxV *head = rc_acquire(syx_eval(ctx, input->pair.left));
   syx_eval_early_exit(head);
   SyxV *arguments = input->pair.right;
   SyxV *result;
@@ -395,16 +396,17 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
     case SYXV_KIND_SPECIALF: result = syx_eval_specialf(ctx, &head->specialf, arguments); break;
     case SYXV_KIND_BUILTIN: result = syx_eval_builtin(ctx, head, &head->builtin, arguments); break;
     case SYXV_KIND_CLOSURE: result = syx_eval_closure(ctx, head, &head->closure, arguments); break;
-    case SYXV_KIND_THROW: UNREACHABLE("throw object should not be called");
+    case SYXV_KIND_THROWN: UNREACHABLE("thrown object should not be called");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be called");
   }
+  rc_release(head);
   return result;
 }
 
 bool syx_eval_should_early_exit(SyxV *value, void *items[], size_t count) {
   switch (value->kind) {
     case SYXV_KIND_RETURN_VALUE:
-    case SYXV_KIND_THROW: {
+    case SYXV_KIND_THROWN: {
       rc_acquire(value);
       for (size_t index = 0; index < count; index += 1) {
         if (items[index]) rc_release(items[index]);
@@ -417,13 +419,13 @@ bool syx_eval_should_early_exit(SyxV *value, void *items[], size_t count) {
 }
 
 bool syx_eval_report_error(Syx_Eval_Ctx *ctx, SyxV *value) {
-  if (value->kind != SYXV_KIND_THROW) return true;
-  SyxV *reason = syx_convert_to_string(ctx, value->throw.reason);
+  if (value->kind != SYXV_KIND_THROWN) return true;
+  SyxV *reason = syx_convert_to_string(ctx, value->thrown.reason);
   fprintf(stderr, "Unhandled exception: ");
   if (reason) fprintf(stderr, SV_Fmt "\n", SV_Arg(reason->string));
   else fprintf(stderr, "unknown\n");
-  if (value->throw.stack_frame) {
-    syx_string_t frames_stack = stringify_call_stack(ctx, value->throw.stack_frame);
+  if (value->thrown.stack_frame) {
+    syx_string_t frames_stack = stringify_call_stack(ctx, value->thrown.stack_frame);
     fprintf(stderr, "%s\n", frames_stack.items);
     sb_free(frames_stack);
   }
@@ -456,14 +458,18 @@ bool syx_convert_to_bool_v(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_SPECIALF: return true;
     case SYXV_KIND_BUILTIN: return true;
     case SYXV_KIND_CLOSURE: return true;
-    case SYXV_KIND_THROW: UNREACHABLE("throw object can't be converted");
+    case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be converted");
   }
 }
 
 SyxV *syx_convert_to_bool(Syx_Eval_Ctx *ctx, SyxV *value) {
-  if (value->kind == SYXV_KIND_BOOL) return value;
-  return make_syxv_bool(syx_convert_to_bool_v(ctx, value));
+  switch (value->kind) {
+    case SYXV_KIND_BOOL: return value;
+    case SYXV_KIND_THROWN: return NULL;
+    case SYXV_KIND_RETURN_VALUE: return NULL;
+    default: return make_syxv_bool(syx_convert_to_bool_v(ctx, value));
+  }
 }
 
 syx_integer_t syx_convert_to_integer_v(Syx_Eval_Ctx *ctx, SyxV *value) {
@@ -484,7 +490,7 @@ syx_integer_t syx_convert_to_integer_v(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR("illegal conversion of special form to integer number", ctx);
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR("illegal conversion of builtin function to integer number", ctx);
     case SYXV_KIND_CLOSURE: RUNTIME_ERROR("illegal conversion of closure to integer number", ctx);
-    case SYXV_KIND_THROW: UNREACHABLE("throw object can't be converted");
+    case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be converted");
   }
 }
@@ -503,6 +509,8 @@ SyxV *syx_convert_to_integer(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_SPECIALF: return NULL;
     case SYXV_KIND_BUILTIN: return NULL;
     case SYXV_KIND_CLOSURE: return NULL;
+    case SYXV_KIND_THROWN: return NULL;
+    case SYXV_KIND_RETURN_VALUE: return NULL;
     default: return make_syxv_integer(syx_convert_to_integer_v(ctx, value));
   }
 }
@@ -525,7 +533,7 @@ syx_fractional_t syx_convert_to_fractional_v(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR("illegal conversion of special form to fractional number", ctx);
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR("illegal conversion of builtin function to fractional number", ctx);
     case SYXV_KIND_CLOSURE: RUNTIME_ERROR("illegal conversion of closure to fractional number", ctx);
-    case SYXV_KIND_THROW: UNREACHABLE("throw object can't be converted");
+    case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be converted");
   }
 }
@@ -544,24 +552,44 @@ SyxV *syx_convert_to_fractional(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_SPECIALF: return NULL;
     case SYXV_KIND_BUILTIN: return NULL;
     case SYXV_KIND_CLOSURE: return NULL;
+    case SYXV_KIND_THROWN: return NULL;
+    case SYXV_KIND_RETURN_VALUE: return NULL;
     default: return make_syxv_fractional(syx_convert_to_fractional_v(ctx, value));
   }
 }
 
 syx_string_t syx_convert_to_string_v(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
-    case SYXV_KIND_NIL: return "nil";
+    case SYXV_KIND_NIL: return sb_copy_from_cstr("nil");
     case SYXV_KIND_SYMBOL: RUNTIME_ERROR("illegal conversion of symbol to string", ctx);
-    case SYXV_KIND_PAIR: return sb_to_sv(stringify_syxv(value));
-    case SYXV_KIND_BOOL: return sv_from_cstr(value->boolean ? "true" : "false");
-    case SYXV_KIND_INTEGER: return sb_to_sv(stringify_integer(value->integer));
-    case SYXV_KIND_FRACTIONAL: return sb_to_sv(stringify_fractional(value->fractional));
-    case SYXV_KIND_STRING: return value->string;
+    case SYXV_KIND_PAIR: return stringify_syxv(value);
+    case SYXV_KIND_BOOL: return sb_copy_from_cstr(value->boolean ? "true" : "false");
+    case SYXV_KIND_INTEGER: return stringify_integer(value->integer);
+    case SYXV_KIND_FRACTIONAL: return stringify_fractional(value->fractional);
+    case SYXV_KIND_STRING: return sb_copy_from_sv(value->string);
     case SYXV_KIND_QUOTE: return syx_convert_to_string_v(ctx, value->quote);
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR("illegal conversion of special form to string", ctx);
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR("illegal conversion of builtin function to string", ctx);
     case SYXV_KIND_CLOSURE: RUNTIME_ERROR("illegal conversion of closure to string", ctx);
-    case SYXV_KIND_THROW: UNREACHABLE("throw object can't be converted");
+    case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be converted");
+    case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be converted");
+  }
+}
+
+syx_string_view_t syx_convert_to_string_sv(Syx_Eval_Ctx *ctx, SyxV *value) {
+  switch (value->kind) {
+    case SYXV_KIND_NIL: return sv_from_cstr("nil");
+    case SYXV_KIND_SYMBOL: RUNTIME_ERROR("illegal conversion of symbol to string", ctx);
+    case SYXV_KIND_PAIR: RUNTIME_ERROR("illegal conversion of pair to string view", ctx);
+    case SYXV_KIND_BOOL: return sv_from_cstr(value->boolean ? "true" : "false");
+    case SYXV_KIND_INTEGER: RUNTIME_ERROR("illegal conversion of integer to string view", ctx);
+    case SYXV_KIND_FRACTIONAL: RUNTIME_ERROR("illegal conversion of fractional to string view", ctx);
+    case SYXV_KIND_STRING: return value->string;
+    case SYXV_KIND_QUOTE: return syx_convert_to_string_sv(ctx, value->quote);
+    case SYXV_KIND_SPECIALF: RUNTIME_ERROR("illegal conversion of special form to string", ctx);
+    case SYXV_KIND_BUILTIN: RUNTIME_ERROR("illegal conversion of builtin function to string", ctx);
+    case SYXV_KIND_CLOSURE: RUNTIME_ERROR("illegal conversion of closure to string", ctx);
+    case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be converted");
   }
 }
@@ -574,9 +602,9 @@ SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_BUILTIN: return NULL;
     case SYXV_KIND_CLOSURE: return NULL;
     default: {
-      syx_string_view_t str = syx_convert_to_string_v(ctx, value);
+      syx_string_t str = syx_convert_to_string_v(ctx, value);
       SyxV *syxv = make_syxv_string(str);
-      // TODO: delete str
+      sb_free(str);
       return syxv;
     }
   }

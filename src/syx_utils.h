@@ -4,6 +4,7 @@
 #include <ht.h>
 #include <magic.h>
 #include <nob.h>
+#include <rc.h>
 
 int islineend(int c);
 int issymbol_special(int c);
@@ -41,16 +42,16 @@ void stringify_fractional_n(syx_fractional_t value, size_t integer_width, size_t
 syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision);
 #define stringify_fractional(value, ...) stringify__fractional((value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
 
-#define define_constant(type, name)     \
-  typedef type name##_t;                \
-  name##_t *_##name = NULL;             \
-  void make_##name(name##_t *name);     \
-  name##_t *name() {                    \
-    if (_##name) return _##name;        \
-    _##name = malloc(sizeof(name##_t)); \
-    make_##name(_##name);               \
-    return _##name;                     \
-  }                                     \
+#define define_constant(type, name, ...)                                   \
+  typedef type name##_t;                                                   \
+  name##_t *_##name = NULL;                                                \
+  void make_##name(name##_t *name);                                        \
+  name##_t *name() {                                                       \
+    if (_##name) return _##name;                                           \
+    _##name = rc_alloc(sizeof(name##_t), WITH_DEFAULT(NULL, __VA_ARGS__)); \
+    make_##name(_##name);                                                  \
+    return _##name;                                                        \
+  }                                                                        \
   void make_##name(name##_t *name)
 
 struct escape_char_print {
@@ -65,6 +66,9 @@ int io_char_n(void *_data);
 size_t io_puts_n(FILE *fd, const char *str, size_t n);
 size_t io_puts(FILE *fd, String_View sv);
 size_t io_puts_cstr(FILE *fd, const char *str);
+
+String_Builder sb_copy_from_cstr(const char *string);
+String_Builder sb_copy_from_sv(String_View sv);
 
 #endif // SYX_UTILS_H
 
@@ -417,6 +421,18 @@ size_t io_puts_cstr(FILE *fd, const char *str) {
     if (!io_putc_escaped(fd, escape)) return data.index;
   }
   return data.index;
+}
+
+String_Builder sb_copy_from_cstr(const char *string) {
+  String_Builder sb = {0};
+  sb_append_cstr(&sb, string);
+  return sb;
+}
+
+String_Builder sb_copy_from_sv(String_View sv) {
+  String_Builder sb = {0};
+  sb_append_sv(&sb, sv);
+  return sb;
 }
 
 #endif // SYX_UTILS_IMPL

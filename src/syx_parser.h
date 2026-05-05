@@ -24,12 +24,12 @@ struct SyxVs_Iterator {
 
 SyxV ***parser__make_syxvs_for_each_iterator(const char *source_src);
 bool parser__syxvs_for_each_next(SyxV ****syxvs, SyxV **expr);
-SyxV_Parser_Context *parser__syxvs_for_each_ctx(SyxV **syxvs);
 #define parser_syxvs_for_each(name, source)                                        \
   for (                                                                            \
       SyxV *name = NULL, ***_ctx = parser__make_syxvs_for_each_iterator((source)); \
       parser__syxvs_for_each_next(&_ctx, &name);)
-#define parser_syxvs_for_each_ctx() parser__syxvs_for_each_ctx(syxvs)
+struct SyxVs_Iterator *parser__syxvs_for_each_iterator(SyxV ***syxvs);
+#define parser_syxvs_for_each_iterator() parser__syxvs_for_each_iterator(_ctx)
 
 #endif // SYX_PARSER_H
 
@@ -134,7 +134,7 @@ SyxV *parse__syxv_string(SyxV_Parser_Context *ctx) {
   i += 1;
   ctx->it->count -= i;
   ctx->it->data += i;
-  return make_syxv_string(value);
+  return make_syxv_string_sv(value);
 }
 
 SyxV *parse__syxv_guarded_symbol(SyxV_Parser_Context *ctx) {
@@ -212,8 +212,8 @@ SyxVs *parse_syxvs(String_View *source) {
 
 void parser__syxvs_for_each_iterator_destructor(void *data) {
   struct SyxVs_Iterator *it = data;
-  free(it->ctx.it);
   da_destructor(&it->syxvs);
+  free(it->ctx.it);
 }
 
 SyxV ***parser__make_syxvs_for_each_iterator(const char *source_src) {
@@ -230,7 +230,7 @@ SyxV ***parser__make_syxvs_for_each_iterator(const char *source_src) {
 }
 
 bool parser__syxvs_for_each_next(SyxV ****_ctx, SyxV **expr) {
-  struct SyxVs_Iterator *it = (struct SyxVs_Iterator *)((SyxV_Parser_Context *)(*_ctx) - 1);
+  struct SyxVs_Iterator *it = parser__syxvs_for_each_iterator(*_ctx);
   chop_spaces(&it->ctx);
   if (!it->ctx.it->count) {
     rc_release(it);
@@ -244,9 +244,8 @@ bool parser__syxvs_for_each_next(SyxV ****_ctx, SyxV **expr) {
   return true;
 }
 
-SyxV_Parser_Context *parser__syxvs_for_each_ctx(SyxV **syxvs) {
-  struct SyxVs_Iterator *it = (struct SyxVs_Iterator *)((SyxV_Parser_Context *)syxvs - 1);
-  return &it->ctx;
+struct SyxVs_Iterator *parser__syxvs_for_each_iterator(SyxV ***syxvs) {
+  return (struct SyxVs_Iterator *)((SyxV_Parser_Context *)syxvs - 1);
 }
 
 #endif // SYX_PARSER_IMPL

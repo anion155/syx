@@ -219,7 +219,7 @@ bool syx__builtin_equivalent_comparator(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *rig
     case SYXV_KIND_SPECIALF: return false; // should work on left == right level
     case SYXV_KIND_BUILTIN: return false;  // should work on left == right level
     case SYXV_KIND_CLOSURE: return false;  // should work on left == right level
-    case SYXV_KIND_THROW: UNREACHABLE("should never get throw object here");
+    case SYXV_KIND_THROWN: UNREACHABLE("should never get throw object here");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("should never get return value object here");
   }
 }
@@ -320,7 +320,7 @@ bool syx__builtin_identity_comparator(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *right
     case SYXV_KIND_SPECIALF: return false; // should work on left == right level
     case SYXV_KIND_BUILTIN: return false;  // should work on left == right level
     case SYXV_KIND_CLOSURE: return false;  // should work on left == right level
-    case SYXV_KIND_THROW: UNREACHABLE("should never get thrown value here");
+    case SYXV_KIND_THROWN: UNREACHABLE("should never get thrown value here");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("should never get return value object here");
   }
 }
@@ -412,10 +412,10 @@ SyxV *syx_builtin_print(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
   bool first = true;
   syxv_list_for_each(argument, arguments) {
-    String_View sv = syx_convert_to_string_v(ctx, argument);
+    String_Builder sb = syx_convert_to_string_v(ctx, argument);
     if (!first && !io_putc(f, ' ')) return make_syxv_nil();
-    if (!io_puts(f, sv)) return make_syxv_nil();
-    // TODO: delete sv
+    if (!io_puts(f, sb_to_sv(sb))) return make_syxv_nil();
+    sb_free(sb);
     first = false;
   }
   return make_syxv_nil();
@@ -425,9 +425,9 @@ SyxV *syx_builtin_print(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 SyxV *syx_builtin_println(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
   syxv_list_for_each(argument, arguments) {
-    String_View sv = syx_convert_to_string_v(ctx, argument);
-    if (!io_puts(f, sv)) return make_syxv_nil();
-    // TODO: delete sv
+    String_Builder sb = syx_convert_to_string_v(ctx, argument);
+    if (!io_puts(f, sb_to_sv(sb))) return make_syxv_nil();
+    sb_free(sb);
     if (!io_putc(f, ' ')) return make_syxv_nil();
   }
   if (!io_putc(f, '\n')) return make_syxv_nil();
@@ -445,9 +445,9 @@ ssize_t io_put_sv_diff(FILE *fd, String_View *base, String_View *offset) {
 /** Prints formatted string to file. */
 SyxV *syx_builtin_printf(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
-  String_View fmt = syx_convert_to_string_v(ctx, syxv_list_next(&arguments));
-  String_View it = fmt;
-  String_View str = fmt;
+  String_Builder fmt = syx_convert_to_string_v(ctx, syxv_list_next(&arguments));
+  String_View it = sb_to_sv(fmt);
+  String_View str = sb_to_sv(fmt);
   for (; it.count; sv_chop_left(&it, 1)) {
     size_t format_size = 1;
     if (it.data[0] != '%') continue;
@@ -456,12 +456,12 @@ SyxV *syx_builtin_printf(Syx_Eval_Ctx *ctx, SyxV *arguments) {
     sv_chop_left(&it, format_size);
     str = it;
     SyxV *argument = syxv_list_next(&arguments);
-    String_View sv = syx_convert_to_string_v(ctx, argument);
-    if (!io_puts(f, sv)) return make_syxv_nil();
-    // TODO: delete sv
+    String_Builder sb = syx_convert_to_string_v(ctx, argument);
+    if (!io_puts(f, sb_to_sv(sb))) return make_syxv_nil();
+    sb_free(sb);
   }
   if (io_put_sv_diff(f, &str, &it) < 0) return make_syxv_nil();
-  // TODO: delete fmt
+  sb_free(fmt);
   return make_syxv_nil();
 }
 

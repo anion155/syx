@@ -4,37 +4,37 @@
 ;; primitives should be evaluated to the exactly the same values
 nil         ; (expected nil)
 ()          ; (expected ())
-#f          ; (expected false)
-#t          ; (expected true)
-false       ; (expected false)
-true        ; (expected true)
+;; #f          ; (expected false)
+;; #t          ; (expected true)
+;; false       ; (expected false)
+;; true        ; (expected true)
 123         ; (expected 123)
 -123        ; (expected -123)
 123.456     ; (expected 123.456)
 -123.456    ; (expected -123.456)
 "test"      ; (expected "test")
 
-;; ;; quoted values should be evaluated as this exact raw values
+;; quoted values should be evaluated as this exact raw values
 ;; 'nil                     ; nil
-;; 'symbol                  ; symbol
-;; '()                      ; ()
-;; '(a b)                   ; (a b)
+'symbol                  ; symbol
+'()                      ; ()
+'(a b)                   ; (a b)
 ;; '(a b . c)               ; (a b . c)
 ;; '#f                      ; false
 ;; '#t                      ; true
 ;; 'false                   ; false
 ;; 'true                    ; true
-;; '123                     ; 123
-;; '-123                    ; -123
-;; '123.456                 ; 123.456
-;; '-123.456                ; -123.456
-;; '"test"                  ; "test"
-;; ''"test"                 ; '"test"
-;; 'if                      ; if
-;; '+                       ; +
+'123                     ; 123
+'-123                    ; -123
+'123.456                 ; 123.456
+'-123.456                ; -123.456
+'"test"                  ; "test"
+''"test"                 ; '"test"
+'if                      ; if
+'+                       ; +
 ;; '(lambda (a b) (+ a b))  ; (lambda (a b) (+ a b))
 
-;; ;; functions should be evaluated to actual function values
+;; functions should be evaluated to actual function values
 ;; if                          ; ?<if>
 ;; +                           ; !<+>
 ;; (lambda (a b) (+ a b))      ; (#<> (a b) (+ a b))
