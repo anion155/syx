@@ -225,17 +225,12 @@ void nonob_append_cmd_to_ccjson() {
    * This is used by tools as the key into the compilation database.
    * There can be multiple command objects for the same file, for example
    * if the same source file is compiled with different configurations. */
-  if (strstr(ctx.cmd.items[0], "cc")) {
-    bool output = false;
-    for (const char **arg = ctx.cmd.items + 1; arg < ctx.cmd.items + ctx.cmd.count; ++arg) {
-      if (strcmp(*arg, "-o") == 0) {
-        output = true;
-      } else if (output) {
-        jim_member_key(&ctx.ccjson, "file");
-        jim_string(&ctx.ccjson, *arg);
-        break;
-      }
-      output = false;
+  if (strcmp(ctx.cmd.items[0], "cc") == 0 || strcmp(ctx.cmd.items[0], "clang") == 0 || strcmp(ctx.cmd.items[0], "gcc") == 0) {
+    da_foreach(const char *, arg, &ctx.cmd) {
+      if (strcmp(*arg, "-o") != 0) continue;
+      jim_member_key(&ctx.ccjson, "file");
+      jim_string(&ctx.ccjson, *(arg + 1));
+      break;
     }
   }
 
@@ -245,8 +240,16 @@ void nonob_append_cmd_to_ccjson() {
    * but ready to pass to execvp(). */
   jim_member_key(&ctx.ccjson, "arguments");
   jim_array_begin(&ctx.ccjson);
-  da_foreach(const char *, arg, &ctx.cmd) {
-    jim_string(&ctx.ccjson, *arg);
+  {
+    bool output = false;
+    da_foreach(const char *, arg, &ctx.cmd) {
+      if (strcmp(*arg, "-o") == 0 || output) {
+        output = true;
+      } else {
+        jim_string(&ctx.ccjson, *arg);
+      }
+      output = false;
+    }
   }
   jim_array_end(&ctx.ccjson);
 

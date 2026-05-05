@@ -29,13 +29,13 @@ bool command_build_run() {
   nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->vendor_path));
   if (ctx.s->build_debug) nob_cmd_append(&ctx.cmd, "-ggdb");
   nob_cc_inputs(&ctx.cmd, "-std=c23");
+  nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/main.c", ctx.s->src_path));
+  nob_cc_output(&ctx.cmd, ctx.s->syx_path);
 #ifdef __APPLE__
   nob_cmd_append(&ctx.cmd, "-ledit");
 #else
   nob_cmd_append(&cmd, "-lreadline");
 #endif
-  nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/main.c", ctx.s->src_path));
-  nob_cc_output(&ctx.cmd, ctx.s->syx_path);
   nonob_append_cmd_to_ccjson();
   if (!nob_cmd_run(&ctx.cmd)) return false;
 
