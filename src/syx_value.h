@@ -171,14 +171,12 @@ void fprint_syxv(FILE *f, SyxV *value);
 
 SyxV *make_syxv(SyxV_Kind kind) {
   SyxV *value = rc_alloc(sizeof(SyxV), syxv_destructor);
+  memset(value, 0, sizeof(SyxV));
   value->kind = kind;
   return value;
 }
 
-define_constant(struct SYXV_CONSTANTS_t {
-  SyxV *nil;
-  SyxV *t;
-  SyxV *f; }, SYXV_CONSTANTS) {
+define_constant(struct { SyxV *nil; SyxV *t; SyxV *f; }, SYXV_CONSTANTS) {
   SYXV_CONSTANTS->nil = rc_acquire(make_syxv(SYXV_KIND_NIL));
   SYXV_CONSTANTS->t = rc_acquire(make_syxv(SYXV_KIND_BOOL));
   SYXV_CONSTANTS->t->boolean = true;
@@ -236,20 +234,20 @@ SyxV *make_syxv_nil() {
 }
 
 SyxV *make_syxv_symbol(String_View name) {
-  SyxV **symbol = ht_find(SYXV_SYMBOLS(), name.data);
-  if (!symbol) {
+  SyxV **syxv = ht_find(SYXV_SYMBOLS(), name.data);
+  if (!syxv) {
     char *key = strndup(name.data, name.count);
-    symbol = ht_put(SYXV_SYMBOLS(), key);
-    *symbol = rc_acquire(make_syxv(SYXV_KIND_SYMBOL));
-    (*symbol)->symbol.name = key;
-    (*symbol)->symbol.length = name.count;
+    syxv = ht_put(SYXV_SYMBOLS(), key);
+    *syxv = rc_acquire(make_syxv(SYXV_KIND_SYMBOL));
+    (*syxv)->symbol.name = key;
+    (*syxv)->symbol.length = name.count;
     for (String_View it = name; it.count; sv_chop_left(&it, 1)) {
       if (issymbol(*it.data)) continue;
-      (*symbol)->symbol.guarded = true;
+      (*syxv)->symbol.guarded = true;
       break;
     }
   }
-  return (*symbol);
+  return (*syxv);
 }
 
 SyxV *make_syxv_symbol_n(char *symbol, size_t size) {
@@ -596,8 +594,12 @@ void syxv_stringify_cache_destructor(void *data) {
 
 syx_string_t stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache) {
   SyxV_Stringify_Cache *_cache;
-  if (cache) _cache = rc_acquire(cache);
-  else _cache = rc_acquire(rc_alloc(sizeof(SyxV_Stringify_Cache), syxv_stringify_cache_destructor));
+  if (cache) {
+    _cache = rc_acquire(cache);
+  } else {
+    _cache = rc_acquire(rc_alloc(sizeof(SyxV_Stringify_Cache), syxv_stringify_cache_destructor));
+    memset(_cache, 0, sizeof(SyxV_Stringify_Cache));
+  }
   size_t width = get__syxv_string_width(value, _cache);
   char *string = malloc(width + 1);
   syx_string_t result = {.items = string, .count = width, .capacity = width + 1};

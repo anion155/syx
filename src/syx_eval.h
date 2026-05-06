@@ -137,6 +137,8 @@ void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, SyxV *callable) {
   if (prev) {
     next->prev = rc_acquire(prev);
     rc_release(prev);
+  } else {
+    next->prev = NULL;
   }
   ctx->frame_stack->latest = rc_acquire(next);
 }
@@ -177,7 +179,7 @@ void syx_env_destructor(void *data) {
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description) {
   Syx_Env *env = rc_alloc(sizeof(Syx_Env), syx_env_destructor);
   env->parent = parent ? rc_acquire(parent) : NULL;
-  env->symbols.hasheq = ht_cstr_hasheq;
+  env->symbols = (Syx_Env_Symbols){.hasheq = ht_cstr_hasheq};
   env->description = description ? strdup(description) : NULL;
   return env;
 }

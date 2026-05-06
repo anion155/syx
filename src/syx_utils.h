@@ -42,16 +42,20 @@ void stringify_fractional_n(syx_fractional_t value, size_t integer_width, size_t
 syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision);
 #define stringify_fractional(value, ...) stringify__fractional((value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
 
-#define define_constant(type, name, ...)                                   \
-  typedef type name##_t;                                                   \
-  name##_t *_##name = NULL;                                                \
-  void make_##name(name##_t *name);                                        \
-  name##_t *name() {                                                       \
-    if (_##name) return _##name;                                           \
-    _##name = rc_alloc(sizeof(name##_t), WITH_DEFAULT(NULL, __VA_ARGS__)); \
-    make_##name(_##name);                                                  \
-    return _##name;                                                        \
-  }                                                                        \
+#define define_constant(type, name)                \
+  typedef type name##_t;                           \
+  typedef struct {                                 \
+    size_t initialized;                            \
+    name##_t data;                                 \
+  } name##_w;                                      \
+  name##_w _##name = {0};                          \
+  void make_##name(name##_t *name);                \
+  name##_t *name() {                               \
+    if (_##name.initialized) return &_##name.data; \
+    _##name.initialized = 1;                       \
+    make_##name(&_##name.data);                    \
+    return &_##name.data;                          \
+  }                                                \
   void make_##name(name##_t *name)
 
 struct escape_char_print {

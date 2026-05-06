@@ -218,13 +218,12 @@ void parser__syxvs_for_each_iterator_destructor(void *data) {
 
 SyxV ***parser__make_syxvs_for_each_iterator(const char *source_src) {
   struct SyxVs_Iterator *it = rc_acquire(rc_alloc(sizeof(struct SyxVs_Iterator), parser__syxvs_for_each_iterator_destructor));
-  String_View source_it = sv_from_cstr(source_src);
-  it->ctx.source = source_it;
-  it->ctx.it = malloc(sizeof(String_View));
-  it->ctx.it->data = source_it.data;
-  it->ctx.it->count = source_it.count;
-  it->ctx.line = source_it;
-  it->ctx.linenumber = 0;
+  String_View source_sv = sv_from_cstr(source_src);
+  String_View *source_it = malloc(sizeof(String_View));
+  source_it->data = source_sv.data;
+  source_it->count = source_sv.count;
+  it->ctx = (SyxV_Parser_Context){.source = source_sv, .it = source_it, .line = source_sv, .linenumber = 0};
+  it->syxvs = (SyxVs){0};
   da_reserve(&it->syxvs, 1);
   return &it->syxvs.items;
 }
