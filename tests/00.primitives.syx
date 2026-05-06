@@ -1,13 +1,15 @@
 ; BASIC VALUES & LITERALS
-(setopt x true)
+(setopt x #t)
 
 ;; primitives should be evaluated to the exactly the same values
-nil         ; (expected nil)
+#n          ; (expected #n)
+#nil        ; (expected #n)
+#null       ; (expected #n)
 ()          ; (expected ())
-;; #f          ; (expected false)
-;; #t          ; (expected true)
-;; false       ; (expected false)
-;; true        ; (expected true)
+;; #f       ; (expected #f)
+;; #false    ; (expected #f)
+;; #t       ; (expected #t)
+;; #true        ; (expected #t)
 123         ; (expected 123)
 -123        ; (expected -123)
 123.456     ; (expected 123.456)
@@ -15,15 +17,15 @@ nil         ; (expected nil)
 "test"      ; (expected "test")
 
 ;; quoted values should be evaluated as this exact raw values
-;; 'nil                     ; nil
+;; '#n                     ; #n
 'symbol                  ; symbol
 '()                      ; ()
 '(a b)                   ; (a b)
 ;; '(a b . c)               ; (a b . c)
-;; '#f                      ; false
-;; '#t                      ; true
-;; 'false                   ; false
-;; 'true                    ; true
+;; '#f                      ; #f
+;; '#false                   ; #f
+;; '#t                      ; #t
+;; '#true                    ; #t
 '123                     ; 123
 '-123                    ; -123
 '123.456                 ; 123.456

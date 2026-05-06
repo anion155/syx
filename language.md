@@ -1,14 +1,14 @@
 ### Values
-- `1`, `-1` integer number value
-- `1.0`, `-1.0`, `1.`, `.0` fractional number value
-- `"something"` string literal value
-- `something` symbol value
-- `nil` nil value
-- `true`, `#t` true value
-- `false`, `#f` false value
-- `(a . b)` pair of `a` and `b`
-- `(a b)` list of `a`, `b` and `nil`
-- `(a b . c)` list of `a`, `b` and `c`
+- `1`, `-1` -  integer number value
+- `1.0`, `-1.0`, `1.`, `.0` - fractional number value
+- `"something"` - string literal value
+- `something` - symbol value
+- `#n`, `#nil`, `#null` -  nil value
+- `#t`, `#true` true value
+- `#f`, `#false` - false value
+- `(a . b)` - pair of `a` and `b`
+- `(a b)` - list of `a`, `b` and `nil`
+- `(a b . c)` - list of `a`, `b` and `c`
 
 ### Functions
 Functions can be:
@@ -41,26 +41,26 @@ Name is for debug purposes only
 
 ### define
 Binds value to a name in the current environment.
-`(define <name> <value>) >= nil`
+`(define <name> <value>) >= #n`
 
 Can contain shorthand version of lambda definition:
-`(define (<name> <arguments-names-list>) ...<form>) >= nil`
+`(define (<name> <arguments-names-list>) ...<form>) >= #n`
 
 ### set
 Mutate an existing binding or creates new one in current environment.
-`(set <name> <value>) >= nil`
+`(set <name> <value>) >= #n`
 
 ### let
 Create new variable bindings in parallel on new environment and execute a series of forms in that environment.
-`(let (...(<name> <value>)) ...<fors>) >= nil`
+`(let (...(<name> <value>)) ...<fors>) >= #n`
 
 <!-- ### let*
 Create new variable bindings sequentially on new environment and execute a series of forms in that environment.
-`(let* (...(<name> <value>)) ...<form>) >= nil` -->
+`(let* (...(<name> <value>)) ...<form>) >= #n` -->
 
 <!-- ### letrec
 Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
-`(letrec (...(<name> <value>)) ...<form>) >= nil` -->
+`(letrec (...(<name> <value>)) ...<form>) >= #n` -->
 
 ### and
 Evaluates left to right, returns first falsy or last value. Short-circuits.
@@ -71,10 +71,10 @@ Evaluates left to right, returns first truthy or last value. Short-circuits.
 `(or ...<form>) => first truthy | last value`
 
 ### if
-`(if <condition> <then> <else>) => eval(<then>) | eval(<else>) | nil`
+`(if <condition> <then> <else>) => eval(<then>) | eval(<else>) | #n`
 
 ### cond
-`(cond ...(<condition> ...<form>) (else ...<form>)) => first matching result | nil`
+`(cond ...(<condition> ...<form>) (else ...<form>)) => first matching result | #n`
 
 ### throw
 Create value of type `throw` that is should trigger early return of said value after any evaluation.
@@ -194,12 +194,12 @@ Returns `false` if argument is truthy, `true` if falsy.
 
 ### print
 Print arguments to file.
-`(print '<FD>? ...<argument>) => nil`
+`(print '<FD>? ...<argument>) => #n`
 
 ### println
 Print arguments to file and newline.
-`(println '<FD>? ...<argument>) => nil`
+`(println '<FD>? ...<argument>) => #n`
 
 ### printf
 Print arguments to file.
-`(print '<FD>? <format-string> ...<argument>) => nil`
+`(print '<FD>? <format-string> ...<argument>) => #n`

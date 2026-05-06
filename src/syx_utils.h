@@ -129,6 +129,7 @@ bool parse_integer(String_View *sv, syx_integer_t *result) {
     *result = *result * 10 + (sv->data[i] - '0');
     i += 1;
     if (i >= sv->count) break;
+    // TODO: implement number separators: 100_000_000;
   }
   sv->count -= i;
   sv->data += i;

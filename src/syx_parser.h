@@ -32,7 +32,6 @@ struct SyxVs_Iterator *parser__syxvs_for_each_iterator(SyxV ***syxvs);
 #define parser_syxvs_for_each_iterator() parser__syxvs_for_each_iterator(_ctx)
 
 #endif // SYX_PARSER_H
-
 #if defined(SYX_PARSER_IMPL) && !defined(SYX_PARSER_IMPL_C)
 #define SYX_PARSER_IMPL_C
 
@@ -46,6 +45,7 @@ struct SyxVs_Iterator *parser__syxvs_for_each_iterator(SyxV ***syxvs);
 #define SYXV_TOKEN_QUOTES '\''
 #define SYXV_TOKEN_DQUOTES '"'
 #define SYXV_TOKEN_ESCAPE '\\'
+#define SYXV_TOKEN_HASH '#'
 #define SYXV_TOKEN_HYPHEN '-'
 #define SYXV_TOKEN_DOT '.'
 #define SYXV_TOKEN_DIGIT_0 '0'
@@ -79,6 +79,11 @@ SyxV *parse__syxv_fractional(SyxV_Parser_Context *ctx, syx_integer_t integer_par
 
 SyxV *parse__syxv_integer(SyxV_Parser_Context *ctx) {
   if (!ctx->it->count) PARSER_ERROR("expected number literal here", ctx);
+  if (ctx->it->data[0] == '0' && ctx->it->count >= 3) {
+    if ((ctx->it->data[1] == 'x' || ctx->it->data[1] == 'X')) TODO("implement hex number parser");
+    if ((ctx->it->data[1] == 'o' || ctx->it->data[1] == 'O')) TODO("implement octal number parser");
+    if ((ctx->it->data[1] == 'b' || ctx->it->data[1] == 'B')) TODO("implement binary number parser");
+  }
   syx_integer_t value = 0;
   if (ctx->it->data[0] == SYXV_TOKEN_DOT) goto upgrade;
   if (!parse_integer(ctx->it, &value)) PARSER_ERROR("expected number literal here", ctx);
@@ -159,6 +164,28 @@ SyxV *parse__syxv_symbol(SyxV_Parser_Context *ctx) {
   return make_syxv_symbol(name);
 }
 
+typedef SyxV *(*SyxV_Dispatcher)(SyxV_Parser_Context *ctx);
+
+SyxV *parser__dispatch_syxv_nil(SyxV_Parser_Context *ctx);
+SyxV *parser__dispatch_syxv_true(SyxV_Parser_Context *ctx);
+SyxV *parser__dispatch_syxv_false(SyxV_Parser_Context *ctx);
+
+define_constant(Ht(char, SyxV_Dispatcher), DISPATCH_TABLE) {
+  DISPATCH_TABLE->hasheq = ht_mem_hasheq;
+  *ht_put(DISPATCH_TABLE, 'n') = parser__dispatch_syxv_nil;
+  *ht_put(DISPATCH_TABLE, 't') = parser__dispatch_syxv_true;
+  *ht_put(DISPATCH_TABLE, 'f') = parser__dispatch_syxv_false;
+}
+
+SyxV *parse__syxv_dispatch(SyxV_Parser_Context *ctx) {
+  if (ctx->it->data[0] != SYXV_TOKEN_HASH) PARSER_ERROR("expected hash symbol as dispatch start here", ctx);
+  sv_chop_left(ctx->it, 1);
+  SyxV_Dispatcher *dispatcher = ht_find(DISPATCH_TABLE(), ctx->it->data[0]);
+  if (!dispatcher) PARSER_ERROR(temp_sprintf("no dispatcher found '%c'", ctx->it->data[0]), ctx);
+  sv_chop_left(ctx->it, 1);
+  return (*dispatcher)(ctx);
+}
+
 SyxV *parse__syxv_nullable(SyxV_Parser_Context *ctx) {
   char current = ctx->it->data[0];
   if (current == SYXV_TOKEN_COMMENT) {
@@ -176,8 +203,9 @@ SyxV *parse__syxv_nullable(SyxV_Parser_Context *ctx) {
   if (current == SYXV_TOKEN_LIST_START) return parse__syxv_list(ctx);
   if (current == SYXV_TOKEN_QUOTES) return parse__syxv_quote(ctx);
   if (current == SYXV_TOKEN_DQUOTES) return parse__syxv_string(ctx);
+  if (current == SYXV_TOKEN_HASH) return parse__syxv_dispatch(ctx);
   if (current == SYXV_TOKEN_HYPHEN) {
-    if (isspace(ctx->it->data[1])) return parse__syxv_symbol(ctx);
+    if (ctx->it->count > 1 && isspace(ctx->it->data[1])) return parse__syxv_symbol(ctx);
     return parse__syxv_integer(ctx);
   }
   if (isdigit(current)) return parse__syxv_integer(ctx);
@@ -201,6 +229,9 @@ SyxV *parse_syxv(String_View *source) {
 SyxVs *parse_syxvs(String_View *source) {
   SyxV_Parser_Context ctx = {.source = *source, .it = source, .line = *source, .linenumber = 0};
   SyxVs *syxvs = rc_alloc(sizeof(SyxVs), da_destructor);
+  syxvs->count = 0;
+  syxvs->capacity = 0;
+  syxvs->items = NULL;
   while (ctx.it->count) {
     chop_spaces(&ctx);
     if (!ctx.it->count) break;
@@ -245,6 +276,22 @@ bool parser__syxvs_for_each_next(SyxV ****_ctx, SyxV **expr) {
 
 struct SyxVs_Iterator *parser__syxvs_for_each_iterator(SyxV ***syxvs) {
   return (struct SyxVs_Iterator *)((SyxV_Parser_Context *)syxvs - 1);
+}
+
+SyxV *parser__dispatch_syxv_nil(SyxV_Parser_Context *ctx) {
+  if (sv_starts_with(*ctx->it, sv_from_cstr("il"))) sv_chop_left(ctx->it, 2);
+  else if (sv_starts_with(*ctx->it, sv_from_cstr("ull"))) sv_chop_left(ctx->it, 3);
+  return make_syxv_nil();
+}
+
+SyxV *parser__dispatch_syxv_true(SyxV_Parser_Context *ctx) {
+  if (sv_starts_with(*ctx->it, sv_from_cstr("rue"))) sv_chop_left(ctx->it, 3);
+  return make_syxv_bool(true);
+}
+
+SyxV *parser__dispatch_syxv_false(SyxV_Parser_Context *ctx) {
+  if (sv_starts_with(*ctx->it, sv_from_cstr("alse"))) sv_chop_left(ctx->it, 4);
+  return make_syxv_bool(false);
 }
 
 #endif // SYX_PARSER_IMPL

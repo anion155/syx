@@ -1,12 +1,18 @@
 - recursive function delete it self
 - automatic fractional -> integer
-- int -> int* memory storage, like in strings
-- `.<constructor>(...<values>)` - as struct constructor, structs are basically mapped to real memory
-- `(.<constructor>(...<values>) <index>|<name> <value>?)` - as getter/setter
+- support vectors `#(...<values>)`, indexing as method
+- `#.<constructor>(...<values>)` - as struct constructor, getters and setters as methods
+- ? int -> int* memory storage, like in strings
+- ? make structs are basically mapped to real memory
 - attach stack frame to error object on throw
+- support method call `(<value> <method> ...<value>>)`
+- support indexing as method of `#(...<values>)`
+- struct getters and setters as methods
 - compiler test runner
 - unit tests for parser : compiler test runner
 - unit tests for evaluator : compiler test runner
 - unit tests for utilities : compiler test runner
 - defer execution
 - return from upper function
+- implement hex, octal, binary number parse: 0xFF, 0o07, 0b0101
+- implement number separators: 100_000_000

@@ -176,12 +176,14 @@ SyxV *make_syxv(SyxV_Kind kind) {
   return value;
 }
 
-define_constant(struct { SyxV *nil; SyxV *t; SyxV *f; }, SYXV_CONSTANTS) {
+define_constant(struct { SyxV *nil; SyxV *bool_true; SyxV *bool_false; }, SYXV_CONSTANTS) {
   SYXV_CONSTANTS->nil = rc_acquire(make_syxv(SYXV_KIND_NIL));
-  SYXV_CONSTANTS->t = rc_acquire(make_syxv(SYXV_KIND_BOOL));
-  SYXV_CONSTANTS->t->boolean = true;
-  SYXV_CONSTANTS->f = rc_acquire(make_syxv(SYXV_KIND_BOOL));
-  SYXV_CONSTANTS->f->boolean = false;
+
+  SYXV_CONSTANTS->bool_true = rc_acquire(make_syxv(SYXV_KIND_BOOL));
+  SYXV_CONSTANTS->bool_true->boolean = true;
+
+  SYXV_CONSTANTS->bool_false = rc_acquire(make_syxv(SYXV_KIND_BOOL));
+  SYXV_CONSTANTS->bool_false->boolean = false;
 }
 
 define_constant(Ht(const char *, SyxV *), SYXV_SYMBOLS) {
@@ -275,7 +277,7 @@ SyxV *make_syxv_list_opt(size_t count, SyxV **items) {
 }
 
 SyxV *make_syxv_bool(syx_bool_t value) {
-  return value ? SYXV_CONSTANTS()->t : SYXV_CONSTANTS()->f;
+  return value ? SYXV_CONSTANTS()->bool_true : SYXV_CONSTANTS()->bool_false;
 }
 
 SyxV *make_syxv_integer(syx_integer_t value) {
@@ -444,7 +446,7 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
       width += 1;
       return width;
     }
-    case SYXV_KIND_BOOL: return value->boolean ? 4 : 5;
+    case SYXV_KIND_BOOL: return 2;
     case SYXV_KIND_INTEGER: return get_integer_string_width(value->integer);
     case SYXV_KIND_FRACTIONAL: return get_fractional_string_width(value->fractional, get_fractions_string_width(value->fractional));
     case SYXV_KIND_STRING: return 1 + value->string.count + 1;
@@ -481,8 +483,8 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
   }
   switch (value->kind) {
     case SYXV_KIND_NIL: {
-      *(string++) = '(';
-      *(string++) = ')';
+      *(string++) = '#';
+      *(string++) = 'n';
     } break;
     case SYXV_KIND_SYMBOL: {
       if (value->symbol.guarded) {
@@ -514,11 +516,8 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
       *(string++) = ')';
     } break;
     case SYXV_KIND_BOOL: {
-      if (value->boolean) {
-        memcpy(string, "true", 4);
-      } else {
-        memcpy(string, "false", 5);
-      }
+      *(string++) = '#';
+      *(string++) = value->boolean ? 't' : 'f';
     } break;
     case SYXV_KIND_INTEGER: {
       stringify_integer_n(value->integer, length, string);
@@ -610,7 +609,7 @@ syx_string_t stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache) {
 
 void fprint_syxv(FILE *f, SyxV *value) {
   syx_string_t sb = stringify_syxv(value);
-  fprintf(f, "%s", sb.items);
+  fprintf(f, "%.*s", (int)sb.count, sb.items);
   sb_free(sb);
 }
 

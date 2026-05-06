@@ -91,8 +91,6 @@ SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value);
 
 #define SYX_VALUE_IMPL
 #include "syx_value.h"
-#define SYX_EVAL_CONSTANTS_IMPL
-#include "syx_eval_constants.h"
 #define SYX_EVAL_SPECIALF_IMPL
 #include "syx_eval_specialf.h"
 #define SYX_EVAL_BUILTINS_IMPL
@@ -271,7 +269,6 @@ void syx_env_set_cstr(Syx_Env *env, const char *name, SyxV *value) {
 
 Syx_Env *make_global_syx_env() {
   Syx_Env *env = make_syx_env(NULL, "<global>");
-  syx_env_define_constants(env);
   syx_env_define_special_forms(env);
   syx_env_define_builtins(env);
   //   syx_env_define_arithmetic(env);

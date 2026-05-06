@@ -1,6 +1,6 @@
 ;; 2. PAIRS & LIST STRUCTURE
 (cons 1 2)                  ; (1 . 2)
-(cons 1 (cons 2 nil))       ; (1 2)
+(cons 1 (cons 2 #n))       ; (1 2)
 '(a . b)                    ; (a . b)
 '(a b . c)                  ; (a b . c)
 (car '(1 . 2))              ; 1
@@ -20,7 +20,7 @@
 (pair? '(a . b))            ; true
 (list? '(a b c))            ; true
 (list? '(a . b))            ; false
-(nil? nil)                  ; true
+(nil? #n)                  ; true
 (bool? #t)                  ; true
 
 ;; 4. EQUALITY LOGIC
@@ -39,16 +39,16 @@
 (begin 1 2 3)               ; 3
 (if #t 'yes 'no)            ; yes
 (if #f 'yes 'no)            ; no
-(if #f 'yes)                ; nil
+(if #f 'yes)                ; #n
 (and 1 2 3)                 ; 3
 (and #f 1)                  ; false
 (or #f 5)                   ; 5
 (cond ((= 1 2) 'no) ((= 1 1) 'yes) (else 'none)) ; yes
 
 ;; 6. DEFINITION & ASSIGNMENT
-(define a 10)               ; nil
+(define a 10)               ; #n
 a                           ; 10
-(set a 20)                  ; nil
+(set a 20)                  ; #n
 a                           ; 20
 (let ((x 1) (y 2)) (+ x y)) ; 3
 
