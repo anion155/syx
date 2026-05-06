@@ -12,6 +12,7 @@ struct NoNob_Context_Storage {
   bool build_debug;
   bool build_sanitizer;
   bool run_leaks;
+  bool run_leaks_sanitize;
   bool run_watch;
 };
 
@@ -50,11 +51,31 @@ void command_run_init(NoNob_Command *command) {
   command_build_init(command);
   flag_c_bool_var(command->flags, &ctx.s->run_watch, "w", false, "Re run app on input files changes");
   flag_c_bool_var(command->flags, &ctx.s->run_leaks, "leaks", false, "Run with platform memory leak detector");
+  flag_c_bool_var(command->flags, &ctx.s->run_leaks_sanitize, "sanitize-leaks", false, "Run sequentially first with sanitize enabled and then leaks");
+  flag_c_bool_var(command->flags, &ctx.s->run_leaks_sanitize, "leaks-sanitize", false, "Run sequentially first with sanitize enabled and then leaks");
 }
 
 int watch_and_rebuild() { TODO("watch_and_rebuild"); }
 
 bool command_run_run() {
+  if (ctx.s->run_leaks_sanitize) {
+    ctx.s->run_leaks_sanitize = false;
+    int argc = ctx.argc;
+    char **argv = ctx.argv;
+
+    ctx.s->run_leaks = false;
+    ctx.s->build_sanitizer = true;
+    nob_log(NOB_INFO, "running binary with -fsanitize=address");
+    if (!command_run_run()) return false;
+    ctx.argc = argc;
+    ctx.argv = argv;
+
+    ctx.s->run_leaks = true;
+    ctx.s->build_sanitizer = false;
+    nob_log(NOB_INFO, "running binary wrapped with leak detector");
+    if (!command_run_run()) return false;
+    return true;
+  }
   if (ctx.s->run_leaks && ctx.s->build_sanitizer) {
     fprintf(stderr, "ERROR: flags -leaks and -sanitize are incompatible with each other\n");
     NoNob_Command *run_command = ht_find(&ctx.commands, "run");
