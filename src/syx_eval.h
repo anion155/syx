@@ -10,7 +10,7 @@
 
 #define RUNTIME_ERROR(message, ctx) UNREACHABLE((UNUSED((ctx)), (message)))
 
-typedef Ht(const char *, SyxV *) Syx_Env_Symbols;
+typedef Ht(SyxV_Symbol *, SyxV *) Syx_Env_Symbols;
 
 struct Syx_Env {
   Syx_Env *parent;
@@ -42,8 +42,10 @@ syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame);
 void syx_env_destructor(void *data);
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description);
 Syx_Env *syx_env_global(Syx_Env *env);
-SyxV **syx_env_lookup(Syx_Env *env, const char *name);
-SyxV *syx_env_lookup_get(Syx_Env *env, const char *name);
+SyxV **syx_env_lookup(Syx_Env *env, SyxV_Symbol *symbol);
+SyxV **syx_env_lookup_cstr(Syx_Env *env, const char *name);
+SyxV *syx_env_lookup_get(Syx_Env *env, SyxV_Symbol *symbol);
+SyxV *syx_env_lookup_get_cstr(Syx_Env *env, const char *name);
 void syx_env_define(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value);
 void syx_env_define_cstr(Syx_Env *env, const char *name, SyxV *value);
 void syx_env_set(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value);
@@ -165,19 +167,30 @@ syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame) {
 
 void syx_env_destructor(void *data) {
   Syx_Env *env = data;
-  ht_foreach(symbol, &env->symbols) {
-    rc_release(ht_key(&env->symbols, symbol));
-    rc_release(*symbol);
+  ht_foreach(syxv, &env->symbols) {
+    rc_release(*syxv);
+    rc_release(get_syxv_from_symbol(ht_key(&env->symbols, syxv)));
   }
   ht_free(&env->symbols);
   if (env->parent) rc_release(env->parent);
   if (env->description) free(env->description);
 }
 
+uintptr_t ht_syxv_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n) {
+  (void)n; // not used
+  SyxV_Symbol const **a = (SyxV_Symbol const **)a_;
+  SyxV_Symbol const **b = (SyxV_Symbol const **)b_;
+  switch (op) {
+    case HT_HASH: return ht_default_hash((*a)->name, (*a)->length);
+    case HT_EQ: return (*a)->length != (*b)->length ? false : memcmp((*a)->name, (*b)->name, (*a)->length) == 0;
+  }
+  return 0;
+}
+
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description) {
   Syx_Env *env = rc_alloc(sizeof(Syx_Env), syx_env_destructor);
   env->parent = parent ? rc_acquire(parent) : NULL;
-  env->symbols = (Syx_Env_Symbols){.hasheq = ht_cstr_hasheq};
+  env->symbols = (Syx_Env_Symbols){.hasheq = ht_syxv_symbol_hasheq};
   env->description = description ? strdup(description) : NULL;
   return env;
 }
@@ -187,23 +200,31 @@ Syx_Env *syx_env_global(Syx_Env *env) {
   return env;
 }
 
-SyxV **syx_env_lookup(Syx_Env *env, const char *name) {
+SyxV **syx_env_lookup(Syx_Env *env, SyxV_Symbol *symbol) {
   SyxV **item = NULL;
   while (env != NULL && item == NULL) {
-    item = ht_find(&env->symbols, name);
+    item = ht_find(&env->symbols, symbol);
     env = env->parent;
   }
   return item;
 }
 
-SyxV *syx_env_lookup_get(Syx_Env *env, const char *name) {
-  SyxV **item = syx_env_lookup(env, name);
+SyxV **syx_env_lookup_cstr(Syx_Env *env, const char *name) {
+  return syx_env_lookup(env, &make_syxv_symbol_cstr(name)->symbol);
+}
+
+SyxV *syx_env_lookup_get(Syx_Env *env, SyxV_Symbol *symbol) {
+  SyxV **item = syx_env_lookup(env, symbol);
   if (item == NULL) return NULL;
   return *item;
 }
 
-SyxV **ensure_syxv_redefinable(Syx_Env *env, const char *name) {
-  SyxV **item = syx_env_lookup(env, name);
+SyxV *syx_env_lookup_get_cstr(Syx_Env *env, const char *name) {
+  return syx_env_lookup_get(env, &make_syxv_symbol_cstr(name)->symbol);
+}
+
+SyxV **ensure_syxv_redefinable(Syx_Env *env, SyxV_Symbol *symbol) {
+  SyxV **item = syx_env_lookup(env, symbol);
   if (item != NULL) {
     switch ((*item)->kind) {
       case SYXV_KIND_NIL: break;
@@ -240,31 +261,36 @@ void syxv_update_name(SyxV *value, const char *name) {
 }
 
 void syx_env_define(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value) {
-  rc_acquire(get_syxv_from_symbol(symbol));
-  ensure_syxv_redefinable(env, symbol->name);
-  *ht_find_or_put(&env->symbols, symbol->name) = rc_acquire(value);
-  syxv_update_name(value, symbol->name);
+  ensure_syxv_redefinable(env, symbol);
+  SyxV **item = ht_find(&env->symbols, symbol);
+  if (item == NULL) {
+    rc_acquire(get_syxv_from_symbol(symbol));
+    *ht_put(&env->symbols, symbol) = rc_acquire(value);
+    syxv_update_name(value, symbol->name);
+  } else {
+    rc_release(*item);
+    *item = rc_acquire(value);
+  }
 }
 
 void syx_env_define_cstr(Syx_Env *env, const char *name, SyxV *value) {
-  SyxV **item = ht_find(&env->symbols, name);
-  if (item == NULL) name = rc_manage_strdup(name);
-  ensure_syxv_redefinable(env, name);
-  *ht_find_or_put(&env->symbols, name) = rc_acquire(value);
-  syxv_update_name(value, name);
+  syx_env_define(env, &make_syxv_symbol_cstr(name)->symbol, value);
 }
 
 void syx_env_set(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value) {
-  rc_acquire(get_syxv_from_symbol(symbol));
-  SyxV **item = ensure_syxv_redefinable(env, symbol->name);
-  if (item == NULL) item = ht_put(&env->symbols, symbol->name);
-  *item = rc_acquire(value);
+  SyxV **item = ensure_syxv_redefinable(env, symbol);
+  if (item == NULL) {
+    rc_acquire(get_syxv_from_symbol(symbol));
+    item = ht_put(&env->symbols, symbol);
+    *item = rc_acquire(value);
+  } else {
+    rc_release(*item);
+    *item = rc_acquire(value);
+  }
 }
 
 void syx_env_set_cstr(Syx_Env *env, const char *name, SyxV *value) {
-  SyxV **item = ensure_syxv_redefinable(env, name);
-  if (item == NULL) item = ht_put(&env->symbols, rc_manage_strdup(name));
-  *item = rc_acquire(value);
+  syx_env_set(env, &make_syxv_symbol_cstr(name)->symbol, value);
 }
 
 Syx_Env *make_global_syx_env() {
@@ -299,6 +325,7 @@ SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments)
   if (!result) result = make_syxv_nil();
   rc_acquire(result);
   syx_ctx_pop_frame(ctx);
+  rc_release(evaluated);
   return rc_move(result);
 }
 
@@ -315,7 +342,7 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments)
       symbol = &name_v->symbol;
     }
   continue_same_param:
-    if (ht_find(&call_ctx->env->symbols, symbol->name)) continue;
+    if (ht_find(&call_ctx->env->symbols, symbol)) continue;
     if (it->kind == SYXV_KIND_NIL) TODO("Implement smaller arguments passed or currying");
     if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", ctx);
     if (it->pair.left->kind == SYXV_KIND_SYMBOL && it->pair.left->symbol.name[0] == ':') {
@@ -351,8 +378,7 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments)
   }
   syxv_list_for_each(name_v, closure->defines) {
     if (name_v->kind != SYXV_KIND_PAIR) continue;
-    const char *name = name_v->pair.left->symbol.name;
-    SyxV **value = ht_find(&call_ctx->env->symbols, name);
+    SyxV **value = ht_find(&call_ctx->env->symbols, &name_v->pair.left->symbol);
     if (value != NULL) continue;
     (*value) = rc_acquire(syx_eval(ctx, name_v->pair.right));
     syx_eval_early_exit(*value, call_ctx);
@@ -373,7 +399,7 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments)
 SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
   if (input->kind == SYXV_KIND_QUOTE) return input->quote;
   if (input->kind == SYXV_KIND_SYMBOL) {
-    SyxV *item = syx_env_lookup_get(ctx->env, input->symbol.name);
+    SyxV *item = syx_env_lookup_get(ctx->env, &input->symbol);
     if (item == NULL) RUNTIME_ERROR(temp_sprintf("unbound symbol '%s'", input->symbol.name), ctx);
     return item;
   }
@@ -419,10 +445,11 @@ bool syx_eval_should_early_exit(SyxV *value, void *items[], size_t count) {
 
 bool syx_eval_report_error(Syx_Eval_Ctx *ctx, SyxV *value) {
   if (value->kind != SYXV_KIND_THROWN) return true;
-  SyxV *reason = syx_convert_to_string(ctx, value->thrown.reason);
+  SyxV *reason = rc_acquire(syx_convert_to_string(ctx, value->thrown.reason));
   fprintf(stderr, "Unhandled exception: ");
   if (reason) fprintf(stderr, SV_Fmt "\n", SV_Arg(reason->string));
   else fprintf(stderr, "unknown\n");
+  rc_release(reason);
   if (value->thrown.stack_frame) {
     syx_string_t frames_stack = stringify_call_stack(ctx, value->thrown.stack_frame);
     fprintf(stderr, "%s\n", frames_stack.items);

@@ -1,4 +1,4 @@
-(setopt x true)
+(setopt x #true)
 
 (try 1) ; 1
 ;; (try 1 (finally)) ; 1

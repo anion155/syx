@@ -152,34 +152,49 @@ SyxV *syx_special_form_if(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argum
 SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
   SyxV *result = NULL;
-  SyxV *else_symbol = make_syxv_symbol_cstr("else");
-  SyxV *apply_symbol = make_syxv_symbol_cstr("=>");
+  SyxV *else_symbol = rc_acquire(make_syxv_symbol_cstr("else"));
+  SyxV *apply_symbol = rc_acquire(make_syxv_symbol_cstr("=>"));
   syxv_list_for_each(branch, arguments) {
     if (branch->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed cond branch, list expected", ctx);
-    if (branch->pair.left == else_symbol) return syx_eval_forms_list(ctx, branch->pair.right);
+    if (branch->pair.left == else_symbol) {
+      result = syx_eval_forms_list(ctx, branch->pair.right);
+      rc_release(else_symbol);
+      rc_release(apply_symbol);
+      return result;
+    }
     if (result) rc_release(result);
     result = rc_acquire(syx_eval(ctx, branch->pair.left));
-    syx_eval_early_exit(result, result);
+    syx_eval_early_exit(result, result, else_symbol, apply_symbol);
     bool cond = syx_convert_to_bool_v(ctx, result);
     if (!cond) continue;
     SyxV *right = branch->pair.right;
-    if (right->kind == SYXV_KIND_NIL) return rc_move(result);
+    if (right->kind == SYXV_KIND_NIL) {
+      rc_release(else_symbol);
+      rc_release(apply_symbol);
+      return rc_move(result);
+    }
     if (right->pair.left == apply_symbol) {
       SyxV *apply_right = right->pair.right;
       if (apply_right->kind == SYXV_KIND_PAIR && apply_right->pair.right->kind == SYXV_KIND_NIL) {
         SyxV *call = rc_acquire(make_syxv_list(apply_right->pair.left, result, NULL));
         SyxV *call_result = syx_eval(ctx, call);
-        syx_eval_early_exit(call_result, call, result);
+        syx_eval_early_exit(call_result, call, result, else_symbol, apply_symbol);
         rc_acquire(call_result);
         rc_release(call);
         rc_release(result);
+        rc_release(else_symbol);
+        rc_release(apply_symbol);
         return rc_move(call_result);
       }
     }
     rc_release(result);
+    rc_release(else_symbol);
+    rc_release(apply_symbol);
     return syx_eval_forms_list(ctx, right);
   }
   if (result == NULL) RUNTIME_ERROR("cond empty branches list", ctx);
+  rc_release(else_symbol);
+  rc_release(apply_symbol);
   return result;
 }
 
@@ -195,8 +210,8 @@ SyxV *syx_special_form_throw(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *ar
 SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
   SyxV *body = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
-  SyxV *catch_symbol = make_syxv_symbol_cstr("catch");
-  SyxV *finally_symbol = make_syxv_symbol_cstr("finally");
+  SyxV *catch_symbol = rc_acquire(make_syxv_symbol_cstr("catch"));
+  SyxV *finally_symbol = rc_acquire(make_syxv_symbol_cstr("finally"));
   SyxV *result = NULL;
   syxv_list_for_each(branch, arguments) {
     if (branch->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed try handlers, list expected", ctx);
@@ -211,8 +226,8 @@ SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
       if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed try's catch handler, list expected", ctx);
       if (list->pair.left->kind != SYXV_KIND_SYMBOL) {
         if (result) rc_release(result);
-        result = rc_acquire(syx_eval_forms_list(ctx, list));
-        syx_eval_early_exit(result, body);
+        result = rc_acquire(syx_eval_forms_list(ctx, list, .default_result = make_syxv_nil()));
+        syx_eval_early_exit(result, catch_symbol, finally_symbol, body);
         continue;
       }
       SyxV *error_name = list->pair.left;
@@ -222,7 +237,7 @@ SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
       syx_env_define(handler_ctx->env, &error_name->symbol, body->thrown.reason);
       if (result) rc_release(result);
       result = rc_acquire(syx_eval_forms_list(handler_ctx, handler, .default_result = make_syxv_nil()));
-      syx_eval_early_exit(result, body);
+      syx_eval_early_exit(result, body, handler_ctx, catch_symbol, finally_symbol);
       rc_release(handler_ctx);
       continue;
     }
@@ -230,13 +245,16 @@ SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
       SyxV *list = branch->pair.right;
       if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed try's finally handler, list expected", ctx);
       SyxV *finally_result = rc_acquire(syx_eval_forms_list(ctx, list));
-      syx_eval_early_exit(finally_result, body, result);
+      syx_eval_early_exit(finally_result, catch_symbol, finally_symbol, body, result);
       rc_release(finally_result);
       continue;
     }
     RUNTIME_ERROR("malformed try's handlers list", ctx);
   }
+  rc_release(catch_symbol);
+  rc_release(finally_symbol);
   if (!result) return rc_move(body);
+  rc_release(body);
   return rc_move(result);
 }
 
@@ -260,7 +278,7 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define_cstr(env, "or", make_syxv_specialf(NULL, syx_special_form_or));
   syx_env_define_cstr(env, "if", make_syxv_specialf(NULL, syx_special_form_if));
   syx_env_define_cstr(env, "cond", make_syxv_specialf(NULL, syx_special_form_cond));
-  syx_env_define_cstr(env, "thrown", make_syxv_specialf(NULL, syx_special_form_throw));
+  syx_env_define_cstr(env, "throw", make_syxv_specialf(NULL, syx_special_form_throw));
   syx_env_define_cstr(env, "try", make_syxv_specialf(NULL, syx_special_form_try));
   syx_env_define_cstr(env, "return", make_syxv_specialf(NULL, syx_special_form_return));
 }

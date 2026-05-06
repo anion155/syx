@@ -1,8 +1,9 @@
-(setopt x true)
+(setopt x #true)
 
 (try (throw 1) (catch)) ; ()
+(try (throw 1) (catch 2)) ; 2
+(try (throw 1) (catch 2 3)) ; 3
 (try (throw 1) (catch a)) ; ()
 (try (throw 1) (catch a 2)) ; 2
 (try (throw 1) (catch a 2 3)) ; 3
-(try (throw 1) (catch 2)) ; 2
-(try (throw 1) (catch 2 3)) ; 3
+(try (throw 1) (catch a a)) ; 1

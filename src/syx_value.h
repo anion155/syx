@@ -96,8 +96,8 @@ void syxv_destructor(void *data);
 SyxV *get_syxv_from_symbol(SyxV_Symbol *symbol);
 SyxV *make_syxv_nil();
 SyxV *make_syxv_symbol(String_View symbol);
-SyxV *make_syxv_symbol_n(char *symbol, size_t size);
-SyxV *make_syxv_symbol_cstr(char *symbol);
+SyxV *make_syxv_symbol_n(const char *symbol, size_t size);
+SyxV *make_syxv_symbol_cstr(const char *symbol);
 SyxV *make_syxv_pair(SyxV *left, SyxV *right);
 SyxV *make_syxv_list_opt(size_t count, SyxV **items);
 #define make_syxv_list(...)                             \
@@ -195,7 +195,8 @@ void syxv_destructor(void *data) {
   switch (syxv->kind) {
     case SYXV_KIND_NIL: break;
     case SYXV_KIND_SYMBOL: {
-      ht_delete(SYXV_SYMBOLS(), syxv);
+      SyxV **stored = ht_find(SYXV_SYMBOLS(), syxv->symbol.name);
+      if (stored) ht_delete(SYXV_SYMBOLS(), stored);
       free(syxv->symbol.name);
     } break;
     case SYXV_KIND_PAIR:
@@ -252,11 +253,11 @@ SyxV *make_syxv_symbol(String_View name) {
   return (*syxv);
 }
 
-SyxV *make_syxv_symbol_n(char *symbol, size_t size) {
+SyxV *make_syxv_symbol_n(const char *symbol, size_t size) {
   return make_syxv_symbol((String_View){.data = symbol, .count = size});
 }
 
-SyxV *make_syxv_symbol_cstr(char *symbol) {
+SyxV *make_syxv_symbol_cstr(const char *symbol) {
   return make_syxv_symbol(sv_from_cstr(symbol));
 }
 
@@ -602,6 +603,7 @@ syx_string_t stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache) {
   size_t width = get__syxv_string_width(value, _cache);
   char *string = malloc(width + 1);
   syx_string_t result = {.items = string, .count = width, .capacity = width + 1};
+  result.items[width] = 0;
   stringify__syxv_n(value, width, string, _cache);
   rc_release(_cache);
   return result;

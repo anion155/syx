@@ -1,4 +1,4 @@
-(setopt x true)
+(setopt x #true)
 
 (define i 0)
 (define (print-counter) (println "counter:" i) (set i (+ i 1)))

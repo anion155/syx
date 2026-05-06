@@ -55,7 +55,10 @@ SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
       rc_release(result);
       return rc_move(return_value);
     }
-    syx_eval_early_exit(result, parser_syxvs_for_each_iterator());
+    if (!syx_eval_report_error(ctx, result)) {
+      rc_release(parser_syxvs_for_each_iterator());
+      return rc_move(result);
+    }
     if (script_ctx.opt_xtrace) {
       print_syxv(result);
       printf("\n");
@@ -65,6 +68,7 @@ SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
     print_syxv(result);
     printf("\n");
   }
+  if (!result) return make_syxv_nil();
   return rc_move(result);
 }
 

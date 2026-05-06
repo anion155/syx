@@ -1,4 +1,4 @@
-(setopt x true)
+(setopt x #true)
 
 (define (test)
   (begin
