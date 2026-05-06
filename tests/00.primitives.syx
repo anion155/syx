@@ -6,10 +6,10 @@
 #nil        ; (expected #n)
 #null       ; (expected #n)
 ()          ; (expected ())
-;; #f       ; (expected #f)
-;; #false    ; (expected #f)
-;; #t       ; (expected #t)
-;; #true        ; (expected #t)
+#f       ; (expected #f)
+#false    ; (expected #f)
+#t       ; (expected #t)
+#true        ; (expected #t)
 123         ; (expected 123)
 -123        ; (expected -123)
 123.456     ; (expected 123.456)
@@ -17,15 +17,15 @@
 "test"      ; (expected "test")
 
 ;; quoted values should be evaluated as this exact raw values
-;; '#n                     ; #n
+'#n                     ; #n
 'symbol                  ; symbol
 '()                      ; ()
 '(a b)                   ; (a b)
-;; '(a b . c)               ; (a b . c)
-;; '#f                      ; #f
-;; '#false                   ; #f
-;; '#t                      ; #t
-;; '#true                    ; #t
+'(a b . c)               ; (a b . c)
+'#f                      ; #f
+'#false                   ; #f
+'#t                      ; #t
+'#true                    ; #t
 '123                     ; 123
 '-123                    ; -123
 '123.456                 ; 123.456
@@ -34,7 +34,7 @@
 ''"test"                 ; '"test"
 'if                      ; if
 '+                       ; +
-;; '(lambda (a b) (+ a b))  ; (lambda (a b) (+ a b))
+'(lambda (a b) (+ a b))  ; (lambda (a b) (+ a b))
 
 ;; functions should be evaluated to actual function values
 ;; if                          ; ?<if>

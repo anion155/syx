@@ -66,13 +66,14 @@ SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
     printf("\n");
   }
   if (result) rc_release(result);
-  return result;
+  return rc_move(result);
 }
 
 int run_syx(const char *source_cstr) {
   SyxV *result = syx_parse_and_eval(script_ctx.eval_ctx, source_cstr);
   if (result->kind == SYXV_KIND_RETURN_VALUE) return syx_convert_to_integer_v(script_ctx.eval_ctx, result);
   if (result->kind == SYXV_KIND_THROWN) return -1;
+  rc_release(result);
   return -1;
 }
 
@@ -105,12 +106,14 @@ SyxV *eval_import(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   module_sb.items = rc_acquire(rc_manage_strndup(module_content, module_sb.count));
   free(module_content);
   syx_ctx_push_frame(ctx, (SyxV *)((char *)callable - offsetof(SyxV, specialf)));
-  Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = make_syx_env(ctx->env, temp_sprintf("(import \"%s\")", name->string.data))));
+  Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = syx_env_global(ctx->env)));
   SyxV *result = syx_parse_and_eval(import_ctx, module_sb.items);
+  // TODO: implement exports from module
+  rc_release(result);
   rc_release(import_ctx);
   syx_ctx_pop_frame(ctx);
   syx_eval_early_exit(result, module_sb.items);
-  return result;
+  return make_syxv_nil();
 }
 
 void usage(FILE *stream) {

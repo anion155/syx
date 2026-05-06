@@ -1,4 +1,5 @@
-- recursive function delete it self
+- check memory cleanup
+- implement parse errors and runtime errors as thrown objects
 - automatic fractional -> integer
 - support vectors `#(...<values>)`, indexing as method
 - `#.<constructor>(...<values>)` - as struct constructor, getters and setters as methods
@@ -16,3 +17,7 @@
 - return from upper function
 - implement hex, octal, binary number parse: 0xFF, 0o07, 0b0101
 - implement number separators: 100_000_000
+- implement quit command
+- implement exports from module
+- implement parse error fancy message
+- implement runtime error fancy message
