@@ -133,15 +133,15 @@ void tests_register_runner(Tests_Context *ctx, const char *name, Tests_Runner *r
 void tests_snapshot_print_new(Tests_Context *ctx, Nob_String_View output);
 void tests_snapshot_print_diff(Tests_Context *ctx, Nob_String_View diff_output);
 
-#define TAG_UPDT BOLD BG_MAGENTA F_BLACK " UPDT " RESET
-#define TAG_NEW_ BOLD BG_CYAN F_BLACK " NEW_ " RESET
-#define TAG_PASS BOLD BG_GREEN F_BLACK " PASS " RESET
-#define TAG_FAIL BOLD BG_RED F_BLACK " FAIL " RESET
-#define TAG_RUNS BOLD BG_YELLOW F_BLACK " RUNS " RESET
-#define TAG_TIME DIM "(%.2Lfs)" RESET
+#define TAG_UPDT CLI_BOLD CLI_BG_MAGENTA CLI_FG_BLACK " UPDT " CLI_RESET
+#define TAG_NEW_ CLI_BOLD CLI_BG_CYAN CLI_FG_BLACK " NEW_ " CLI_RESET
+#define TAG_PASS CLI_BOLD CLI_BG_GREEN CLI_FG_BLACK " PASS " CLI_RESET
+#define TAG_FAIL CLI_BOLD CLI_BG_RED CLI_FG_BLACK " FAIL " CLI_RESET
+#define TAG_RUNS CLI_BOLD CLI_BG_YELLOW CLI_FG_BLACK " RUNS " CLI_RESET
+#define TAG_TIME CLI_DIM "(%.2Lfs)" CLI_RESET
 
-#define ICON_FAIL F_WHITE "●" RESET
-#define ICON_NEW F_WHITE "◎" RESET
+#define ICON_FAIL CLI_FG_WHITE "●" CLI_RESET
+#define ICON_NEW CLI_FG_WHITE "◎" CLI_RESET
 
 Test_Result *run_test(Tests_Context *ctx, Test test) {
   printf("\r " TAG_RUNS "  %s\n", test.relative_path);
@@ -157,7 +157,7 @@ Test_Result *run_test(Tests_Context *ctx, Test test) {
   runner->run_test(ctx, runner, &test, result);
   long double seconds = (long double)result->elapsed / (long double)NANOS_PER_SEC;
 
-  printf(MOVE_CURSOR_UP(1));
+  printf(CLI_MOVE_CURSOR_UP(1));
   if (result->status == TEST_RESULT_STATUS_NONE) {
     printf("\r " TAG_FAIL "  %s " TAG_TIME "\n", test.relative_path, seconds);
     printf("   " ICON_FAIL " Failed to run test\n");
@@ -227,14 +227,14 @@ Test_Results run_tests(Tests_Context *ctx, Tests tests) {
   nob_minimal_log_level = log_level;
 
   printf("\n");
-  printf("%-11s ", BOLD "Tests:" RESET);
+  printf("%-11s ", CLI_BOLD "Tests:" CLI_RESET);
   if (results.failed) {
-    printf(F_RED "%zu failed, " RESET, results.failed);
+    printf(CLI_FG_RED "%zu failed, " CLI_RESET, results.failed);
   } else {
     printf("%d failed, ", 0);
   }
   printf("%zu passed, %zu total\n", results.passed, results.count);
-  printf("%-11s %.2Lfs\n", BOLD "Time:" RESET, (long double)results.elapsed / (long double)NANOS_PER_SEC);
+  printf("%-11s %.2Lfs\n", CLI_BOLD "Time:" CLI_RESET, (long double)results.elapsed / (long double)NANOS_PER_SEC);
 
   return results;
 }
@@ -382,10 +382,10 @@ void tests_snapshot_print_diff(Tests_Context *ctx, Nob_String_View diff_output) 
           printf("%3d %3d | %.*s\n", old_start + old_ind++, new_start + new_ind++, MIN((int)line.count - 1, width), line.data + 1);
         } else if (line.data[0] == '-') {
           old_len -= 1;
-          printf("%3d    " F_RED "-" RESET "| " F_RED "%.*s" RESET "\n", old_start + old_ind++, (int)MIN((int)line.count - 1, width), line.data + 1);
+          printf("%3d    " CLI_FG_RED "-" CLI_RESET "| " CLI_FG_RED "%.*s" CLI_RESET "\n", old_start + old_ind++, (int)MIN((int)line.count - 1, width), line.data + 1);
         } else if (line.data[0] == '+') {
           new_len -= 1;
-          printf("    %3d" F_GREEN "+" RESET "| " F_GREEN "%.*s" RESET "\n", new_start + new_ind++, (int)MIN((int)line.count - 1, width), line.data + 1);
+          printf("    %3d" CLI_FG_GREEN "+" CLI_RESET "| " CLI_FG_GREEN "%.*s" CLI_RESET "\n", new_start + new_ind++, (int)MIN((int)line.count - 1, width), line.data + 1);
         }
       }
     }

@@ -16,6 +16,7 @@
 #define HT_IMPL
 #include <ht.h>
 #define RC_IMPL
+#include <cli.h>
 #include <rc.h>
 
 #define SYX_PARSER_IMPL
@@ -43,9 +44,9 @@ SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
   SyxV *result = NULL;
   parser_syxvs_for_each(value, source_cstr) {
     if (script_ctx.opt_xtrace) {
-      printf("+");
+      printf(CLI_DIM ">");
       print_syxv(value);
-      printf("\n");
+      printf("\n" CLI_RESET);
     }
     if (result) rc_release(result);
     result = rc_acquire(syx_eval(ctx, value));
@@ -99,6 +100,7 @@ SyxV *eval_import(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   if (name->kind != SYXV_KIND_STRING) RUNTIME_ERROR("module name expected", ctx);
   String_Builder module_sb = {0};
   if (!nob_read_entire_file(name->string.data, &module_sb)) UNREACHABLE("Failed to read file");
+  sb_append(&module_sb, 0);
   char *module_content = module_sb.items;
   module_sb.items = rc_acquire(rc_manage_strndup(module_content, module_sb.count));
   free(module_content);
@@ -159,13 +161,14 @@ int main(int argc, char **argv) {
   if (commands->count) {
     String_Builder sb = {0};
     da_foreach(const char *, command, commands) sb_append_cstr(&sb, *command);
-    int run_result = run_syx(sb_to_sv(sb).data);
+    sb_append(&sb, 0);
+    int run_result = run_syx(sb.items);
     if (run_result >= 0) nob_return_defer(run_result);
   } else if (argc == 1) {
     String_Builder sb = {0};
     if (!nob_read_entire_file(argv[0], &sb)) UNREACHABLE("Failed to read file");
-    String_View script = sb_to_sv(sb);
-    int run_result = run_syx(script.data);
+    
+    int run_result = run_syx(sb.items);
     sb_free(sb);
     if (run_result >= 0) nob_return_defer(run_result);
   } else {

@@ -4,24 +4,26 @@
 #include <magic.h>
 #include <stdlib.h>
 
-#define ESC "\x1b["
+#define CLI_ESC "\x1b["
 
-#define RESET ESC "0m"
-#define BOLD ESC "1m"
-#define DIM ESC "2m"
-#define F_RED ESC "31m"
-#define F_GREEN ESC "32m"
-#define F_YELLOW ESC "33m"
-#define F_BLACK ESC "38;2;0;0;0m"
-#define F_WHITE ESC "37m"
-#define BG_RED ESC "41m"
-#define BG_GREEN ESC "42m"
-#define BG_YELLOW ESC "43m"
-#define BG_BLUE ESC "44m"
-#define BG_MAGENTA ESC "45m"
-#define BG_CYAN ESC "46m"
+#define CLI_RESET CLI_ESC "0m"
+#define CLI_BOLD CLI_ESC "1m"
+#define CLI_DIM CLI_ESC "2m"
 
-#define MOVE_CURSOR_UP(lines) ESC STRINGIFY(lines) "A"
+#define CLI_FG_RED CLI_ESC "31m"
+#define CLI_FG_GREEN CLI_ESC "32m"
+#define CLI_FG_YELLOW CLI_ESC "33m"
+#define CLI_FG_BLACK CLI_ESC "38;2;0;0;0m"
+#define CLI_FG_WHITE CLI_ESC "37m"
+
+#define CLI_BG_RED CLI_ESC "41m"
+#define CLI_BG_GREEN CLI_ESC "42m"
+#define CLI_BG_YELLOW CLI_ESC "43m"
+#define CLI_BG_BLUE CLI_ESC "44m"
+#define CLI_BG_MAGENTA CLI_ESC "45m"
+#define CLI_BG_CYAN CLI_ESC "46m"
+
+#define CLI_MOVE_CURSOR_UP(lines) CLI_ESC STRINGIFY(lines) "A"
 
 typedef struct cli_term_size {
   size_t cols;
