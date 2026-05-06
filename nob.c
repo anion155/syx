@@ -10,6 +10,7 @@ struct NoNob_Context_Storage {
   const char *tests_path;
 
   bool build_debug;
+  bool build_memory_test;
   bool run_memory_test;
   bool run_watch;
 };
@@ -19,6 +20,7 @@ struct NoNob_Context_Storage {
 
 void command_build_init(NoNob_Command *command) {
   flag_c_bool_var(command->flags, &ctx.s->build_debug, "g", false, "Build with debug symbols");
+  flag_c_bool_var(command->flags, &ctx.s->build_memory_test, "leak-check", false, "Enable memory leak detection");
 }
 
 bool command_build_run() {
@@ -28,7 +30,8 @@ bool command_build_run() {
   nob_cc_flags(&ctx.cmd);
   nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->src_path));
   nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->vendor_path));
-  if (ctx.s->build_debug) nob_cmd_append(&ctx.cmd, "-ggdb");
+  if (ctx.s->build_memory_test) nob_cmd_append(&ctx.cmd, "-ggdb", "-fsanitize=address");
+  else if (ctx.s->build_debug) nob_cmd_append(&ctx.cmd, "-ggdb");
   nob_cc_inputs(&ctx.cmd, "-std=c23");
   nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/main.c", ctx.s->src_path));
   nob_cc_output(&ctx.cmd, ctx.s->syx_path);
