@@ -65,14 +65,16 @@ SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
     print_syxv(result);
     printf("\n");
   }
-  if (result) rc_release(result);
   return rc_move(result);
 }
 
 int run_syx(const char *source_cstr) {
-  SyxV *result = syx_parse_and_eval(script_ctx.eval_ctx, source_cstr);
-  if (result->kind == SYXV_KIND_RETURN_VALUE) return syx_convert_to_integer_v(script_ctx.eval_ctx, result);
-  if (result->kind == SYXV_KIND_THROWN) return -1;
+  SyxV *result = rc_acquire(syx_parse_and_eval(script_ctx.eval_ctx, source_cstr));
+  if (result->kind == SYXV_KIND_RETURN_VALUE) {
+    int code = syx_convert_to_integer_v(script_ctx.eval_ctx, result);
+    rc_release(result);
+    return code;
+  }
   rc_release(result);
   return -1;
 }

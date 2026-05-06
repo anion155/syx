@@ -101,20 +101,20 @@ SyxV *parse__syxv_list(SyxV_Parser_Context *ctx) {
     String_View spaces = chop_spaces(ctx);
     if (ctx->it->count == 0) PARSER_ERROR("unexpected s-expr end, ) was expected here", ctx);
     if (ctx->it->data[0] == SYXV_TOKEN_LIST_END) break;
-    if (syxvs.count && spaces.count == 0) PARSER_ERROR("space was expected here", ctx);
-    if (ctx->it->data[0] == SYXV_TOKEN_DOT && isspace(ctx->it->data[1])) {
+    if (syxvs.count && spaces.count == 0 && ctx->it->data[0] != SYXV_TOKEN_LIST_START) PARSER_ERROR("space was expected here", ctx);
+    if (ctx->it->data[0] == SYXV_TOKEN_DOT && ctx->it->count > 1 && isspace(ctx->it->data[1])) {
       sv_chop_left(ctx->it, 1);
-      spaces = chop_spaces(ctx);
+      chop_spaces(ctx);
       da_append(&syxvs, parse__syxv(ctx));
+      chop_spaces(ctx);
       if (ctx->it->data[0] != SYXV_TOKEN_LIST_END) PARSER_ERROR("expected list end here", ctx);
-      sv_chop_left(ctx->it, 1);
       goto result;
     }
     da_append(&syxvs, parse__syxv(ctx));
   }
-  sv_chop_left(ctx->it, 1);
   da_append(&syxvs, NULL);
 result:
+  sv_chop_left(ctx->it, 1);
   SyxV *list = make_syxv_list_opt(syxvs.count, syxvs.items);
   da_free(syxvs);
   return list;

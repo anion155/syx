@@ -42,8 +42,7 @@ SyxV *syx_builtin_apply(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *fn = syxv_list_next(&arguments);
   SyxV *call = rc_acquire(make_syxv_pair(fn, NULL));
   SyxV **it = &call->pair.right;
-  SyxV **last_item = NULL;
-  syxv_list_for_each(argument, arguments, &last_item) {
+  syxv_list_for_each(argument, arguments) {
     if ((*it)) RUNTIME_ERROR("only last argument allowed to be pair with both values", ctx);
     if (argument->kind == SYXV_KIND_PAIR) {
       (*it) = argument;
@@ -58,7 +57,6 @@ SyxV *syx_builtin_apply(Syx_Eval_Ctx *ctx, SyxV *arguments) {
     (*it)->pair.left = argument;
     it = &(*it)->pair.right;
   }
-  if ((*last_item)->kind != SYXV_KIND_NIL) RUNTIME_ERROR("Invalid arguments list", ctx);
   (*it) = rc_acquire(make_syxv_nil());
   SyxV *result = syx_eval(ctx, call);
   syx_eval_early_exit(result);

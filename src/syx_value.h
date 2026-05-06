@@ -129,7 +129,7 @@ SyxV *make_syxv_return_value(SyxV *return_value);
 SyxV *syxv_list_next_nullable(SyxV **list);
 SyxV *syxv_list_next(SyxV **list);
 
-bool syxv__list_for_each_next(SyxV **list, SyxV **value, SyxV ***cdr);
+bool syxv__list_for_each_next(SyxV **list, SyxV **value, SyxV **cdr);
 #define syxv_list_for_each(value, list, ...) \
   for (SyxV *value##_list = (list), *value; syxv__list_for_each_next(&value##_list, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
 
@@ -240,7 +240,7 @@ SyxV *make_syxv_symbol(String_View name) {
   if (!syxv) {
     char *key = strndup(name.data, name.count);
     syxv = ht_put(SYXV_SYMBOLS(), key);
-    *syxv = rc_acquire(make_syxv(SYXV_KIND_SYMBOL));
+    *syxv = make_syxv(SYXV_KIND_SYMBOL);
     (*syxv)->symbol.name = key;
     (*syxv)->symbol.length = name.count;
     for (String_View it = name; it.count; sv_chop_left(&it, 1)) {
@@ -377,9 +377,9 @@ SyxV *syxv_list_next(SyxV **list) {
   return item;
 }
 
-bool syxv__list_for_each_next(SyxV **list, SyxV **value, SyxV ***cdr) {
+bool syxv__list_for_each_next(SyxV **list, SyxV **value, SyxV **cdr) {
   if ((*list)->kind != SYXV_KIND_PAIR) {
-    if (cdr != NULL) (*cdr) = list;
+    if (cdr != NULL) (*cdr) = *list;
     else if ((*list)->kind != SYXV_KIND_NIL) UNREACHABLE("list expected");
     return false;
   }

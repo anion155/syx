@@ -26,7 +26,7 @@ SyxV *syx_special_form_begin(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *ar
 }
 
 SyxV *syx__special_form_make_lambda(Syx_Eval_Ctx *ctx, const char *name, SyxV *defines, SyxV *forms) {
-  SyxV **rest_define = NULL;
+  SyxV *rest_define = NULL;
   syxv_list_for_each(define, defines, &rest_define) {
     if (define->kind == SYXV_KIND_SYMBOL) continue;
     if (define->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed lambda arguments definitions list", ctx);
@@ -35,8 +35,8 @@ SyxV *syx__special_form_make_lambda(Syx_Eval_Ctx *ctx, const char *name, SyxV *d
       if (define->pair.right->pair.right->kind != SYXV_KIND_NIL) RUNTIME_ERROR("malformed lambda arguments definitions list", ctx);
     }
   }
-  if ((*rest_define)->kind != SYXV_KIND_NIL) {
-    if ((*rest_define)->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("malformed lambda rest argument", ctx);
+  if (rest_define->kind != SYXV_KIND_NIL) {
+    if (rest_define->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("malformed lambda rest argument", ctx);
   }
   if (forms->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed lambda body", ctx);
   return make_syxv_closure(name, defines, forms, ctx->env);

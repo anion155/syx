@@ -22,6 +22,7 @@
 '()                      ; ()
 '(a b)                   ; (a b)
 '(a b . c)               ; (a b . c)
+'(. c)                   ; c
 '#f                      ; #f
 '#false                   ; #f
 '#t                      ; #t
@@ -37,7 +38,7 @@
 '(lambda (a b) (+ a b))  ; (lambda (a b) (+ a b))
 
 ;; functions should be evaluated to actual function values
-;; if                          ; ?<if>
-;; +                           ; !<+>
-;; (lambda (a b) (+ a b))      ; (#<> (a b) (+ a b))
-;; (lambda test (a b) (+ a b)) ; (#<test> (a b) (+ a b))
+if                          ; ?<if>
++                           ; !<+>
+(lambda (a b) (+ a b))      ; (#<> (a b) (+ a b))
+(lambda test (a b) (+ a b)) ; (#<test> (a b) (+ a b))
