@@ -13,12 +13,15 @@ typedef struct Syx_Eval_Ctx Syx_Eval_Ctx;
 typedef struct Syx_Env Syx_Env;
 typedef struct Syx_Frame Syx_Frame;
 
-typedef SyxV *(*Syx_Evaluator)(Syx_Eval_Ctx *ctx, SyxV *arguments);
+typedef struct Syx_SpecialF Syx_SpecialF;
+typedef SyxV *(*Syx_SpecialF_Evaluator)(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments);
 
-typedef struct Syx_SpecialF {
+struct Syx_SpecialF {
   char *name;
-  Syx_Evaluator eval;
-} Syx_SpecialF;
+  Syx_SpecialF_Evaluator eval;
+};
+
+typedef SyxV *(*Syx_Evaluator)(Syx_Eval_Ctx *ctx, SyxV *arguments);
 
 typedef struct Syx_Builtin {
   char *name;
@@ -117,7 +120,7 @@ SyxV *make_syxv_string_cstr(const char *value);
       syx_string_view_t: make_syxv_string_sv(value), \
       const char *: make_syxv_string_cstr(value))
 SyxV *make_syxv_quote(SyxV *quote);
-SyxV *make_syxv_specialf(const char *name, Syx_Evaluator eval);
+SyxV *make_syxv_specialf(const char *name, Syx_SpecialF_Evaluator eval);
 SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env);
 SyxV *make_syxv_throw(Syx_Frame *stack_frame, SyxV *reason);
@@ -320,7 +323,7 @@ SyxV *make_syxv_quote(SyxV *quote) {
   return syxv;
 }
 
-SyxV *make_syxv_specialf(const char *name, Syx_Evaluator eval) {
+SyxV *make_syxv_specialf(const char *name, Syx_SpecialF_Evaluator eval) {
   SyxV *value = make_syxv(SYXV_KIND_SPECIALF);
   value->specialf.name = name ? strdup(name) : NULL;
   value->specialf.eval = eval;

@@ -51,8 +51,8 @@ void syx_env_set_cstr(Syx_Env *env, const char *name, SyxV *value);
 Syx_Env *make_global_syx_env();
 
 SyxV *syx_eval_specialf(Syx_Eval_Ctx *ctx, Syx_SpecialF *specialf, SyxV *arguments);
-SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Builtin *builtin, SyxV *arguments);
-SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Closure *closure, SyxV *arguments);
+SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments);
+SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments);
 SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input);
 
 bool syx_eval_should_early_exit(SyxV *value, void *items[], size_t count);
@@ -284,18 +284,18 @@ Syx_Env *make_global_syx_env() {
 }
 
 SyxV *syx_eval_specialf(Syx_Eval_Ctx *ctx, Syx_SpecialF *specialf, SyxV *arguments) {
-  SyxV *result = specialf->eval(ctx, arguments);
+  SyxV *result = specialf->eval(ctx, specialf, arguments);
   if (!result) return make_syxv_nil();
   return result;
 }
 
-SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Builtin *builtin, SyxV *arguments) {
+SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments) {
   SyxV *evaluated = NULL;
   syxv_list_map(argument, arguments, &evaluated) {
     *argument = syx_eval(ctx, *argument);
     syx_eval_early_exit(*argument, evaluated);
   }
-  syx_ctx_push_frame(ctx, callable);
+  syx_ctx_push_frame(ctx, (SyxV *)((char *)builtin - offsetof(SyxV, builtin)));
   SyxV *result = builtin->eval(ctx, evaluated);
   if (!result) result = make_syxv_nil();
   rc_acquire(result);
@@ -303,7 +303,7 @@ SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Builtin *builtin, 
   return rc_move(result);
 }
 
-SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Closure *closure, SyxV *arguments) {
+SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments) {
   const char *env_description = closure->name ? temp_sprintf("#<%s>", closure->name) : "#<>";
   Syx_Eval_Ctx *call_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = make_syx_env(ctx->env, env_description)));
   SyxV *it = arguments;
@@ -358,7 +358,7 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, SyxV *callable, Syx_Closure *closure, 
     (*value) = rc_acquire(syx_eval(ctx, name_v->pair.right));
     syx_eval_early_exit(*value, call_ctx);
   }
-  syx_ctx_push_frame(ctx, callable);
+  syx_ctx_push_frame(ctx, (SyxV *)((char *)closure - offsetof(SyxV, closure)));
   SyxV *result = syx_eval_forms_list(call_ctx, closure->forms);
   syx_ctx_pop_frame(ctx);
   rc_release(call_ctx);
@@ -394,8 +394,8 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
     case SYXV_KIND_STRING: RUNTIME_ERROR("string is not a procedure", ctx);
     case SYXV_KIND_QUOTE: RUNTIME_ERROR("quote is not a procedure", ctx);
     case SYXV_KIND_SPECIALF: result = syx_eval_specialf(ctx, &head->specialf, arguments); break;
-    case SYXV_KIND_BUILTIN: result = syx_eval_builtin(ctx, head, &head->builtin, arguments); break;
-    case SYXV_KIND_CLOSURE: result = syx_eval_closure(ctx, head, &head->closure, arguments); break;
+    case SYXV_KIND_BUILTIN: result = syx_eval_builtin(ctx, &head->builtin, arguments); break;
+    case SYXV_KIND_CLOSURE: result = syx_eval_closure(ctx, &head->closure, arguments); break;
     case SYXV_KIND_THROWN: UNREACHABLE("thrown object should not be called");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be called");
   }

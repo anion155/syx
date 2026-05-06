@@ -83,7 +83,8 @@ SyxV *eval_quit(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   // if (result->kind == SYXV_KIND_NIL) result = make_syxv_integer(0);
 }
 
-SyxV *eval_setopt(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *eval_setopt(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   SyxV *name = syxv_list_next(&arguments);
   if (name->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("option name expected", ctx);
   bool **option = ht_find(ctx_options(), name->symbol.name);
@@ -93,7 +94,7 @@ SyxV *eval_setopt(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   return NULL;
 }
 
-SyxV *eval_import(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *eval_import(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   SyxV *name = syx_eval(ctx, syxv_list_next(&arguments));
   if (name->kind != SYXV_KIND_STRING) RUNTIME_ERROR("module name expected", ctx);
   String_Builder module_sb = {0};
@@ -101,7 +102,7 @@ SyxV *eval_import(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   char *module_content = module_sb.items;
   module_sb.items = rc_acquire(rc_manage_strndup(module_content, module_sb.count));
   free(module_content);
-  syx_ctx_push_frame(ctx, make_syxv_symbol_cstr("import"));
+  syx_ctx_push_frame(ctx, (SyxV *)((char *)callable - offsetof(SyxV, specialf)));
   Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = make_syx_env(ctx->env, temp_sprintf("(import \"%s\")", name->string.data))));
   SyxV *result = syx_parse_and_eval(import_ctx, module_sb.items);
   rc_release(import_ctx);

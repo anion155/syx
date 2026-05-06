@@ -13,13 +13,15 @@ void syx_env_define_special_forms(Syx_Env *env);
 /** Special forms */
 
 /** Returns first argument unevaluated */
-SyxV *syx_special_form_quote(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_quote(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(ctx);
+  UNUSED(callable);
   return syxv_list_next(&arguments);
 }
 
 /** Evaluates forms in order and returns last result. */
-SyxV *syx_special_form_begin(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_begin(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   return syx_eval_forms_list(ctx, arguments);
 }
 
@@ -41,7 +43,8 @@ SyxV *syx__special_form_make_lambda(Syx_Eval_Ctx *ctx, const char *name, SyxV *d
 }
 
 /** Creates a closure that captures current environment. */
-SyxV *syx_special_form_lambda(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_lambda(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   SyxV *first = syxv_list_next(&arguments);
   if (first->kind == SYXV_KIND_SYMBOL) {
     return syx__special_form_make_lambda(ctx, first->symbol.name, syxv_list_next(&arguments), arguments);
@@ -51,7 +54,8 @@ SyxV *syx_special_form_lambda(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 }
 
 /** Binds a name in the current environment. */
-SyxV *syx_special_form_define(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_define(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   SyxV *name_s = syxv_list_next(&arguments);
   SyxV *value;
   if (name_s->kind == SYXV_KIND_PAIR) {
@@ -70,7 +74,8 @@ SyxV *syx_special_form_define(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 }
 
 /** Mutate an existing binding or creates new one in current environment. */
-SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   SyxV *name_s = syxv_list_next(&arguments);
   if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", ctx);
   SyxV *value = syx_eval(ctx, syxv_list_next(&arguments));
@@ -80,7 +85,8 @@ SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 }
 
 /** Create new variable bindings in parallel on new environment and execute a series of forms in that environment. */
-SyxV *syx_special_form_let(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   Syx_Eval_Ctx *body_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = make_syx_env(ctx->env, NULL)));
   body_ctx->env->description = strdup(temp_sprintf("let<%p>", body_ctx->env));
   SyxV *bindings_src = syxv_list_next(&arguments);
@@ -112,7 +118,8 @@ bool syx_special_form_and_reduce(Syx_Eval_Ctx *ctx, SyxV *evaluated) {
 }
 
 /** Evaluates left to right, returns first falsy value or last value if all truthy */
-SyxV *syx_special_form_and(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_and(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   return syx_eval_forms_list(ctx, arguments, .should_stop = syx_special_form_and_reduce, .default_result = make_syxv_nil());
 }
 
@@ -121,12 +128,14 @@ bool syx_special_form_or_reduce(Syx_Eval_Ctx *ctx, SyxV *evaluated) {
 }
 
 /** Evaluates left to right, returns first truthy value or last value if all falsy */
-SyxV *syx_special_form_or(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_or(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   return syx_eval_forms_list(ctx, arguments, .should_stop = syx_special_form_or_reduce, .default_result = make_syxv_nil());
 }
 
 /** if - Evaluates condition then evaluates only one branch */
-SyxV *syx_special_form_if(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_if(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   SyxV *result = syx_eval(ctx, syxv_list_next(&arguments));
   syx_eval_early_exit(result);
   bool cond = syx_convert_to_bool_v(ctx, result);
@@ -140,7 +149,8 @@ SyxV *syx_special_form_if(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 }
 
 /** Multi-branch conditional */
-SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   SyxV *result = NULL;
   SyxV *else_symbol = make_syxv_symbol_cstr("else");
   SyxV *apply_symbol = make_syxv_symbol_cstr("=>");
@@ -174,14 +184,16 @@ SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 }
 
 /** Create thrown value. */
-SyxV *syx_special_form_throw(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_throw(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   SyxV *reason = syx_eval(ctx, syxv_list_next(&arguments));
   syx_eval_early_exit(reason);
   return make_syxv_throw(ctx->frame_stack->latest, reason);
 }
 
 /** Special form for intercepting thrown values and ensuring cleanup logic is executed. */
-SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   SyxV *body = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
   SyxV *catch_symbol = make_syxv_symbol_cstr("catch");
   SyxV *finally_symbol = make_syxv_symbol_cstr("finally");
@@ -229,7 +241,8 @@ SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 }
 
 /** Special form to trigger an immediate exit from the current function, carrying a value. */
-SyxV *syx_special_form_return(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+SyxV *syx_special_form_return(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   SyxV *value = syx_eval(ctx, syxv_list_next(&arguments));
   syx_eval_early_exit(value);
   return make_syxv_return_value(value);
