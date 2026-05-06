@@ -10,8 +10,8 @@ struct NoNob_Context_Storage {
   const char *tests_path;
 
   bool build_debug;
-  bool build_memory_test;
-  bool run_memory_test;
+  bool build_sanitizer;
+  bool run_leaks;
   bool run_watch;
 };
 
@@ -20,7 +20,7 @@ struct NoNob_Context_Storage {
 
 void command_build_init(NoNob_Command *command) {
   flag_c_bool_var(command->flags, &ctx.s->build_debug, "g", false, "Build with debug symbols");
-  flag_c_bool_var(command->flags, &ctx.s->build_memory_test, "leak-check", false, "Enable memory leak detection");
+  flag_c_bool_var(command->flags, &ctx.s->build_sanitizer, "sanitize", false, "Enable compiler memory leak detection");
 }
 
 bool command_build_run() {
@@ -30,7 +30,7 @@ bool command_build_run() {
   nob_cc_flags(&ctx.cmd);
   nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->src_path));
   nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->vendor_path));
-  if (ctx.s->build_memory_test) nob_cmd_append(&ctx.cmd, "-ggdb", "-fsanitize=address");
+  if (ctx.s->build_sanitizer) nob_cmd_append(&ctx.cmd, "-ggdb", "-fsanitize=address");
   else if (ctx.s->build_debug) nob_cmd_append(&ctx.cmd, "-ggdb");
   nob_cc_inputs(&ctx.cmd, "-std=c23");
   nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/main.c", ctx.s->src_path));
@@ -47,18 +47,27 @@ bool command_build_run() {
 }
 
 void command_run_init(NoNob_Command *command) {
+  command_build_init(command);
   flag_c_bool_var(command->flags, &ctx.s->run_watch, "w", false, "Re run app on input files changes");
-  flag_c_bool_var(command->flags, &ctx.s->run_memory_test, "leak-check", false, "Enable memory leak detection");
+  flag_c_bool_var(command->flags, &ctx.s->run_leaks, "leaks", false, "Run with platform memory leak detector");
 }
 
 int watch_and_rebuild() { TODO("watch_and_rebuild"); }
 
-bool command_run_run(NoNob_Command *command) {
+bool command_run_run() {
+  if (ctx.s->run_leaks && ctx.s->build_sanitizer) {
+    fprintf(stderr, "ERROR: flags -leaks and -sanitize are incompatible with each other\n");
+    NoNob_Command *run_command = ht_find(&ctx.commands, "run");
+    if (ctx.usage) ctx.usage(stderr, run_command);
+    else nonob_default_usage(stderr, run_command);
+    exit(1);
+  }
   if (ctx.s->run_watch) return watch_and_rebuild();
+  if (ctx.s->run_leaks) ctx.s->build_debug = true;
   if (!command_build_run()) return false;
 
 #if defined(__APPLE__)
-  if (ctx.s->run_memory_test) nob_cmd_append(&ctx.cmd, "leaks", "--atExit", "--");
+  if (ctx.s->run_leaks) nob_cmd_append(&ctx.cmd, "leaks", "--atExit", "--");
 #elif defined(__linux__)
   if (ctx.s->run_memory_test) nob_cmd_append(&ctx.cmd, "valgrind", "--leak-check=full");
 #endif

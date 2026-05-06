@@ -36,6 +36,8 @@ typedef struct NoNob_Initialize_Opt {
   bool disable_ccjson;
 } NoNob_Initialize_Opt;
 
+void nonob_default_usage(FILE *stream, NoNob_Command *command);
+
 void nonob_initialize_opt(int argc, char **argv, NoNob_Initialize_Opt opt);
 #define nonob_initialize(argc, argv, ...) nonob_initialize_opt((argc), (argv), (NoNob_Initialize_Opt){__VA_ARGS__})
 void nonob_deinitialize();

@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
   } else if (argc == 1) {
     String_Builder sb = {0};
     if (!nob_read_entire_file(argv[0], &sb)) UNREACHABLE("Failed to read file");
-    
+    sb_append(&sb, 0);
     int run_result = run_syx(sb.items);
     sb_free(sb);
     if (run_result >= 0) nob_return_defer(run_result);
@@ -188,5 +188,9 @@ int main(int argc, char **argv) {
 
 defer:
   rc_release(script_ctx.eval_ctx);
+  // ht_free(ctx_options());
+  // ht_free(FD_CONSTANTS());
+  // ht_free(SYXV_CONSTANTS());
+  // ht_free(SYXV_SYMBOLS());
   return result;
 }
