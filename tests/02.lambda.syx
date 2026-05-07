@@ -1,0 +1,4 @@
+(setopt x #true)
+
+(define (loop from to step fn) (if (= from to) #nil (begin (fn from) (loop (step from) to step fn))))
+(loop 1 5 (lambda (i) (+ i 1)) (lambda (i) (println "loop:" i)))

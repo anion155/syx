@@ -1,0 +1,24 @@
+(setopt x #true)
+
+;; Test: Return last value
+;; Expected: 3
+(begin 1 2 3)
+
+;; Test: Single expression
+;; Expected: "hello"
+(begin "hello")
+
+;; Test: Sequence with definition
+;; Expected: 30
+(begin
+  (define x 10)
+  (define y 20)
+  (+ x y))
+
+;; Test: Nested scopes
+;; Expected: 100
+(begin
+  (define x 50)
+  (begin
+    (define y 100)
+    (+ x y)))

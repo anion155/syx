@@ -1,0 +1,23 @@
+; BASIC VALUES & LITERALS
+(setopt x #t)
+
+;; quoted values should be evaluated as this exact raw values
+'#n                     ; #n
+'symbol                  ; symbol
+'()                      ; ()
+'(a b)                   ; (a b)
+'(a b . c)               ; (a b . c)
+'(. c)                   ; c
+'#f                      ; #f
+'#false                   ; #f
+'#t                      ; #t
+'#true                    ; #t
+'123                     ; 123
+'-123                    ; -123
+'123.456                 ; 123.456
+'-123.456                ; -123.456
+'"test"                  ; "test"
+''"test"                 ; '"test"
+'if                      ; if
+'+                       ; +
+'(lambda (a b) (+ a b))  ; (lambda (a b) (+ a b))

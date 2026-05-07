@@ -1,0 +1,19 @@
+(setopt x #true)
+
+;; Test: Basic True branch
+;; Expected: 1
+(if #t 1 2)
+
+;; Test: Basic False branch
+;; Expected: 2
+(if #f 1 2)
+
+;; Test: Short-circuiting (Crucial!)
+;; If this crashes, your interpreter is evaluating both branches.
+;; Expected: 10
+(if #t 10 (this-function-does-not-exist))
+
+;; Test: Zero/Empty values (Check your Syx "truthiness" logic)
+;; In most Lisps, only #f is false. 0 and empty lists are often true.
+;; Expected: "zero is true"
+;; (if 0 "zero is true" "zero is false")
