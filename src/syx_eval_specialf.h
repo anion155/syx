@@ -84,6 +84,33 @@ SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
   return make_syxv_nil();
 }
 
+/** Checks if environment has binding. */
+SyxV *syx_special_form_is_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
+  SyxV *name_s = syxv_list_next(&arguments);
+  if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", ctx);
+  SyxV *stored = syx_env_lookup_get(ctx->env, &name_s->symbol);
+  return make_syxv_bool(stored != NULL);
+}
+
+/** Get an existing binding or return nil. */
+SyxV *syx_special_form_get(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
+  SyxV *name_s = syxv_list_next(&arguments);
+  if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", ctx);
+  SyxV *stored = syx_env_lookup_get(ctx->env, &name_s->symbol);
+  if (!stored) return make_syxv_nil();
+  return stored;
+}
+
+/** . */
+SyxV *syx_special_form_unset(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(ctx);
+  UNUSED(callable);
+  UNUSED(arguments);
+  TODO("syx_special_form_unset");
+}
+
 /** Create new variable bindings in parallel on new environment and execute a series of forms in that environment. */
 SyxV *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
@@ -273,6 +300,9 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define_cstr(env, "lambda", make_syxv_specialf(NULL, syx_special_form_lambda));
   syx_env_define_cstr(env, "define", make_syxv_specialf(NULL, syx_special_form_define));
   syx_env_define_cstr(env, "set", make_syxv_specialf(NULL, syx_special_form_set));
+  syx_env_define_cstr(env, "is-set?", make_syxv_specialf(NULL, syx_special_form_is_set));
+  syx_env_define_cstr(env, "get", make_syxv_specialf(NULL, syx_special_form_get));
+  syx_env_define_cstr(env, "unset", make_syxv_specialf(NULL, syx_special_form_unset));
   syx_env_define_cstr(env, "let", make_syxv_specialf(NULL, syx_special_form_let));
   syx_env_define_cstr(env, "and", make_syxv_specialf(NULL, syx_special_form_and));
   syx_env_define_cstr(env, "or", make_syxv_specialf(NULL, syx_special_form_or));

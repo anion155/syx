@@ -330,8 +330,7 @@ SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments)
 }
 
 SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments) {
-  const char *env_description = closure->name ? temp_sprintf("#<%s>", closure->name) : "#<>";
-  Syx_Eval_Ctx *call_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = make_syx_env(ctx->env, env_description)));
+  Syx_Eval_Ctx *call_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = closure->env));
   SyxV *it = arguments;
   SyxV *last_name = NULL;
   syxv_list_for_each(name_v, closure->defines, &last_name) {

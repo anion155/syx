@@ -50,6 +50,14 @@ Can contain shorthand version of lambda definition:
 Mutate an existing binding or creates new one in current environment.
 `(set <name> <value>) >= #n`
 
+### is-set?
+Checks if environment has binding.
+`(is-set? <name>) >= #t|#f`
+
+### get
+Get an existing binding or return nil.
+`(get <name>) >= #n`
+
 ### let
 Create new variable bindings in parallel on new environment and execute a series of forms in that environment.
 `(let (...(<name> <value>)) ...<fors>) >= #n`

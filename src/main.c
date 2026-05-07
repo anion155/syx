@@ -42,18 +42,18 @@ define_constant(Ht(const char *, bool *), ctx_options) {
 
 SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
   SyxV *result = NULL;
-  parser_syxvs_for_each(value, source_cstr) {
+  parser_syxvs_for_each(source, source_cstr) {
     if (script_ctx.opt_xtrace) {
       printf(CLI_DIM ">");
-      print_syxv(value);
+      print_syxv(source);
       printf("\n" CLI_RESET);
     }
     if (result) rc_release(result);
-    result = rc_acquire(syx_eval(ctx, value));
+    result = rc_acquire(syx_eval(ctx, source));
     if (result->kind == SYXV_KIND_RETURN_VALUE) {
-      SyxV *return_value = rc_acquire(result->return_value);
+      SyxV *value = rc_acquire(result->return_value);
       rc_release(result);
-      return rc_move(return_value);
+      return rc_move(value);
     }
     if (!syx_eval_report_error(ctx, result)) {
       rc_release(parser_syxvs_for_each_iterator());

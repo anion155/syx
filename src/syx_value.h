@@ -216,9 +216,9 @@ void syxv_destructor(void *data) {
     } break;
     case SYXV_KIND_CLOSURE: {
       if (syxv->closure.name) free(syxv->closure.name);
-      rc_release(syxv->closure.env);
-      rc_release(syxv->closure.defines);
-      rc_release(syxv->closure.forms);
+      if (syxv->closure.env) rc_release(syxv->closure.env);
+      if (syxv->closure.defines) rc_release(syxv->closure.defines);
+      if (syxv->closure.forms) rc_release(syxv->closure.forms);
     } break;
     case SYXV_KIND_THROWN: {
       if (syxv->thrown.stack_frame) rc_release(syxv->thrown.stack_frame);
