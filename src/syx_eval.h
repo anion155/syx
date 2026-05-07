@@ -42,14 +42,11 @@ syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame);
 void syx_env_destructor(void *data);
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description);
 Syx_Env *syx_env_global(Syx_Env *env);
-SyxV **syx_env_lookup(Syx_Env *env, SyxV_Symbol *symbol);
-SyxV **syx_env_lookup_cstr(Syx_Env *env, const char *name);
+Syx_Env *syx_env_lookup(Syx_Env *env, SyxV_Symbol *symbol);
 SyxV *syx_env_lookup_get(Syx_Env *env, SyxV_Symbol *symbol);
-SyxV *syx_env_lookup_get_cstr(Syx_Env *env, const char *name);
 void syx_env_define(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value);
 void syx_env_define_cstr(Syx_Env *env, const char *name, SyxV *value);
 void syx_env_set(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value);
-void syx_env_set_cstr(Syx_Env *env, const char *name, SyxV *value);
 Syx_Env *make_global_syx_env();
 
 SyxV *syx_eval_specialf(Syx_Eval_Ctx *ctx, Syx_SpecialF *specialf, SyxV *arguments);
@@ -168,6 +165,12 @@ syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame) {
 void syx_env_destructor(void *data) {
   Syx_Env *env = data;
   ht_foreach(syxv, &env->symbols) {
+    switch ((*syxv)->kind) {
+      case SYXV_KIND_CLOSURE: {
+        if ((*syxv)->closure.env != env) rc_release((*syxv)->closure.env);
+      } break;
+      default: break;
+    }
     rc_release(*syxv);
     rc_release(get_syxv_from_symbol(ht_key(&env->symbols, syxv)));
   }
@@ -200,76 +203,49 @@ Syx_Env *syx_env_global(Syx_Env *env) {
   return env;
 }
 
-SyxV **syx_env_lookup(Syx_Env *env, SyxV_Symbol *symbol) {
+Syx_Env *syx_env_lookup(Syx_Env *env, SyxV_Symbol *symbol) {
   SyxV **item = NULL;
-  while (env != NULL && item == NULL) {
+  while (env != NULL) {
     item = ht_find(&env->symbols, symbol);
+    if (item != NULL) break;
     env = env->parent;
   }
-  return item;
-}
-
-SyxV **syx_env_lookup_cstr(Syx_Env *env, const char *name) {
-  return syx_env_lookup(env, &make_syxv_symbol_cstr(name)->symbol);
+  return env;
 }
 
 SyxV *syx_env_lookup_get(Syx_Env *env, SyxV_Symbol *symbol) {
-  SyxV **item = syx_env_lookup(env, symbol);
-  if (item == NULL) return NULL;
-  return *item;
-}
-
-SyxV *syx_env_lookup_get_cstr(Syx_Env *env, const char *name) {
-  return syx_env_lookup_get(env, &make_syxv_symbol_cstr(name)->symbol);
-}
-
-SyxV **ensure_syxv_redefinable(Syx_Env *env, SyxV_Symbol *symbol) {
-  SyxV **item = syx_env_lookup(env, symbol);
-  if (item != NULL) {
-    switch ((*item)->kind) {
-      case SYXV_KIND_NIL: break;
-      case SYXV_KIND_SYMBOL: break;
-      case SYXV_KIND_PAIR: break;
-      case SYXV_KIND_BOOL: break;
-      case SYXV_KIND_INTEGER: break;
-      case SYXV_KIND_FRACTIONAL: break;
-      case SYXV_KIND_STRING: break;
-      case SYXV_KIND_QUOTE: break;
-      case SYXV_KIND_SPECIALF: RUNTIME_ERROR("trying to redefine special form", env);
-      case SYXV_KIND_BUILTIN: RUNTIME_ERROR("trying to redefine builtin", env);
-      case SYXV_KIND_CLOSURE: break;
-      case SYXV_KIND_THROWN: UNREACHABLE("thrown object should not be stored in env");
-      case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be stored in env");
-    }
-  }
-  return item;
-}
-
-void syxv_update_name(SyxV *value, const char *name) {
-  switch (value->kind) {
-    case SYXV_KIND_SPECIALF: {
-      if (!value->specialf.name) value->specialf.name = strdup(name);
-    } break;
-    case SYXV_KIND_BUILTIN: {
-      if (!value->builtin.name) value->builtin.name = strdup(name);
-    } break;
-    case SYXV_KIND_CLOSURE: {
-      if (!value->closure.name) value->closure.name = strdup(name);
-    } break;
-    default: break;
-  }
+  env = syx_env_lookup(env, symbol);
+  if (env == NULL) return NULL;
+  return *ht_find(&env->symbols, symbol);
 }
 
 void syx_env_define(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value) {
-  ensure_syxv_redefinable(env, symbol);
   SyxV **item = ht_find(&env->symbols, symbol);
   if (item == NULL) {
     rc_acquire(get_syxv_from_symbol(symbol));
     *ht_put(&env->symbols, symbol) = rc_acquire(value);
-    syxv_update_name(value, symbol->name);
   } else {
+    switch ((*item)->kind) {
+      case SYXV_KIND_CLOSURE: {
+        if ((*item)->closure.env != env) rc_release((*item)->closure.env);
+      } break;
+      default: break;
+    }
     rc_release(*item);
     *item = rc_acquire(value);
+  }
+  switch (value->kind) {
+    case SYXV_KIND_SPECIALF: {
+      if (!value->specialf.name) value->specialf.name = strndup(symbol->name, symbol->length);
+    } break;
+    case SYXV_KIND_BUILTIN: {
+      if (!value->builtin.name) value->builtin.name = strndup(symbol->name, symbol->length);
+    } break;
+    case SYXV_KIND_CLOSURE: {
+      if (!value->closure.name) value->closure.name = strndup(symbol->name, symbol->length);
+      if (value->closure.env != env) rc_acquire(value->closure.env);
+    } break;
+    default: break;
   }
 }
 
@@ -278,19 +254,8 @@ void syx_env_define_cstr(Syx_Env *env, const char *name, SyxV *value) {
 }
 
 void syx_env_set(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value) {
-  SyxV **item = ensure_syxv_redefinable(env, symbol);
-  if (item == NULL) {
-    rc_acquire(get_syxv_from_symbol(symbol));
-    item = ht_put(&env->symbols, symbol);
-    *item = rc_acquire(value);
-  } else {
-    rc_release(*item);
-    *item = rc_acquire(value);
-  }
-}
-
-void syx_env_set_cstr(Syx_Env *env, const char *name, SyxV *value) {
-  syx_env_set(env, &make_syxv_symbol_cstr(name)->symbol, value);
+  Syx_Env *container_env = syx_env_lookup(env, symbol);
+  syx_env_define(container_env == NULL ? env : container_env, symbol, value);
 }
 
 Syx_Env *make_global_syx_env() {

@@ -216,7 +216,6 @@ void syxv_destructor(void *data) {
     } break;
     case SYXV_KIND_CLOSURE: {
       if (syxv->closure.name) free(syxv->closure.name);
-      if (syxv->closure.env) rc_release(syxv->closure.env);
       if (syxv->closure.defines) rc_release(syxv->closure.defines);
       if (syxv->closure.forms) rc_release(syxv->closure.forms);
     } break;
@@ -343,7 +342,7 @@ SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *forms, Syx_Env *e
   value->closure.name = name ? strdup(name) : NULL;
   value->closure.defines = defines ? rc_acquire(defines) : NULL;
   value->closure.forms = forms ? rc_acquire(forms) : NULL;
-  value->closure.env = env ? rc_acquire(env) : NULL;
+  value->closure.env = env;
   return value;
 }
 
