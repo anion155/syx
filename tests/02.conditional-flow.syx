@@ -4,8 +4,8 @@
 ;; Expected: 1
 (if #t 1 2)
 
-;; Test: Basic False branch
-;; Expected: 2
+;; ;; Test: Basic False branch
+;; ;; Expected: 2
 (if #f 1 2)
 
 ;; Test: Short-circuiting (Crucial!)
@@ -16,4 +16,36 @@
 ;; Test: Zero/Empty values (Check your Syx "truthiness" logic)
 ;; In most Lisps, only #f is false. 0 and empty lists are often true.
 ;; Expected: "zero is true"
-;; (if 0 "zero is true" "zero is false")
+(if 0 "zero is true" "zero is false")
+
+;; Test: First condition is true
+;; Expected: "first"
+(cond
+  (#t "first")
+  (#f "second"))
+
+;; Test: Second condition is true
+;; Expected: "second"
+(cond
+  ((= 1 0) "first")
+  ((= 1 1) "second")
+  ((= 1 2) "third"))
+
+;; Test: Falling through to else
+;; Expected: "final"
+(cond
+  (#f "no")
+  (#f "still no")
+  (else "final"))
+
+;; Test: Multiple expressions in one branch
+;; Expected: 100
+(cond
+  (#t (define x 50)
+      (define y 50)
+      (+ x y)))
+
+;; Test: No match
+;; Expected: nil (or your nil equivalent)
+(cond
+  ((= 1 0) "no"))

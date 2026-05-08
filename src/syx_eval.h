@@ -83,6 +83,19 @@ syx_string_t syx_convert_to_string_v(Syx_Eval_Ctx *ctx, SyxV *value);
 syx_string_view_t syx_convert_to_string_sv(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value);
 
+#define PRINT_SYX_ENV_DEEP_CURRENT_ONLY 1
+#define PRINT_SYX_ENV_DEEP_ALL 0
+#define PRINT_SYX_ENV_DEEP_ALL_WITH_GLOBAL -1
+
+typedef struct Print_Syx_Env_Opt {
+  int deep;
+  int indent;
+} Print_Syx_Env_Opt;
+
+void fprint_syx_env_opt(FILE *f, Syx_Env *env, Print_Syx_Env_Opt opt);
+#define fprint_syx_env(f, env, ...) fprint_syx_env_opt((f), (env), (Print_Syx_Env_Opt){__VA_ARGS__})
+#define print_syx_env(env, ...) fprint_syx_env_opt(stdout, (env), (Print_Syx_Env_Opt){__VA_ARGS__})
+
 #endif // SYX_EVAL_H
 
 #if defined(SYX_EVAL_IMPL) && !defined(SYX_EVAL_IMPL_C)
@@ -295,50 +308,52 @@ SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments)
 }
 
 SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments) {
-  Syx_Eval_Ctx *call_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = closure->env));
+  Syx_Eval_Ctx *call_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = make_syx_env(closure->env, temp_sprintf("call<%s>", closure->name))));
   SyxV *it = arguments;
   SyxV *last_name = NULL;
   syxv_list_for_each(name_v, closure->defines, &last_name) {
     SyxV_Symbol *symbol;
     if (name_v->kind == SYXV_KIND_PAIR) {
-      symbol = &name_v->pair.left->symbol;
+      TODO("implement default param values");
+      // symbol = &name_v->pair.left->symbol;
     } else {
       symbol = &name_v->symbol;
     }
-  continue_same_param:
+    // continue_same_param:
     if (ht_find(&call_ctx->env->symbols, symbol)) continue;
     if (it->kind == SYXV_KIND_NIL) TODO("Implement smaller arguments passed or currying");
     if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", ctx);
     if (it->pair.left->kind == SYXV_KIND_SYMBOL && it->pair.left->symbol.name[0] == ':') {
       TODO("redone named param binding");
-      const char *named_param = it->pair.left->symbol.name + 1;
-      it = it->pair.right;
-      if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", ctx);
-      SyxV *left = syx_eval(ctx, it->pair.left);
-      syx_eval_early_exit(left, call_ctx);
-      syx_env_define_cstr(call_ctx->env, named_param, left);
-      it = it->pair.right;
-      goto continue_same_param;
+      // const char *named_param = it->pair.left->symbol.name + 1;
+      // it = it->pair.right;
+      // if (it->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Malformed arguments list", ctx);
+      // SyxV *left = syx_eval(ctx, it->pair.left);
+      // syx_eval_early_exit(left, call_ctx);
+      // syx_env_define_cstr(call_ctx->env, named_param, left);
+      // it = it->pair.right;
+      // goto continue_same_param;
     }
-    SyxV *left = syx_eval(ctx, it->pair.left);
-    syx_eval_early_exit(left, call_ctx);
-    syx_env_define(call_ctx->env, symbol, left);
+    SyxV *value = syx_eval(ctx, it->pair.left);
+    syx_eval_early_exit(value, call_ctx);
+    syx_env_define(call_ctx->env, symbol, value);
     it = it->pair.right;
   }
   if (last_name->kind != SYXV_KIND_NIL) {
-    SyxV_Symbol *symbol = &last_name->symbol;
-    SyxV *rest = it;
-    SyxV *evaluated = NULL;
-    SyxV **last_argument = NULL;
-    syxv_list_map(argument, rest, &evaluated, &last_argument) {
-      *argument = syx_eval(ctx, *argument);
-      syx_eval_early_exit(*argument, call_ctx, evaluated);
-    }
-    if ((*last_argument)->kind != SYXV_KIND_NIL) {
-      *last_argument = rc_acquire(syx_eval(ctx, *last_argument));
-      syx_eval_early_exit(*last_argument, call_ctx, evaluated);
-    }
-    syx_env_define(call_ctx->env, symbol, rest);
+    TODO("implement rest param values");
+    // SyxV_Symbol *symbol = &last_name->symbol;
+    // SyxV *rest = it;
+    // SyxV *evaluated = NULL;
+    // SyxV **last_argument = NULL;
+    // syxv_list_map(argument, rest, &evaluated, &last_argument) {
+    //   *argument = syx_eval(ctx, *argument);
+    //   syx_eval_early_exit(*argument, call_ctx, evaluated);
+    // }
+    // if ((*last_argument)->kind != SYXV_KIND_NIL) {
+    //   *last_argument = rc_acquire(syx_eval(ctx, *last_argument));
+    //   syx_eval_early_exit(*last_argument, call_ctx, evaluated);
+    // }
+    // syx_env_define(call_ctx->env, symbol, rest);
   }
   syxv_list_for_each(name_v, closure->defines) {
     if (name_v->kind != SYXV_KIND_PAIR) continue;
@@ -348,16 +363,15 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments)
     syx_eval_early_exit(*value, call_ctx);
   }
   syx_ctx_push_frame(ctx, (SyxV *)((char *)closure - offsetof(SyxV, closure)));
-  SyxV *result = syx_eval_forms_list(call_ctx, closure->forms);
+  SyxV *result = rc_acquire(syx_eval_forms_list(call_ctx, closure->forms));
   syx_ctx_pop_frame(ctx);
   rc_release(call_ctx);
   if (result->kind == SYXV_KIND_RETURN_VALUE) {
     SyxV *return_value = result;
     result = rc_acquire(result->return_value);
     rc_release(return_value);
-    rc_move(result);
   }
-  return result;
+  return rc_move(result);
 }
 
 SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
@@ -550,10 +564,10 @@ SyxV *syx_convert_to_fractional(Syx_Eval_Ctx *ctx, SyxV *value) {
 
 syx_string_t syx_convert_to_string_v(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
-    case SYXV_KIND_NIL: return sb_copy_from_cstr("nil");
+    case SYXV_KIND_NIL: return sb_copy_from_cstr("#nil");
     case SYXV_KIND_SYMBOL: RUNTIME_ERROR("illegal conversion of symbol to string", ctx);
     case SYXV_KIND_PAIR: return stringify_syxv(value);
-    case SYXV_KIND_BOOL: return sb_copy_from_cstr(value->boolean ? "true" : "false");
+    case SYXV_KIND_BOOL: return sb_copy_from_cstr(value->boolean ? "#true" : "#false");
     case SYXV_KIND_INTEGER: return stringify_integer(value->integer);
     case SYXV_KIND_FRACTIONAL: return stringify_fractional(value->fractional);
     case SYXV_KIND_STRING: return sb_copy_from_sv(value->string);
@@ -568,10 +582,10 @@ syx_string_t syx_convert_to_string_v(Syx_Eval_Ctx *ctx, SyxV *value) {
 
 syx_string_view_t syx_convert_to_string_sv(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
-    case SYXV_KIND_NIL: return sv_from_cstr("nil");
+    case SYXV_KIND_NIL: return sv_from_cstr("#nil");
     case SYXV_KIND_SYMBOL: RUNTIME_ERROR("illegal conversion of symbol to string", ctx);
     case SYXV_KIND_PAIR: RUNTIME_ERROR("illegal conversion of pair to string view", ctx);
-    case SYXV_KIND_BOOL: return sv_from_cstr(value->boolean ? "true" : "false");
+    case SYXV_KIND_BOOL: return sv_from_cstr(value->boolean ? "#true" : "#false");
     case SYXV_KIND_INTEGER: RUNTIME_ERROR("illegal conversion of integer to string view", ctx);
     case SYXV_KIND_FRACTIONAL: RUNTIME_ERROR("illegal conversion of fractional to string view", ctx);
     case SYXV_KIND_STRING: return value->string;
@@ -596,6 +610,26 @@ SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value) {
       SyxV *syxv = make_syxv_string(str);
       sb_free(str);
       return syxv;
+    }
+  }
+}
+
+void fprint_syx_env_opt(FILE *f, Syx_Env *env, Print_Syx_Env_Opt opt) {
+  if (opt.indent) fprintf(f, "%*c", opt.indent, ' ');
+  fprintf(f, "Env: %s\n", env->description ? env->description : "NULL");
+  ht_foreach(syxv, &env->symbols) {
+    if (opt.indent) fprintf(f, "%*c", opt.indent, ' ');
+    fprintf(f, "  \"%s\": ", ht_key(&env->symbols, syxv)->name);
+    fprint_syxv(f, *syxv);
+    fprintf(f, "\n");
+  }
+  if (env->parent) {
+    if (opt.deep == PRINT_SYX_ENV_DEEP_ALL_WITH_GLOBAL) {
+      fprint_syx_env_opt(f, env->parent, opt);
+    } else if (opt.deep == PRINT_SYX_ENV_DEEP_ALL && env->parent->parent) {
+      fprint_syx_env_opt(f, env->parent, opt);
+    } else if (opt.deep > PRINT_SYX_ENV_DEEP_CURRENT_ONLY) {
+      fprint_syx_env_opt(f, env->parent, (Print_Syx_Env_Opt){.deep = opt.deep - 1, .indent = opt.indent});
     }
   }
 }

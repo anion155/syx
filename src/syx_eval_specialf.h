@@ -163,7 +163,7 @@ SyxV *syx_special_form_or(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argum
 /** if - Evaluates condition then evaluates only one branch */
 SyxV *syx_special_form_if(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
-  SyxV *result = syx_eval(ctx, syxv_list_next(&arguments));
+  SyxV *result = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
   syx_eval_early_exit(result);
   bool cond = syx_convert_to_bool_v(ctx, result);
   rc_release(result);

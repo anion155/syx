@@ -62,19 +62,21 @@ bool command_run_run() {
     ctx.s->run_leaks_sanitize = false;
     int argc = ctx.argc;
     char **argv = ctx.argv;
+    bool result = true;
 
     ctx.s->run_leaks = false;
     ctx.s->build_sanitizer = true;
     nob_log(NOB_INFO, "running binary with -fsanitize=address");
-    if (!command_run_run()) return false;
+    result = !command_run_run() && result;
+
     ctx.argc = argc;
     ctx.argv = argv;
-
     ctx.s->run_leaks = true;
     ctx.s->build_sanitizer = false;
     nob_log(NOB_INFO, "running binary wrapped with leak detector");
-    if (!command_run_run()) return false;
-    return true;
+    result = !command_run_run() && result;
+
+    return result;
   }
   if (ctx.s->run_leaks && ctx.s->build_sanitizer) {
     fprintf(stderr, "ERROR: flags -leaks and -sanitize are incompatible with each other\n");
