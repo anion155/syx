@@ -1,0 +1,32 @@
+(setopt x #true)
+
+;; Test: First value is truthy
+;; Expected: 1
+(or 1 2 3)
+
+;; Test: Last value is truthy
+;; Expected: #t
+(or #f #f #t)
+
+;; Test: Empty or
+;; Expected: #f (Standard Lisp identity for 'or')
+(or)
+
+;; Test: Short-circuiting with side effects
+;; Expected: 10
+(begin
+  (define x 10)
+  (or #t (define x 20))
+  x)
+
+;; Test: Short-circuiting undefined symbols
+;; Expected: "saved"
+(or "saved" (this-would-crash-the-interpreter))
+
+;; Test: Return the truthy integer
+;; Expected: 42
+(or #f 42 #f)
+
+;; Test: Return the first truthy value in a sequence
+;; Expected: "first"
+(or "first" "second" #f)

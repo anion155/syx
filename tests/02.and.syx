@@ -1,0 +1,43 @@
+(setopt x #true)
+
+;; Test: All true
+;; Expected: #t
+(and #t #t #t)
+
+;; Test: Contains false
+;; Expected: #f
+(and #t #f #t)
+
+;; Test: Empty and
+;; Expected: #t (Standard Lisp convention)
+(and)
+
+;; Test: Short-circuit on first false
+;; Expected: #f
+(and #f (this-function-does-not-exist))
+
+;; Test: Short-circuit in the middle
+;; Expected: #f
+(and (= 1 1) (= 1 0) (this-function-does-not-exist))
+
+;; Test: Return last truthy value
+;; Expected: 30
+(and 10 20 30)
+
+;; Test: Return first falsey value
+;; Expected: #f (or nil, depending on your falsey definition)
+(and 10 #f 30)
+
+;; Test: Side effect short-circuit
+;; Expected: 5
+(begin
+  (define x 5)
+  (and #f (define x 10))
+  x)
+
+;; Test: Side effect completion
+;; Expected: 10
+(begin
+  (define x 5)
+  (and #t (define x 10))
+  x)
