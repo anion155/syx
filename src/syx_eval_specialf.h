@@ -118,26 +118,20 @@ SyxV *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
   body_ctx->env->description = strdup(temp_sprintf("let<%p>", body_ctx->env));
   SyxV *bindings_src = syxv_list_next(&arguments);
   if (bindings_src->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("List of definitions expected", ctx);
-  SyxV *bindings = NULL;
-  syxv_list_map(binding, bindings_src, &bindings) {
-    if ((*binding)->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed let definition, list expected", ctx);
-    if ((*binding)->pair.left->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("malformed let definition, symbol as name expected", ctx);
-    if ((*binding)->pair.right->kind == SYXV_KIND_PAIR) {
-      if ((*binding)->pair.right->pair.right->kind != SYXV_KIND_NIL) RUNTIME_ERROR("malformed let definition, too long list", ctx);
+  syxv_list_for_each(binding, bindings_src) {
+    if (binding->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed let definition, list expected", ctx);
+    if (binding->pair.left->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("malformed let definition, symbol as name expected", ctx);
+    if (binding->pair.right->kind == SYXV_KIND_PAIR) {
+      if (binding->pair.right->pair.right->kind != SYXV_KIND_NIL) RUNTIME_ERROR("malformed let definition, too long list", ctx);
     }
-    (*binding) = make_syxv_pair(
-        (*binding)->pair.left,
-        syx_eval(ctx, (*binding)->pair.right->pair.left));
-    syx_eval_early_exit((*binding), bindings);
-  }
-  syxv_list_for_each(binding, bindings) {
     SyxV *name = binding->pair.left;
-    SyxV *value = binding->pair.right;
+    SyxV *value = syx_eval(ctx, binding->pair.right->pair.left);
+    syx_eval_early_exit(value, body_ctx);
     syx_env_define(body_ctx->env, &name->symbol, value);
   }
-  SyxV *result = syx_eval_forms_list(body_ctx, arguments);
+  SyxV *result = rc_acquire(syx_eval_forms_list(body_ctx, arguments));
   rc_release(body_ctx);
-  return result;
+  return rc_move(result);
 }
 
 bool syx_special_form_and_reduce(Syx_Eval_Ctx *ctx, SyxV *evaluated) {

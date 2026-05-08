@@ -1,0 +1,40 @@
+(setopt x #true)
+
+;; Test: Single binding
+;; Expected: 10
+(let ((x 10))
+  x)
+
+;; Test: Multiple bindings
+;; Expected: 30
+(let ((a 10)
+      (b 20))
+  (+ a b))
+
+;; Test: Shadowing
+;; Expected: 100
+(define x 5)
+(let ((x 100))
+  x)
+
+;; Test: Preservation of outer scope
+;; Expected: 5
+(begin
+  (define x 5)
+  (let ((x 100))
+    (+ x x))
+  x)
+
+;; Test: Parallel evaluation
+;; If x is 5, y should be 6 (5+1), NOT 11 (10+1).
+;; Expected: 6
+(define x 5)
+(let ((x 10)
+      (y (+ x 1)))
+  y)
+
+;; Test: Multiple expressions in body
+;; Expected: 15
+(let ((x 5))
+  (define y 10)
+  (+ x y))
