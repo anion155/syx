@@ -29,16 +29,16 @@ SyxV *syx__special_form_make_lambda(Syx_Eval_Ctx *ctx, const char *name, SyxV *d
   SyxV *rest_define = NULL;
   syxv_list_for_each(define, defines, &rest_define) {
     if (define->kind == SYXV_KIND_SYMBOL) continue;
-    if (define->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed lambda arguments definitions list", ctx);
-    if (define->pair.left->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("malformed lambda arguments definitions list", ctx);
+    if (define->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "malformed lambda arguments definitions list");
+    if (define->pair.left->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "malformed lambda arguments definitions list");
     if (define->pair.right->kind == SYXV_KIND_PAIR) {
-      if (define->pair.right->pair.right->kind != SYXV_KIND_NIL) RUNTIME_ERROR("malformed lambda arguments definitions list", ctx);
+      if (define->pair.right->pair.right->kind != SYXV_KIND_NIL) RUNTIME_ERROR(ctx, "malformed lambda arguments definitions list");
     }
   }
   if (rest_define->kind != SYXV_KIND_NIL) {
-    if (rest_define->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("malformed lambda rest argument", ctx);
+    if (rest_define->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "malformed lambda rest argument");
   }
-  if (forms->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed lambda body", ctx);
+  if (forms->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "malformed lambda body");
   return make_syxv_closure(name, defines, forms, ctx->env);
 }
 
@@ -61,10 +61,10 @@ SyxV *syx_special_form_define(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *a
   if (name_s->kind == SYXV_KIND_PAIR) {
     SyxV *defines = name_s->pair.right;
     name_s = name_s->pair.left;
-    if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", ctx);
+    if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "Symbol expression expected as name");
     value = syx__special_form_make_lambda(ctx, name_s->symbol.name, defines, arguments);
   } else if (name_s->kind != SYXV_KIND_SYMBOL) {
-    RUNTIME_ERROR("Symbol expression expected as name", ctx);
+    RUNTIME_ERROR(ctx, "Symbol expression expected as name");
   } else {
     value = syx_eval(ctx, syxv_list_next(&arguments));
     syx_eval_early_exit(value);
@@ -77,7 +77,7 @@ SyxV *syx_special_form_define(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *a
 SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
   SyxV *name_s = syxv_list_next(&arguments);
-  if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", ctx);
+  if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "Symbol expression expected as name");
   SyxV *value = syx_eval(ctx, syxv_list_next(&arguments));
   syx_eval_early_exit(value);
   syx_env_set(ctx->env, &name_s->symbol, value);
@@ -88,7 +88,7 @@ SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
 SyxV *syx_special_form_is_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
   SyxV *name_s = syxv_list_next(&arguments);
-  if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", ctx);
+  if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "Symbol expression expected as name");
   SyxV *stored = syx_env_lookup_get(ctx->env, &name_s->symbol);
   return make_syxv_bool(stored != NULL);
 }
@@ -97,7 +97,7 @@ SyxV *syx_special_form_is_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *a
 SyxV *syx_special_form_get(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
   SyxV *name_s = syxv_list_next(&arguments);
-  if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("Symbol expression expected as name", ctx);
+  if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "Symbol expression expected as name");
   SyxV *stored = syx_env_lookup_get(ctx->env, &name_s->symbol);
   if (!stored) return make_syxv_nil();
   return stored;
@@ -117,12 +117,14 @@ SyxV *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
   Syx_Eval_Ctx *body_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = make_syx_env(ctx->env, NULL)));
   body_ctx->env->description = strdup(temp_sprintf("let<%p>", body_ctx->env));
   SyxV *bindings_src = syxv_list_next(&arguments);
-  if (bindings_src->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("List of definitions expected", ctx);
+  if (bindings_src->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "List of definitions expected", body_ctx);
   syxv_list_for_each(binding, bindings_src) {
-    if (binding->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed let definition, list expected", ctx);
-    if (binding->pair.left->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("malformed let definition, symbol as name expected", ctx);
+    if (binding->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "malformed let definition, list expected", body_ctx);
+    if (binding->pair.left->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "malformed let definition, symbol as name expected", body_ctx);
     if (binding->pair.right->kind == SYXV_KIND_PAIR) {
-      if (binding->pair.right->pair.right->kind != SYXV_KIND_NIL) RUNTIME_ERROR("malformed let definition, too long list", ctx);
+      if (binding->pair.right->pair.right->kind != SYXV_KIND_NIL) {
+        RUNTIME_ERROR(ctx, "malformed let definition, too long list", body_ctx);
+      }
     }
     SyxV *name = binding->pair.left;
     SyxV *value = syx_eval(ctx, binding->pair.right->pair.left);
@@ -134,8 +136,10 @@ SyxV *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
   return rc_move(result);
 }
 
-bool syx_special_form_and_reduce(Syx_Eval_Ctx *ctx, SyxV *evaluated) {
-  return !syx_convert_to_bool_v(ctx, evaluated);
+SyxV *syx_special_form_and_reduce(Syx_Eval_Ctx *ctx, SyxV *evaluated) {
+  bool value = {0};
+  syx_convert_to(ctx, evaluated, &value);
+  return make_syxv_bool(!value);
 }
 
 /** Evaluates left to right, returns first falsy value or last value if all truthy */
@@ -144,8 +148,9 @@ SyxV *syx_special_form_and(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
   return syx_eval_forms_list(ctx, arguments, .should_stop = syx_special_form_and_reduce, .default_result = make_syxv_nil());
 }
 
-bool syx_special_form_or_reduce(Syx_Eval_Ctx *ctx, SyxV *evaluated) {
-  return syx_convert_to_bool_v(ctx, evaluated);
+SyxV *syx_special_form_or_reduce(Syx_Eval_Ctx *ctx, SyxV *evaluated) {
+  UNUSED(ctx);
+  return evaluated;
 }
 
 /** Evaluates left to right, returns first truthy value or last value if all falsy */
@@ -157,15 +162,13 @@ SyxV *syx_special_form_or(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argum
 /** if - Evaluates condition then evaluates only one branch */
 SyxV *syx_special_form_if(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
-  SyxV *result = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
-  syx_eval_early_exit(result);
-  bool cond = syx_convert_to_bool_v(ctx, result);
-  rc_release(result);
+  bool cond = {0};
+  syx_convert_to(ctx, syx_eval(ctx, syxv_list_next(&arguments)), &cond);
   SyxV *then_body = syxv_list_next(&arguments);
   SyxV *else_body = syxv_list_next(&arguments);
+  SyxV *result;
   if (cond) result = syx_eval(ctx, then_body);
   else result = syx_eval(ctx, else_body);
-  syx_eval_early_exit(result);
   return result;
 }
 
@@ -176,7 +179,7 @@ SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arg
   SyxV *else_symbol = rc_acquire(make_syxv_symbol_cstr("else"));
   SyxV *apply_symbol = rc_acquire(make_syxv_symbol_cstr("=>"));
   syxv_list_for_each(branch, arguments) {
-    if (branch->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed cond branch, list expected", ctx);
+    if (branch->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "malformed cond branch, list expected");
     if (branch->pair.left == else_symbol) {
       result = syx_eval_forms_list(ctx, branch->pair.right);
       rc_release(else_symbol);
@@ -185,8 +188,8 @@ SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arg
     }
     if (result) rc_release(result);
     result = rc_acquire(syx_eval(ctx, branch->pair.left));
-    syx_eval_early_exit(result, result, else_symbol, apply_symbol);
-    bool cond = syx_convert_to_bool_v(ctx, result);
+    bool cond = {0};
+    syx_convert_to(ctx, result, &cond, result, else_symbol, apply_symbol);
     if (!cond) continue;
     SyxV *right = branch->pair.right;
     if (right->kind == SYXV_KIND_NIL) {
@@ -213,7 +216,7 @@ SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arg
     rc_release(apply_symbol);
     return syx_eval_forms_list(ctx, right);
   }
-  if (result == NULL) RUNTIME_ERROR("cond empty branches list", ctx);
+  if (result == NULL) RUNTIME_ERROR(ctx, "cond empty branches list");
   rc_release(else_symbol);
   rc_release(apply_symbol);
   return result;
@@ -224,7 +227,7 @@ SyxV *syx_special_form_throw(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *ar
   UNUSED(callable);
   SyxV *reason = syx_eval(ctx, syxv_list_next(&arguments));
   syx_eval_early_exit(reason);
-  return make_syxv_throw(ctx->frame_stack->latest, reason);
+  return make_syxv_thrown(ctx->frame_stack->latest, reason);
 }
 
 /** Special form for intercepting thrown values and ensuring cleanup logic is executed. */
@@ -235,7 +238,7 @@ SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
   SyxV *finally_symbol = rc_acquire(make_syxv_symbol_cstr("finally"));
   SyxV *result = NULL;
   syxv_list_for_each(branch, arguments) {
-    if (branch->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed try handlers, list expected", ctx);
+    if (branch->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "malformed try handlers, list expected");
     if (branch->pair.left == catch_symbol) {
       if (body->kind != SYXV_KIND_THROWN) continue;
       SyxV *list = branch->pair.right;
@@ -244,11 +247,12 @@ SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
         result = rc_acquire(make_syxv_nil());
         continue;
       }
-      if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed try's catch handler, list expected", ctx);
+      if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "malformed try's catch handler, list expected");
       if (list->pair.left->kind != SYXV_KIND_SYMBOL) {
         if (result) rc_release(result);
-        result = rc_acquire(syx_eval_forms_list(ctx, list, .default_result = make_syxv_nil()));
+        result = syx_eval_forms_list(ctx, list, .default_result = make_syxv_nil());
         syx_eval_early_exit(result, catch_symbol, finally_symbol, body);
+        rc_acquire(result);
         continue;
       }
       SyxV *error_name = list->pair.left;
@@ -257,20 +261,22 @@ SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
       handler_ctx->env->description = strdup(temp_sprintf("try-catch<%p>", handler_ctx->env));
       syx_env_define(handler_ctx->env, &error_name->symbol, body->thrown.reason);
       if (result) rc_release(result);
-      result = rc_acquire(syx_eval_forms_list(handler_ctx, handler, .default_result = make_syxv_nil()));
+      result = syx_eval_forms_list(handler_ctx, handler, .default_result = make_syxv_nil());
       syx_eval_early_exit(result, body, handler_ctx, catch_symbol, finally_symbol);
+      rc_acquire(result);
       rc_release(handler_ctx);
       continue;
     }
     if (branch->pair.left == finally_symbol) {
       SyxV *list = branch->pair.right;
-      if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("malformed try's finally handler, list expected", ctx);
-      SyxV *finally_result = rc_acquire(syx_eval_forms_list(ctx, list));
+      if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "malformed try's finally handler, list expected");
+      SyxV *finally_result = syx_eval_forms_list(ctx, list);
       syx_eval_early_exit(finally_result, catch_symbol, finally_symbol, body, result);
+      rc_acquire(finally_result);
       rc_release(finally_result);
       continue;
     }
-    RUNTIME_ERROR("malformed try's handlers list", ctx);
+    RUNTIME_ERROR(ctx, "malformed try's handlers list");
   }
   rc_release(catch_symbol);
   rc_release(finally_symbol);

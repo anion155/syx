@@ -42,6 +42,9 @@ void *rc__move(void *data);
 
 void rc_release(const void *data);
 
+void rc__release_all(const void *items[], size_t count);
+#define rc_release_all(...) rc__release_all((const void *[]){__VA_ARGS__}, sizeof((const void *[]){__VA_ARGS__}) / sizeof(const void *))
+
 ptrdiff_t rc_count(void *data);
 
 #endif // RC_H
@@ -115,6 +118,13 @@ void rc_release(const void *data)
     if (rc->count <= 0) {
         if (rc->destroy != NULL) rc->destroy(rc + 1);
         free(rc);
+    }
+}
+
+void rc__release_all(const void *items[], size_t count)
+{
+    for (size_t index = 0; index < count; index += 1) {
+        if (items[index]) rc_release(items[index]);
     }
 }
 

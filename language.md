@@ -41,14 +41,14 @@ Name is for debug purposes only
 
 ### define
 Binds value to a name in the current environment.
-`(define <name> <value>) >= #n`
+`(define <name> <value>) >= #nil`
 
 Can contain shorthand version of lambda definition:
-`(define (<name> <arguments-names-list>) ...<form>) >= #n`
+`(define (<name> <arguments-names-list>) ...<form>) >= #nil`
 
 ### set
 Mutate an existing binding or creates new one in current environment.
-`(set <name> <value>) >= #n`
+`(set <name> <value>) >= #nil`
 
 ### is-set?
 Checks if environment has binding.
@@ -56,19 +56,19 @@ Checks if environment has binding.
 
 ### get
 Get an existing binding or return nil.
-`(get <name>) >= #n`
+`(get <name>) >= #nil`
 
 ### let
 Create new variable bindings in parallel on new environment and execute a series of forms in that environment.
-`(let (...(<name> <value>)) ...<fors>) >= #n`
+`(let (...(<name> <value>)) ...<fors>) >= #nil`
 
 <!-- ### let*
 Create new variable bindings sequentially on new environment and execute a series of forms in that environment.
-`(let* (...(<name> <value>)) ...<form>) >= #n` -->
+`(let* (...(<name> <value>)) ...<form>) >= #nil` -->
 
 <!-- ### letrec
 Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
-`(letrec (...(<name> <value>)) ...<form>) >= #n` -->
+`(letrec (...(<name> <value>)) ...<form>) >= #nil` -->
 
 ### and
 Evaluates left to right, returns first falsy or last value. Short-circuits.
@@ -79,10 +79,10 @@ Evaluates left to right, returns first truthy or last value. Short-circuits.
 `(or ...<form>) => first truthy | last value`
 
 ### if
-`(if <condition> <then> <else>) => eval(<then>) | eval(<else>) | #n`
+`(if <condition> <then> <else>) => eval(<then>) | eval(<else>) | #nil`
 
 ### cond
-`(cond ...(<condition> ...<form>) (else ...<form>)) => first matching result | #n`
+`(cond ...(<condition> ...<form>) (else ...<form>)) => first matching result | #nil`
 
 ### throw
 Create value of type `throw` that is should trigger early return of said value after any evaluation.
@@ -102,6 +102,10 @@ Special form to trigger an immediate exit from the current function, carrying a 
 ### cons
 Takes exactly 2 arguments and returns a pair (left . right).
 `(cons <left> <right>) => (<left> . <right>)`
+
+### list
+Evaluates each argument and constructs a new list containing the results.
+`(list ...<value>) => (...<eval<value>>)`
 
 ### car / cdr
 Returns the left / right element of a pair.
@@ -202,12 +206,16 @@ Returns `false` if argument is truthy, `true` if falsy.
 
 ### print
 Print arguments to file.
-`(print '<FD>? ...<argument>) => #n`
+`(print '<FD>? ...<argument>) => #nil`
+
+### print-flash
+Flash file descriptor.
+`(print-flash '<FD>?) => #nil`
 
 ### println
 Print arguments to file and newline.
-`(println '<FD>? ...<argument>) => #n`
+`(println '<FD>? ...<argument>) => #nil`
 
 ### printf
 Print arguments to file.
-`(print '<FD>? <format-string> ...<argument>) => #n`
+`(print '<FD>? <format-string> ...<argument>) => #nil`

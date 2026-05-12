@@ -1,0 +1,62 @@
+(setopt x #true)
+(setopt e #false)
+
+;; Test: Basic print
+;; Expected output: "hello world" (no newline)
+(println "hello world")
+
+;; Test: Basic println
+;; Expected output: "hello world \n"
+;; Note: Your current C code for println adds a space after "world"
+(println "hello world")
+
+;; Test: Basic println
+;; Expected output: "hello world \n"
+;; Note: Your current C code for println adds a space after "world"
+(begin (print "hello") (print " ") (print "world") (print "\n"))
+
+;; Test: Basic print spacing
+;; Expected output: "hello world" (no newline)
+(println "hello" "world")
+
+;; Test: Printing mixed types
+;; Expected output: "Age: 25 Active: #t"
+(println "Age:" 25 "Active:" #t)
+
+;; Test: Printing a list
+;; Expected output: "(1 2 3)"
+(println (list 1 2 3))
+
+;; Test: Explicit stdout
+(println 'stdout "Force to stdout")
+(println 'stderr "Force to stderr")
+
+;; Test: Printing to a file (if you have an 'open-file' builtin)
+(let ((f (open-file "test.log" "w")))
+  (println f "Logging an event")
+  (close-file f))
+
+;; Test: print inside a begin block
+;; Expected output: "Evaluating..."
+;; Expected return: 100
+(begin
+  (println "Evaluating...")
+  100)
+
+;; Test: print inside a cond branch
+(cond
+  (#t (println "Condition met"))
+  (else (println "Condition not met")))
+
+;; Test: Nested list printing
+;; Expected: "((1 2) (3 4))"
+(println (list (list 1 2) (list 3 4)))
+
+;; Test: Deeply nested with mixed types
+;; Expected: "(a (b (c 10)))"
+(let (
+  (a 40)
+  (b 30)
+  (c 20)
+)
+  (println a (list 'b (list 'c 10))))

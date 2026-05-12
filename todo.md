@@ -1,5 +1,5 @@
 - check memory cleanup
-- implement parse errors and runtime errors as thrown objects
+
 - automatic fractional -> integer
 - support vectors `#(...<values>)`, indexing as method
 - `#.<constructor>(...<values>)` - as struct constructor, getters and setters as methods

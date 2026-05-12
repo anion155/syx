@@ -108,6 +108,7 @@ SyxV *make_syxv_bool(syx_bool_t value);
 SyxV *make_syxv_integer(syx_integer_t value);
 SyxV *make_syxv_fractional(syx_fractional_t value);
 SyxV *make_syxv_string(syx_string_t value);
+SyxV *make_syxv_string_managed_cstr(syx_string_t value);
 SyxV *make_syxv_string_sv(syx_string_view_t value);
 SyxV *make_syxv_string_n(const char *value, size_t size);
 SyxV *make_syxv_string_cstr(const char *value);
@@ -123,7 +124,7 @@ SyxV *make_syxv_quote(SyxV *quote);
 SyxV *make_syxv_specialf(const char *name, Syx_SpecialF_Evaluator eval);
 SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env);
-SyxV *make_syxv_throw(Syx_Frame *stack_frame, SyxV *reason);
+SyxV *make_syxv_thrown(Syx_Frame *stack_frame, SyxV *reason);
 SyxV *make_syxv_return_value(SyxV *return_value);
 
 SyxV *syxv_list_next_nullable(SyxV **list);
@@ -299,6 +300,13 @@ SyxV *make_syxv_string(syx_string_t value) {
   return syxv;
 }
 
+SyxV *make_syxv_string_managed_cstr(syx_string_t value) {
+  SyxV *syxv = make_syxv(SYXV_KIND_STRING);
+  syxv->string.data = value.items;
+  syxv->string.count = value.count;
+  return syxv;
+}
+
 SyxV *make_syxv_string_sv(syx_string_view_t value) {
   SyxV *syxv = make_syxv(SYXV_KIND_STRING);
   syxv->string.data = strndup(value.data, value.count);
@@ -346,7 +354,7 @@ SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *forms, Syx_Env *e
   return value;
 }
 
-SyxV *make_syxv_throw(Syx_Frame *stack_frame, SyxV *reason) {
+SyxV *make_syxv_thrown(Syx_Frame *stack_frame, SyxV *reason) {
   SyxV *value = make_syxv(SYXV_KIND_THROWN);
   value->thrown.stack_frame = stack_frame ? rc_acquire(stack_frame) : NULL;
   value->thrown.reason = reason ? rc_acquire(reason) : NULL;
@@ -426,7 +434,7 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
   syx_string_t *cached = cache ? ht_find(cache, value) : NULL;
   if (cached) return (*cached).count;
   switch (value->kind) {
-    case SYXV_KIND_NIL: return 2;
+    case SYXV_KIND_NIL: return 4;
     case SYXV_KIND_SYMBOL: return value->symbol.length + (value->symbol.guarded ? 2 : 0);
     case SYXV_KIND_PAIR: {
       size_t width = 1;
@@ -446,7 +454,7 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
       width += 1;
       return width;
     }
-    case SYXV_KIND_BOOL: return 2;
+    case SYXV_KIND_BOOL: return value->boolean ? 5 : 6;
     case SYXV_KIND_INTEGER: return get_integer_string_width(value->integer);
     case SYXV_KIND_FRACTIONAL: return get_fractional_string_width(value->fractional, get_fractions_string_width(value->fractional));
     case SYXV_KIND_STRING: return 1 + value->string.count + 1;
@@ -485,6 +493,8 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
     case SYXV_KIND_NIL: {
       *(string++) = '#';
       *(string++) = 'n';
+      *(string++) = 'i';
+      *(string++) = 'l';
     } break;
     case SYXV_KIND_SYMBOL: {
       if (value->symbol.guarded) {
@@ -517,7 +527,18 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
     } break;
     case SYXV_KIND_BOOL: {
       *(string++) = '#';
-      *(string++) = value->boolean ? 't' : 'f';
+      if (value->boolean) {
+        *(string++) = 't';
+        *(string++) = 'r';
+        *(string++) = 'u';
+        *(string++) = 'e';
+      } else {
+        *(string++) = 'f';
+        *(string++) = 'a';
+        *(string++) = 'l';
+        *(string++) = 's';
+        *(string++) = 'e';
+      }
     } break;
     case SYXV_KIND_INTEGER: {
       stringify_integer_n(value->integer, length, string);
@@ -558,7 +579,7 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
     } break;
     case SYXV_KIND_CLOSURE: {
       *(string++) = '(';
-      *(string++) = '#';
+      *(string++) = '$';
       *(string++) = '<';
       if (value->closure.name) {
         size_t name_size = strlen(value->closure.name);

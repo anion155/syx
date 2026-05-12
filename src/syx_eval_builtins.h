@@ -23,17 +23,23 @@ SyxV *syx_builtin_cons(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   return make_syxv_pair(left, right);
 }
 
+/** Evaluates each argument and constructs a new list containing the results. */
+SyxV *syx_builtin_list(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+  UNUSED(ctx);
+  return arguments;
+}
+
 /** Returns the left element of a pair. */
 SyxV *syx_builtin_car(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *list = syxv_list_next(&arguments);
-  if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Pair expected as car argument", ctx);
+  if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "Pair expected as car argument");
   return list->pair.left;
 }
 
 /** Returns the right element of a pair. */
 SyxV *syx_builtin_cdr(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *list = syxv_list_next(&arguments);
-  if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("Pair expected as cdr argument", ctx);
+  if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "Pair expected as cdr argument");
   return list->pair.right;
 }
 
@@ -43,7 +49,7 @@ SyxV *syx_builtin_apply(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *call = rc_acquire(make_syxv_pair(fn, NULL));
   SyxV **it = &call->pair.right;
   syxv_list_for_each(argument, arguments) {
-    if ((*it)) RUNTIME_ERROR("only last argument allowed to be pair with both values", ctx);
+    if ((*it)) RUNTIME_ERROR(ctx, "only last argument allowed to be pair with both values");
     if (argument->kind == SYXV_KIND_PAIR) {
       (*it) = argument;
       while ((*it)->kind == SYXV_KIND_PAIR) it = &(*it)->pair.right;
@@ -67,16 +73,16 @@ SyxV *syx_builtin_apply(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 SyxV *syx_builtin_map(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *fn = syxv_list_next(&arguments);
   SyxV *list = syxv_list_next(&arguments);
-  if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR("list expected", ctx);
+  if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "list expected");
   SyxV *results = NULL;
-  SyxV *call = NULL;
   syxv_list_map(item, list, &results) {
-    if (call) rc_release(call);
-    call = rc_acquire(make_syxv_pair(fn, make_syxv_pair(*item, make_syxv_nil())));
+    SyxV *call = rc_acquire(make_syxv_pair(fn, make_syxv_pair(*item, make_syxv_nil())));
     *item = syx_eval(ctx, call);
-    syx_eval_early_exit(*item, call, results);
+    syx_eval_early_exit(*item, results, call);
+    rc_acquire(*item);
+    rc_release(call);
+    rc_move(*item);
   }
-  if (call) rc_release(call);
   return results;
 }
 
@@ -89,20 +95,28 @@ struct syx_upgradable_operator {
 SyxV *syx__builtin_operator_upgrade(Syx_Eval_Ctx *ctx, SyxV *arguments, struct syx_upgradable_operator *operator, syx_fractional_t initial_value) {
   syx_fractional_t value = initial_value;
   syxv_list_for_each(argument, arguments) {
-    value = operator->fractional(value, syx_convert_to_fractional_v(ctx, argument));
+    syx_fractional_t next = {0};
+    syx_convert_to(ctx, argument, &next);
+    value = operator->fractional(value, next);
   }
   return make_syxv_fractional(value);
 }
 
 SyxV *syx__builtin_operator(Syx_Eval_Ctx *ctx, SyxV *arguments, struct syx_upgradable_operator *operator) {
   SyxV *first = syxv_list_next(&arguments);
-  syx_integer_t value;
+  syx_integer_t value = {0};
   if (first->kind == SYXV_KIND_FRACTIONAL) return syx__builtin_operator_upgrade(ctx, arguments, operator, first->fractional);
-  if (first->kind == SYXV_KIND_NIL) value = operator->nil(ctx);
-  else value = syx_convert_to_integer_v(ctx, first);
+  if (first->kind == SYXV_KIND_NIL) {
+    if (operator->nil) RUNTIME_ERROR(ctx, "list of number expected");
+    value = operator->nil(ctx);
+  } else {
+    syx_convert_to(ctx, first, &value);
+  }
   syxv_list_for_each(argument, arguments) {
     if (argument->kind == SYXV_KIND_FRACTIONAL) return syx__builtin_operator_upgrade(ctx, argument_list, operator, value);
-    value = operator->integer(value, syx_convert_to_integer_v(ctx, argument));
+    syx_integer_t next = {0};
+    syx_convert_to(ctx, argument, &next);
+    value = operator->integer(value, next);
   }
   return make_syxv_integer(value);
 }
@@ -123,8 +137,6 @@ SyxV *syx_builtin_summ(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   return syx__builtin_operator(ctx, arguments, &operator);
 }
 
-syx_integer_t syx__operator_sub_nil(Syx_Eval_Ctx *ctx) { RUNTIME_ERROR("list of number expected", ctx); }
-
 syx_integer_t syx__operator_sub_integer(syx_integer_t left, syx_integer_t right) { return left - right; }
 
 syx_fractional_t syx__operator_sub_fractional(syx_fractional_t left, syx_fractional_t right) { return left - right; }
@@ -132,7 +144,7 @@ syx_fractional_t syx__operator_sub_fractional(syx_fractional_t left, syx_fractio
 /** Subtracts all arguments from first. */
 SyxV *syx_builtin_sub(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   struct syx_upgradable_operator operator= {
-    .nil = syx__operator_sub_nil,
+    .nil = NULL,
     .integer = syx__operator_sub_integer,
     .fractional = syx__operator_sub_fractional
   };
@@ -155,8 +167,6 @@ SyxV *syx_builtin_mul(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   return syx__builtin_operator(ctx, arguments, &operator);
 }
 
-syx_integer_t syx__operator_div_nil(Syx_Eval_Ctx *ctx) { RUNTIME_ERROR("list of number expected", ctx); }
-
 syx_integer_t syx__operator_div_integer(syx_integer_t left, syx_integer_t right) { return left / right; }
 
 syx_fractional_t syx__operator_div_fractional(syx_fractional_t left, syx_fractional_t right) { return left / right; }
@@ -164,7 +174,7 @@ syx_fractional_t syx__operator_div_fractional(syx_fractional_t left, syx_fractio
 /** Divide first argument by every next sequentialy. */
 SyxV *syx_builtin_div(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   struct syx_upgradable_operator operator= {
-    .nil = syx__operator_div_nil,
+    .nil = NULL,
     .integer = syx__operator_div_integer,
     .fractional = syx__operator_div_fractional
   };
@@ -173,8 +183,9 @@ SyxV *syx_builtin_div(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 
 /** Returns `false` if argument is truthy, `true` if falsy. */
 SyxV *syx_builtin_not(Syx_Eval_Ctx *ctx, SyxV *arguments) {
-  SyxV *argument = syxv_list_next(&arguments);
-  return make_syxv_bool(!syx_convert_to_bool_v(ctx, argument));
+  bool value = {0};
+  syx_convert_to(ctx, syxv_list_next(&arguments), &value);
+  return make_syxv_bool(!value);
 }
 
 typedef bool (*Syx_Compare)(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *right);
@@ -233,14 +244,14 @@ SyxV *syx_builtin_equivalent(Syx_Eval_Ctx *ctx, SyxV *arguments) {
       switch (right->kind) {                                                                                  \
         case SYXV_KIND_INTEGER: return left->integer operator right->integer;                                 \
         case SYXV_KIND_FRACTIONAL: return left->integer operator right->fractional;                           \
-        default: RUNTIME_ERROR("can not compare with lower than", ctx);                                       \
+        default: RUNTIME_ERROR(ctx, "can not compare with lower than");                                       \
       }                                                                                                       \
     }                                                                                                         \
     case SYXV_KIND_FRACTIONAL: {                                                                              \
       switch (right->kind) {                                                                                  \
         case SYXV_KIND_INTEGER: return left->fractional operator right->integer;                              \
         case SYXV_KIND_FRACTIONAL: return left->fractional operator right->fractional;                        \
-        default: RUNTIME_ERROR("can not compare with lower than", ctx);                                       \
+        default: RUNTIME_ERROR(ctx, "can not compare with lower than");                                       \
       }                                                                                                       \
     }                                                                                                         \
     case SYXV_KIND_STRING: {                                                                                  \
@@ -254,7 +265,7 @@ SyxV *syx_builtin_equivalent(Syx_Eval_Ctx *ctx, SyxV *arguments) {
         self_name(ctx, left->pair.left, right->pair.left) &&                                                  \
         self_name(ctx, left->pair.right, right->pair.right));                                                 \
     case SYXV_KIND_QUOTE: return right->kind == SYXV_KIND_QUOTE && self_name(ctx, left->quote, right->quote); \
-    default: RUNTIME_ERROR("can not compare with lower than", ctx);                                           \
+    default: RUNTIME_ERROR(ctx, "can not compare with lower than");                                           \
   }
 
 bool syx__builtin_lower_than_comparator(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *right);
@@ -330,7 +341,7 @@ SyxV *syx_builtin_identity(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 
 #define syx__builtin_type_guard(name, kind_checks)            \
   SyxV *value = syxv_list_next_nullable(&arguments);          \
-  if (value == NULL) RUNTIME_ERROR("argument expected", ctx); \
+  if (value == NULL) RUNTIME_ERROR(ctx, "argument expected"); \
   return make_syxv_bool((kind_checks))
 
 /** Type checks id first argument is nil. */
@@ -345,7 +356,7 @@ SyxV *syx_builtin_is_pair(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_typ
 /** Type checks id first argument is list. */
 SyxV *syx_builtin_is_list(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *value = syxv_list_next_nullable(&arguments);
-  if (value == NULL) RUNTIME_ERROR("argument expected", ctx);
+  if (value == NULL) RUNTIME_ERROR(ctx, "argument expected");
   SyxV *it = value;
   while (it->kind == SYXV_KIND_PAIR) it = it->pair.right;
   return make_syxv_bool(it->kind == SYXV_KIND_NIL);
@@ -386,18 +397,18 @@ typedef struct File_Constant {
   FILE *stream;
 } File_Constant;
 
-define_constant(Ht(const char *, File_Constant), FD_CONSTANTS) {
-  FD_CONSTANTS->hasheq = ht_cstr_hasheq;
-  *ht_put(FD_CONSTANTS, "stdout") = (File_Constant){.fd = STDOUT_FILENO, .stream = stdout};
-  *ht_put(FD_CONSTANTS, "stderr") = (File_Constant){.fd = STDERR_FILENO, .stream = stderr};
-  *ht_put(FD_CONSTANTS, "stdin") = (File_Constant){.fd = STDIN_FILENO, .stream = stdin};
+define_constant(Ht(SyxV_Symbol *, File_Constant), FD_CONSTANTS) {
+  FD_CONSTANTS->hasheq = ht_syxv_symbol_hasheq;
+  *ht_put(FD_CONSTANTS, &(rc_acquire(make_syxv_symbol_cstr("stdout")))->symbol) = (File_Constant){.fd = STDOUT_FILENO, .stream = stdout};
+  *ht_put(FD_CONSTANTS, &(rc_acquire(make_syxv_symbol_cstr("stderr")))->symbol) = (File_Constant){.fd = STDERR_FILENO, .stream = stderr};
+  *ht_put(FD_CONSTANTS, &(rc_acquire(make_syxv_symbol_cstr("stdin")))->symbol) = (File_Constant){.fd = STDIN_FILENO, .stream = stdin};
 }
 
 FILE *parse_optional_file_descriptor(SyxV **arguments) {
   FILE *f = stdout;
   if ((*arguments)->kind != SYXV_KIND_PAIR) return f;
   if ((*arguments)->pair.left->kind != SYXV_KIND_SYMBOL) return f;
-  File_Constant *constant = ht_find(FD_CONSTANTS(), (*arguments)->pair.left->symbol.name);
+  File_Constant *constant = ht_find(FD_CONSTANTS(), &(*arguments)->pair.left->symbol);
   if (!constant) return f;
   syxv_list_next_nullable(arguments);
   f = constant->stream;
@@ -410,23 +421,35 @@ SyxV *syx_builtin_print(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
   bool first = true;
   syxv_list_for_each(argument, arguments) {
-    String_Builder sb = syx_convert_to_string_v(ctx, argument);
-    if (!first && !io_putc(f, ' ')) return make_syxv_nil();
-    if (!io_puts(f, sb_to_sv(sb))) return make_syxv_nil();
+    syx_string_t sb = {0};
+    syx_convert_to(ctx, argument, &sb);
+    if (!first && !io_putc(f, ' ')) return (sb_free(sb), make_syxv_nil());
+    if (!io_puts(f, sb_to_sv(sb))) return (sb_free(sb), make_syxv_nil());
     sb_free(sb);
     first = false;
   }
   return make_syxv_nil();
 }
 
+/** Flash file descriptor. */
+SyxV *syx_builtin_print_flash(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+  UNUSED(ctx);
+  FILE *f = parse_optional_file_descriptor(&arguments);
+  io_flash(f);
+  return make_syxv_nil();
+}
+
 /** Prints arguments to file, adds new line to the end. */
 SyxV *syx_builtin_println(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
+  bool first = true;
   syxv_list_for_each(argument, arguments) {
-    String_Builder sb = syx_convert_to_string_v(ctx, argument);
-    if (!io_puts(f, sb_to_sv(sb))) return make_syxv_nil();
+    syx_string_t sb = {0};
+    syx_convert_to(ctx, argument, &sb);
+    if (!first && !io_putc(f, ' ')) return (sb_free(sb), make_syxv_nil());
+    if (!io_puts(f, sb_to_sv(sb))) return (sb_free(sb), make_syxv_nil());
     sb_free(sb);
-    if (!io_putc(f, ' ')) return make_syxv_nil();
+    first = false;
   }
   if (!io_putc(f, '\n')) return make_syxv_nil();
   return make_syxv_nil();
@@ -443,7 +466,8 @@ ssize_t io_put_sv_diff(FILE *fd, String_View *base, String_View *offset) {
 /** Prints formatted string to file. */
 SyxV *syx_builtin_printf(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
-  String_Builder fmt = syx_convert_to_string_v(ctx, syxv_list_next(&arguments));
+  syx_string_t fmt = {0};
+  syx_convert_to(ctx, syxv_list_next(&arguments), &fmt);
   String_View it = sb_to_sv(fmt);
   String_View str = sb_to_sv(fmt);
   for (; it.count; sv_chop_left(&it, 1)) {
@@ -454,7 +478,8 @@ SyxV *syx_builtin_printf(Syx_Eval_Ctx *ctx, SyxV *arguments) {
     sv_chop_left(&it, format_size);
     str = it;
     SyxV *argument = syxv_list_next(&arguments);
-    String_Builder sb = syx_convert_to_string_v(ctx, argument);
+    syx_string_t sb = {0};
+    syx_convert_to(ctx, argument, &sb);
     if (!io_puts(f, sb_to_sv(sb))) return make_syxv_nil();
     sb_free(sb);
   }
@@ -466,6 +491,7 @@ SyxV *syx_builtin_printf(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 void syx_env_define_builtins(Syx_Env *env) {
   /** Builtins */
   syx_env_define_cstr(env, "cons", make_syxv_builtin(NULL, syx_builtin_cons));
+  syx_env_define_cstr(env, "list", make_syxv_builtin(NULL, syx_builtin_list));
   syx_env_define_cstr(env, "car", make_syxv_builtin(NULL, syx_builtin_car));
   syx_env_define_cstr(env, "cdr", make_syxv_builtin(NULL, syx_builtin_cdr));
   syx_env_define_cstr(env, "apply", make_syxv_builtin(NULL, syx_builtin_apply));
@@ -501,6 +527,7 @@ void syx_env_define_builtins(Syx_Env *env) {
   syx_env_define_cstr(env, "not", make_syxv_builtin(NULL, syx_builtin_not));
 
   syx_env_define_cstr(env, "print", make_syxv_builtin(NULL, syx_builtin_print));
+  syx_env_define_cstr(env, "print-flash", make_syxv_builtin(NULL, syx_builtin_print_flash));
   syx_env_define_cstr(env, "println", make_syxv_builtin(NULL, syx_builtin_println));
   syx_env_define_cstr(env, "printf", make_syxv_builtin(NULL, syx_builtin_printf));
 }

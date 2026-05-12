@@ -42,20 +42,20 @@ void stringify_fractional_n(syx_fractional_t value, size_t integer_width, size_t
 syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision);
 #define stringify_fractional(value, ...) stringify__fractional((value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
 
-#define define_constant(type, name)                \
-  typedef type name##_t;                           \
-  typedef struct {                                 \
-    size_t initialized;                            \
-    name##_t data;                                 \
-  } name##_w;                                      \
-  name##_w _##name = {0};                          \
-  void make_##name(name##_t *name);                \
-  name##_t *name() {                               \
-    if (_##name.initialized) return &_##name.data; \
-    _##name.initialized = 1;                       \
-    make_##name(&_##name.data);                    \
-    return &_##name.data;                          \
-  }                                                \
+#define define_constant(type, name)                  \
+  typedef type name##_t;                             \
+  typedef struct {                                   \
+    size_t initialized;                              \
+    name##_t data;                                   \
+  } name##_w;                                        \
+  name##_w w_##name = {0};                           \
+  void make_##name(name##_t *name);                  \
+  name##_t *name() {                                 \
+    if (w_##name.initialized) return &w_##name.data; \
+    w_##name.initialized = 1;                        \
+    make_##name(&w_##name.data);                     \
+    return &w_##name.data;                           \
+  }                                                  \
   void make_##name(name##_t *name)
 
 struct escape_char_print {
@@ -65,6 +65,7 @@ struct escape_char_print {
 };
 
 size_t io_putc(FILE *fd, char char_v);
+void io_flash(FILE *fd);
 size_t io_putc_escaped(FILE *fd, struct escape_char_print escape);
 int io_char_n(void *_data);
 size_t io_puts_n(FILE *fd, const char *str, size_t n);
@@ -255,7 +256,12 @@ syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision) {
 
 size_t io_putc(FILE *fd, char char_v) {
   if (fputc(char_v, fd) < 0) return 0;
+  if (char_v == '\n') io_flash(fd);
   return 1;
+}
+
+void io_flash(FILE *fd) {
+  fflush(fd);
 }
 
 size_t syx_put_octal_char(FILE *fd, char first, struct escape_char_print escape) {
@@ -430,13 +436,17 @@ size_t io_puts_cstr(FILE *fd, const char *str) {
 
 String_Builder sb_copy_from_cstr(const char *string) {
   String_Builder sb = {0};
+  da_reserve(&sb, strlen(string) + 1);
   sb_append_cstr(&sb, string);
+  sb_append(&sb, 0);
   return sb;
 }
 
 String_Builder sb_copy_from_sv(String_View sv) {
   String_Builder sb = {0};
+  da_reserve(&sb, sv.count + 1);
   sb_append_sv(&sb, sv);
+  sb_append(&sb, 0);
   return sb;
 }
 

@@ -30,14 +30,16 @@ typedef struct Syx_Script_Context {
   Syx_Eval_Ctx *eval_ctx;
   bool opt_xtrace;
   bool opt_print;
+  bool opt_error;
 } Syx_Script_Context;
 
-Syx_Script_Context script_ctx = {0};
+Syx_Script_Context script_ctx = {0, .opt_error = true};
 
 define_constant(Ht(const char *, bool *), ctx_options) {
   ctx_options->hasheq = ht_cstr_hasheq;
   *ht_put(ctx_options, "x") = &script_ctx.opt_xtrace;
   *ht_put(ctx_options, "p") = &script_ctx.opt_print;
+  *ht_put(ctx_options, "e") = &script_ctx.opt_error;
 }
 
 SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
@@ -56,15 +58,16 @@ SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
       return rc_move(value);
     }
     if (!syx_eval_report_error(ctx, result)) {
-      rc_release(parser_syxvs_for_each_iterator());
-      return rc_move(result);
-    }
-    if (script_ctx.opt_xtrace) {
+      if (script_ctx.opt_error) {
+        rc_release(parser_syxvs_for_each_iterator());
+        return rc_move(result);
+      }
+    } else if (script_ctx.opt_xtrace) {
       print_syxv(result);
       printf("\n");
     }
   }
-  if (!script_ctx.opt_xtrace && script_ctx.opt_print && result) {
+  if (!script_ctx.opt_xtrace && script_ctx.opt_print && result && result->kind != SYXV_KIND_THROWN) {
     print_syxv(result);
     printf("\n");
   }
@@ -75,8 +78,13 @@ SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
 int run_syx(const char *source_cstr) {
   SyxV *result = rc_acquire(syx_parse_and_eval(script_ctx.eval_ctx, source_cstr));
   if (result->kind == SYXV_KIND_RETURN_VALUE) {
-    int code = syx_convert_to_integer_v(script_ctx.eval_ctx, result);
+    syx_integer_t code;
+    SyxV *converted = rc_acquire(syx_convert_to_integer(script_ctx.eval_ctx, result));
+    if (converted->kind == SYXV_KIND_INTEGER) code = converted->integer;
+    else if (converted->kind == SYXV_KIND_THROWN) code = 1;
+    else code = 0;
     rc_release(result);
+    rc_release(converted);
     return code;
   }
   rc_release(result);
@@ -94,17 +102,19 @@ SyxV *eval_quit(Syx_Eval_Ctx *ctx, SyxV *arguments) {
 SyxV *eval_setopt(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
   SyxV *name = syxv_list_next(&arguments);
-  if (name->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR("option name expected", ctx);
+  if (name->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "option name expected");
   bool **option = ht_find(ctx_options(), name->symbol.name);
-  if (option == NULL) RUNTIME_ERROR("option not found", ctx);
-  SyxV *value = syx_eval(ctx, syxv_list_next(&arguments));
-  (**option) = syx_convert_to_bool_v(ctx, value);
+  if (option == NULL) RUNTIME_ERROR(ctx, "option not found");
+  SyxV *evaluated = syx_eval(ctx, syxv_list_next(&arguments));
+  bool value = {0};
+  syx_convert_to(ctx, evaluated, &value);
+  (**option) = value;
   return NULL;
 }
 
 SyxV *eval_import(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   SyxV *name = syx_eval(ctx, syxv_list_next(&arguments));
-  if (name->kind != SYXV_KIND_STRING) RUNTIME_ERROR("module name expected", ctx);
+  if (name->kind != SYXV_KIND_STRING) RUNTIME_ERROR(ctx, "module name expected");
   String_Builder module_sb = {0};
   if (!nob_read_entire_file(name->string.data, &module_sb)) UNREACHABLE("Failed to read file");
   sb_append(&module_sb, 0);
@@ -114,11 +124,11 @@ SyxV *eval_import(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   syx_ctx_push_frame(ctx, (SyxV *)((char *)callable - offsetof(SyxV, specialf)));
   Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = syx_env_global(ctx->env)));
   SyxV *result = syx_parse_and_eval(import_ctx, module_sb.items);
+  syx_eval_early_exit(result, module_sb.items, import_ctx);
   // TODO: implement exports from module
   rc_release(result);
   rc_release(import_ctx);
   syx_ctx_pop_frame(ctx);
-  syx_eval_early_exit(result, module_sb.items);
   return make_syxv_nil();
 }
 
@@ -139,6 +149,7 @@ int main(int argc, char **argv) {
 
   bool *opt_xtrace = flag_bool("x", false, "Print every expression before evaluation");
   bool *opt_print = flag_bool("p", false, "Print result of last evaluation");
+  bool *opt_error = flag_bool("e", true, "Should stop on unhandled error");
   Flag_List *commands = flag_list("c", "Commands to run");
   bool *help = flag_bool("h", false, "Show this help message");
   if (!flag_parse(argc, argv)) {
@@ -156,9 +167,9 @@ int main(int argc, char **argv) {
   if (commands->count) script_ctx.opt_print = true;
   else if (argc == 1) script_ctx.opt_print = false;
   else script_ctx.opt_print = true;
-
-  if (*opt_xtrace) script_ctx.opt_xtrace = *opt_xtrace;
-  else if (*opt_print) script_ctx.opt_print = true;
+  if (*opt_xtrace) script_ctx.opt_xtrace = true;
+  if (*opt_print) script_ctx.opt_print = true;
+  if (!(*opt_error)) script_ctx.opt_error = false;
 
   script_ctx.eval_ctx = make_global_syx_eval_ctx();
 
