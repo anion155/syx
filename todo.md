@@ -1,7 +1,8 @@
 - check memory cleanup
 
-- support vectors `#(...<values>)`, indexing as method
-- `#.<constructor>(...<values>)` - as struct constructor, getters and setters as methods
+- struct instantiation
+- struct fields and methods
+- struct conversion
 - ? int -> int* memory storage, like in strings
 - ? make structs are basically mapped to real memory
 - attach stack frame to error object on throw

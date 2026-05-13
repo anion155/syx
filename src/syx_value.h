@@ -8,10 +8,38 @@
 
 #include "syx_utils.h"
 
+typedef enum : unsigned int {
+  SYXV_KIND_NIL,
+  SYXV_KIND_SYMBOL,
+  SYXV_KIND_PAIR,
+  SYXV_KIND_BOOL,
+  SYXV_KIND_NUMBER,
+  SYXV_KIND_STRING,
+  SYXV_KIND_STRUCTURE,
+  SYXV_KIND_QUOTE,
+  SYXV_KIND_SPECIALF,
+  SYXV_KIND_BUILTIN,
+  SYXV_KIND_CLOSURE,
+  SYXV_KIND_CONSTRUCTOR,
+  SYXV_KIND_THROWN,
+  SYXV_KIND_RETURN_VALUE,
+} SyxV_Kind;
+
 typedef struct SyxV SyxV;
 typedef struct Syx_Eval_Ctx Syx_Eval_Ctx;
 typedef struct Syx_Env Syx_Env;
 typedef struct Syx_Frame Syx_Frame;
+
+typedef struct SyxV_Symbol {
+  char *name;
+  size_t length;
+  bool guarded;
+} SyxV_Symbol;
+
+typedef struct SyxV_Pair {
+  SyxV *left;
+  SyxV *right;
+} SyxV_Pair;
 
 typedef struct Syx_SpecialF Syx_SpecialF;
 typedef SyxV *(*Syx_SpecialF_Evaluator)(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments);
@@ -35,31 +63,16 @@ typedef struct Syx_Closure {
   SyxV *forms;
 } Syx_Closure;
 
-typedef enum : unsigned int {
-  SYXV_KIND_NIL,
-  SYXV_KIND_SYMBOL,
-  SYXV_KIND_PAIR,
-  SYXV_KIND_BOOL,
-  SYXV_KIND_NUMBER,
-  SYXV_KIND_STRING,
-  SYXV_KIND_QUOTE,
-  SYXV_KIND_SPECIALF,
-  SYXV_KIND_BUILTIN,
-  SYXV_KIND_CLOSURE,
-  SYXV_KIND_THROWN,
-  SYXV_KIND_RETURN_VALUE,
-} SyxV_Kind;
+typedef struct Syx_Structure_Type_Info Syx_Structure_Type_Info;
 
-typedef struct SyxV_Symbol {
-  char *name;
-  size_t length;
-  bool guarded;
-} SyxV_Symbol;
+typedef struct Syx_Constructor {
+  Syx_Structure_Type_Info *typeinfo;
+} Syx_Constructor;
 
-typedef struct SyxV_Pair {
-  SyxV *left;
-  SyxV *right;
-} SyxV_Pair;
+typedef struct SyxV_Structure {
+  Syx_Structure_Type_Info *typeinfo;
+  void *data;
+} SyxV_Structure;
 
 typedef struct SyxV_Thrown {
   SyxV *reason;
@@ -75,20 +88,22 @@ struct SyxV {
     syx_bool_t boolean;
     Syx_Number number;
     syx_string_view_t string;
+    SyxV_Structure structure;
     SyxV *quote;
     Syx_SpecialF specialf;
     Syx_Builtin builtin;
     Syx_Closure closure;
+    Syx_Constructor constructor;
     SyxV_Thrown thrown;
     SyxV *return_value;
   };
 };
 
-typedef struct SyxVs {
+typedef struct SyxV_Vector {
   SyxV **items;
   size_t count;
   size_t capacity;
-} SyxVs;
+} SyxV_Vector;
 
 void syxv_destructor(void *data);
 SyxV *get_syxv_from_symbol(SyxV_Symbol *symbol);
@@ -120,10 +135,12 @@ SyxV *make_syxv_string_cstr(const char *value);
       syx_string_t: make_syxv_string(value),                \
       syx_string_view_t: make_syxv_string_sv(value),        \
       const char *: make_syxv_string_cstr(value))
+SyxV *make_syxv_structure(Syx_Structure_Type_Info *typeinfo, void *data);
 SyxV *make_syxv_quote(SyxV *quote);
 SyxV *make_syxv_specialf(const char *name, Syx_SpecialF_Evaluator eval);
 SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env);
+SyxV *make_syxv_constructor(Syx_Structure_Type_Info *typeinfo);
 SyxV *make_syxv_thrown(Syx_Frame *stack_frame, SyxV *reason);
 SyxV *make_syxv_return_value(SyxV *return_value);
 
@@ -174,8 +191,13 @@ void fprint_syxv(FILE *f, SyxV *value);
 #include <nob.h>
 #define RC_IMPL
 #include <rc.h>
+#define NANOID_IMPL
+#include <nanoid.h>
+
 #define SYX_UTILS_IMPL
 #include "syx_utils.h"
+#define SYX_STRUCTURE_IMPL
+#include "syx_structure.h"
 
 SyxV *make_syxv(SyxV_Kind kind) {
   SyxV *value = rc_alloc(sizeof(SyxV), syxv_destructor);
@@ -214,6 +236,11 @@ void syxv_destructor(void *data) {
     case SYXV_KIND_BOOL: break;
     case SYXV_KIND_NUMBER: break;
     case SYXV_KIND_STRING: free((char *)syxv->string.data); break;
+    case SYXV_KIND_STRUCTURE: {
+      if (syxv->structure.typeinfo->destructor) syxv->structure.typeinfo->destructor(syxv->structure.data);
+      free(syxv->structure.data);
+      rc_release(syxv->structure.typeinfo);
+    } break;
     case SYXV_KIND_QUOTE: rc_release(syxv->quote); break;
     case SYXV_KIND_SPECIALF: {
       if (syxv->specialf.name) free(syxv->specialf.name);
@@ -225,6 +252,9 @@ void syxv_destructor(void *data) {
       if (syxv->closure.name) free(syxv->closure.name);
       if (syxv->closure.defines) rc_release(syxv->closure.defines);
       if (syxv->closure.forms) rc_release(syxv->closure.forms);
+    } break;
+    case SYXV_KIND_CONSTRUCTOR: {
+      rc_release(syxv->constructor.typeinfo);
     } break;
     case SYXV_KIND_THROWN: {
       if (syxv->thrown.stack_frame) rc_release(syxv->thrown.stack_frame);
@@ -325,6 +355,13 @@ SyxV *make_syxv_string_cstr(const char *value) {
   return make_syxv_string_sv(sv_from_cstr(value));
 }
 
+SyxV *make_syxv_structure(Syx_Structure_Type_Info *typeinfo, void *data) {
+  SyxV *value = make_syxv(SYXV_KIND_STRUCTURE);
+  value->structure.typeinfo = rc_acquire(typeinfo);
+  value->structure.data = data;
+  return value;
+}
+
 SyxV *make_syxv_quote(SyxV *quote) {
   SyxV *syxv = make_syxv(SYXV_KIND_QUOTE);
   syxv->quote = quote ? rc_acquire(quote) : NULL;
@@ -351,6 +388,12 @@ SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *forms, Syx_Env *e
   value->closure.defines = defines ? rc_acquire(defines) : NULL;
   value->closure.forms = forms ? rc_acquire(forms) : NULL;
   value->closure.env = env;
+  return value;
+}
+
+SyxV *make_syxv_constructor(Syx_Structure_Type_Info *typeinfo) {
+  SyxV *value = make_syxv(SYXV_KIND_CONSTRUCTOR);
+  value->constructor.typeinfo = rc_acquire(typeinfo);
   return value;
 }
 
@@ -431,12 +474,17 @@ size_t stringify__cached_syxv(SyxV *value, SyxV_Stringify_Cache *cache, char *st
   return cached->count;
 }
 
+size_t get_syxv_symbol_string_width(SyxV_Symbol *symbol) {
+  if (!symbol->name) return 0;
+  return symbol->length + (symbol->guarded ? 2 : 0);
+}
+
 size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
   syx_string_t *cached = cache ? ht_find(cache, value) : NULL;
   if (cached) return (*cached).count;
   switch (value->kind) {
     case SYXV_KIND_NIL: return 4;
-    case SYXV_KIND_SYMBOL: return value->symbol.length + (value->symbol.guarded ? 2 : 0);
+    case SYXV_KIND_SYMBOL: return get_syxv_symbol_string_width(&value->symbol);
     case SYXV_KIND_PAIR: {
       size_t width = 1;
       SyxV *it = value;
@@ -458,6 +506,7 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
     case SYXV_KIND_BOOL: return value->boolean ? 5 : 6;
     case SYXV_KIND_NUMBER: return get_number_string_width(value->number);
     case SYXV_KIND_STRING: return 1 + value->string.count + 1;
+    case SYXV_KIND_STRUCTURE: return 1 + 1 + get_syxv_symbol_string_width(value->structure.typeinfo->symbol) + 0; // TODO: structure to string
     case SYXV_KIND_QUOTE: return 1 + stringify__cached_syxv(value->quote, cache, NULL);
     case SYXV_KIND_SPECIALF: {
       size_t name_width = (value->specialf.name ? strlen(value->specialf.name) : 0);
@@ -478,8 +527,20 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
       width += 1;
       return width;
     }
+    case SYXV_KIND_CONSTRUCTOR: return 4 + get_syxv_symbol_string_width(value->constructor.typeinfo->symbol);
     case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be convderted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be convderted");
+  }
+}
+
+void stringify__syxv_symbol_n(SyxV_Symbol *symbol, char *string) {
+  if (!symbol->name) return;
+  if (symbol->guarded) {
+    *(string++) = '|';
+    memcpy(string, symbol->name, symbol->length);
+    string[symbol->length] = '|';
+  } else {
+    memcpy(string, symbol->name, symbol->length);
   }
 }
 
@@ -497,13 +558,8 @@ void stringify__syxv_n(SyxV *value, size_t width, char *string, SyxV_Stringify_C
       *(string++) = 'l';
     } break;
     case SYXV_KIND_SYMBOL: {
-      if (value->symbol.guarded) {
-        *(string++) = '|';
-        memcpy(string, value->symbol.name, value->symbol.length);
-        string[value->symbol.length] = '|';
-      } else {
-        memcpy(string, value->symbol.name, width);
-      }
+      stringify__syxv_symbol_n(&value->symbol, string);
+      string += width;
     } break;
     case SYXV_KIND_PAIR: {
       *(string++) = '(';
@@ -549,6 +605,13 @@ void stringify__syxv_n(SyxV *value, size_t width, char *string, SyxV_Stringify_C
       string += value->string.count;
       *(string++) = '"';
     } break;
+    case SYXV_KIND_STRUCTURE: {
+      *(string++) = '#';
+      *(string++) = '.';
+      stringify__syxv_symbol_n(value->structure.typeinfo->symbol, string);
+      // string += get_syxv_symbol_string_width(value->structure.typeinfo->symbol);
+      // TODO: structure to string
+    } break;
     case SYXV_KIND_QUOTE: {
       *(string++) = '\'';
       string += stringify__cached_syxv(value->quote, cache, string);
@@ -593,6 +656,13 @@ void stringify__syxv_n(SyxV *value, size_t width, char *string, SyxV_Stringify_C
         it = it->pair.right;
       }
       *string = ')';
+    } break;
+    case SYXV_KIND_CONSTRUCTOR: {
+      *(string++) = 'n';
+      *(string++) = 'e';
+      *(string++) = 'w';
+      *(string++) = ' ';
+      stringify__syxv_symbol_n(value->constructor.typeinfo->symbol, string);
     } break;
     case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be convderted");

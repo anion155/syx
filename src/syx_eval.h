@@ -15,6 +15,8 @@
     return make_syxv_thrown((ctx)->frame_stack->latest, reason); \
   } while (0)
 
+typedef struct SyxV_Symbol SyxV_Symbol;
+typedef struct SyxV SyxV;
 typedef Ht(SyxV_Symbol *, SyxV *) Syx_Env_Symbols;
 
 struct Syx_Env {
@@ -53,20 +55,23 @@ SyxV *syx_env_lookup_get(Syx_Env *env, SyxV_Symbol *symbol);
 void syx_env_define(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value);
 void syx_env_define_cstr(Syx_Env *env, const char *name, SyxV *value);
 void syx_env_set(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value);
-Syx_Env *make_global_syx_env();
 
 SyxV *syx_eval_specialf(Syx_Eval_Ctx *ctx, Syx_SpecialF *specialf, SyxV *arguments);
 SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments);
 SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments);
 SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input);
 
-bool syx_eval_should_early_exit(SyxV *value, const void *items[], size_t count);
-#define syx_eval_early_exit(value, ...)                                  \
-  do {                                                                   \
-    SyxV *_value = (value);                                              \
-    const void *items[] = {__VA_ARGS__};                                 \
-    const size_t count = sizeof(items) / sizeof(items[0]);               \
-    if (syx_eval_should_early_exit(_value, items, count)) return _value; \
+bool syx_eval_should_early_exit(SyxV *value);
+#define syx_eval_early_exit(value, ...)         \
+  do {                                          \
+    SyxV *_value = (value);                     \
+    if (_value) {                               \
+      if (syx_eval_should_early_exit(_value)) { \
+        rc_acquire(_value);                     \
+        rc_release_all(__VA_ARGS__);            \
+        return rc_move(_value);                 \
+      }                                         \
+    }                                           \
   } while (0)
 #define syx_eval_assert(ctx, control, reason, ...)                               \
   do {                                                                           \
@@ -139,10 +144,10 @@ void fprint_syx_env_opt(FILE *f, Syx_Env *env, Print_Syx_Env_Opt opt);
 
 #define SYX_VALUE_IMPL
 #include "syx_value.h"
-#define SYX_EVAL_SPECIALF_IMPL
-#include "syx_eval_specialf.h"
-#define SYX_EVAL_BUILTINS_IMPL
-#include "syx_eval_builtins.h"
+#define SYX_STRUCTURE_IMPL
+#include "syx_structure.h"
+#define SYX_GLOBAL_ENV_IMPL
+#include "syx_global_env.h"
 
 void syx_frame_destructor(void *data) {
   Syx_Frame *frame = (Syx_Frame *)data;
@@ -179,7 +184,7 @@ Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt) {
 void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, SyxV *callable) {
   Syx_Frame *prev = ctx->frame_stack->latest;
   Syx_Frame *next = rc_alloc(sizeof(Syx_Frame), syx_frame_destructor);
-  next->callable = rc_acquire(callable);
+  next->callable = callable ? rc_acquire(callable) : NULL;
   if (prev) {
     next->prev = rc_acquire(prev);
     rc_release(prev);
@@ -199,11 +204,14 @@ syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame) {
   UNUSED(ctx);
   syx_string_t sb = {0};
   while (frame) {
-    const char *name;
-    switch (frame->callable->kind) {
-      case SYXV_KIND_BUILTIN: name = frame->callable->builtin.name; break;
-      case SYXV_KIND_CLOSURE: name = frame->callable->closure.name; break;
-      default: name = ""; break;
+    const char *name = NULL;
+    if (frame->callable) {
+      switch (frame->callable->kind) {
+        case SYXV_KIND_BUILTIN: name = frame->callable->builtin.name; break;
+        case SYXV_KIND_CLOSURE: name = frame->callable->closure.name; break;
+        case SYXV_KIND_CONSTRUCTOR: name = frame->callable->constructor.typeinfo->symbol->name; break;
+        default: break;
+      }
     }
     if (!name) name = "<anonim>";
     sb_appendf(&sb, " at %s\n", name);
@@ -306,21 +314,6 @@ void syx_env_define_cstr(Syx_Env *env, const char *name, SyxV *value) {
 void syx_env_set(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value) {
   Syx_Env *container_env = syx_env_lookup(env, symbol);
   syx_env_define(container_env == NULL ? env : container_env, symbol, value);
-}
-
-Syx_Env *make_global_syx_env() {
-  Syx_Env *env = make_syx_env(NULL, "<global>");
-  syx_env_define_special_forms(env);
-  syx_env_define_builtins(env);
-  //   syx_env_define_arithmetic(env);
-  //   syx_env_define_comparison(env);
-  //   syx_env_define_equality(env);
-  //   syx_env_define_list(env);
-  //   syx_env_define_string(env);
-  //   syx_env_define_type_predicates(env);
-  //   syx_env_define_type_conversion(env);
-  //   syx_env_define_io(env);
-  return env;
 }
 
 SyxV *syx_eval_specialf(Syx_Eval_Ctx *ctx, Syx_SpecialF *specialf, SyxV *arguments) {
@@ -436,10 +429,12 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
     case SYXV_KIND_BOOL: RUNTIME_ERROR(ctx, "bool is not a procedure");
     case SYXV_KIND_NUMBER: RUNTIME_ERROR(ctx, "number is not a procedure");
     case SYXV_KIND_STRING: RUNTIME_ERROR(ctx, "string is not a procedure");
+    case SYXV_KIND_STRUCTURE: result = syxv_eval_structure(ctx, &head->structure, arguments); break;
     case SYXV_KIND_QUOTE: RUNTIME_ERROR(ctx, "quote is not a procedure");
     case SYXV_KIND_SPECIALF: result = syx_eval_specialf(ctx, &head->specialf, arguments); break;
     case SYXV_KIND_BUILTIN: result = syx_eval_builtin(ctx, &head->builtin, arguments); break;
     case SYXV_KIND_CLOSURE: result = syx_eval_closure(ctx, &head->closure, arguments); break;
+    case SYXV_KIND_CONSTRUCTOR: result = syxv_eval_instantiate_structure(ctx, &head->constructor, arguments); break;
     case SYXV_KIND_THROWN: UNREACHABLE("thrown object should not be called");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be called");
   }
@@ -448,13 +443,10 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
   return rc_move(result);
 }
 
-bool syx_eval_should_early_exit(SyxV *value, const void *items[], size_t count) {
+bool syx_eval_should_early_exit(SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_RETURN_VALUE:
     case SYXV_KIND_THROWN: {
-      rc_acquire(value);
-      rc__release_all(items, count);
-      rc_move(value);
       return true;
     } break;
     default: return false;
@@ -502,10 +494,12 @@ SyxV *syx_convert_to_bool(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_BOOL: return value;
     case SYXV_KIND_NUMBER: return make_syxv_bool((syx_bool_t)syx_number_value(value->number));
     case SYXV_KIND_STRING: return make_syxv_bool((bool)value->string.count);
+    case SYXV_KIND_STRUCTURE: return make_syxv_bool(true); // TODO: structure conversion mechanisms
     case SYXV_KIND_QUOTE: return syx_convert_to_bool(ctx, value->quote);
     case SYXV_KIND_SPECIALF: return make_syxv_bool(true);
     case SYXV_KIND_BUILTIN: return make_syxv_bool(true);
     case SYXV_KIND_CLOSURE: return make_syxv_bool(true);
+    case SYXV_KIND_CONSTRUCTOR: return make_syxv_bool(true);
     case SYXV_KIND_THROWN: RUNTIME_ERROR(ctx, "thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: RUNTIME_ERROR(ctx, "return value object can't be converted");
   }
@@ -524,10 +518,12 @@ SyxV *syx_convert_to_number(Syx_Eval_Ctx *ctx, SyxV *value) {
       if (!parse_number(&sv, &result)) RUNTIME_ERROR(ctx, "illegal conversion of string to number");
       return make_syxv_number(result);
     }
+    case SYXV_KIND_STRUCTURE: RUNTIME_ERROR(ctx, "illegal conversion of structure to number"); // TODO: structure conversion mechanisms
     case SYXV_KIND_QUOTE: return syx_convert_to_number(ctx, value->quote);
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to number");
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to number");
     case SYXV_KIND_CLOSURE: RUNTIME_ERROR(ctx, "illegal conversion of closure to number");
+    case SYXV_KIND_CONSTRUCTOR: RUNTIME_ERROR(ctx, "illegal conversion of constructor to number");
     case SYXV_KIND_THROWN: RUNTIME_ERROR(ctx, "thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: RUNTIME_ERROR(ctx, "return value object can't be converted");
   }
@@ -541,10 +537,12 @@ SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_BOOL: return make_syxv_string_cstr(value->boolean ? "#true" : "#false");
     case SYXV_KIND_NUMBER: return make_syxv_string_managed_cstr(stringify_number(value->number));
     case SYXV_KIND_STRING: return value;
+    case SYXV_KIND_STRUCTURE: RUNTIME_ERROR(ctx, "illegal conversion of structure to string"); // TODO: structure conversion mechanisms
     case SYXV_KIND_QUOTE: return syx_convert_to_string(ctx, value->quote);
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to string");
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to string");
     case SYXV_KIND_CLOSURE: RUNTIME_ERROR(ctx, "illegal conversion of closure to string");
+    case SYXV_KIND_CONSTRUCTOR: RUNTIME_ERROR(ctx, "illegal conversion of constructor to number");
     case SYXV_KIND_THROWN: RUNTIME_ERROR(ctx, "thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: RUNTIME_ERROR(ctx, "return value object can't be converted");
   }
@@ -558,10 +556,12 @@ SyxV *sb_append_converted_syxv(String_Builder *sb, Syx_Eval_Ctx *ctx, SyxV *valu
     case SYXV_KIND_BOOL: sb_append_cstr(sb, value->boolean ? "#true" : "#false"); break;
     case SYXV_KIND_NUMBER: sb_append_number(sb, value->number); break;
     case SYXV_KIND_STRING: sb_append_buf(sb, value->string.data, value->string.count); break;
+    case SYXV_KIND_STRUCTURE: RUNTIME_ERROR(ctx, "illegal conversion of structure to string"); // TODO: structure conversion mechanisms
     case SYXV_KIND_QUOTE: sb_append_converted_syxv(sb, ctx, value->quote); break;
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to string");
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to string");
     case SYXV_KIND_CLOSURE: RUNTIME_ERROR(ctx, "illegal conversion of closure to string");
+    case SYXV_KIND_CONSTRUCTOR: RUNTIME_ERROR(ctx, "illegal conversion of constructor to number");
     case SYXV_KIND_THROWN: RUNTIME_ERROR(ctx, "thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: RUNTIME_ERROR(ctx, "return value object can't be converted");
   }
