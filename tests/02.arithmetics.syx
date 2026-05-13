@@ -1,0 +1,37 @@
+(setopt x #true)
+(define (assert-eq a b) (println a) (if (eq? a b) #nil (throw "Asserion failed")))
+
+;; 1. Addition (Promotion & Collapse)
+; basic integer addition
+(assert-eq (+ 1 2 3) 6)
+; promotion to fractional, then stays fractional
+(assert-eq (+ 1 2.5 3) 6.5)
+; promotion to fractional, but results in a whole number (should collapse)
+; 1 + 2.5 + 0.5 = 4.0 -> 4
+(assert-eq (+ 1 2.5 0.5) 4)
+
+;; 2. Subtraction (Negative Integers)
+; result is integer
+(assert-eq (- 10 5 2) 3)
+; result is fractional
+(assert-eq (- 10 0.5) 9.5)
+; result is negative integer from fractional subtraction
+; 1.0 - 2.5 + 0.5 = -1.0 -> -1
+(assert-eq (- 1.0 2.5 0.5) -2)
+
+;; 3. Multiplication (Scale & Precision)
+; 0.5 * 2 = 1.0 -> 1
+(assert-eq (* 0.5 2) 1)
+; 0.25 * 4 * 2 = 2.0 -> 2
+(assert-eq (* 0.25 4 2) 2)
+; stays fractional
+(assert-eq (* 1.5 1.5) 2.25)
+
+;; 4. Division (The "Always Fractional" Trap)
+; integer division that results in a whole number
+(assert-eq (/ 10 2) 5)
+; integer division that results in a fraction
+(assert-eq (/ 5 2) 2.5)
+; fractional division that collapses
+; 7.5 / 2.5 = 3.0 -> 3
+(assert-eq (/ 7.5 2.5) 3)

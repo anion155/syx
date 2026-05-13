@@ -74,7 +74,7 @@ SyxV *parse__syxv_fractional(SyxV_Parser_Context *ctx, syx_integer_t integer_par
   if (!parse_fractions(ctx->it, &fractional_part)) PARSER_ERROR("expected fractional number's fractional part start here", ctx);
   if (integer_part < 0) fractional_part = integer_part - fractional_part;
   else fractional_part = integer_part + fractional_part;
-  return make_syxv_fractional(fractional_part);
+  return make_syxv_number_fractional(fractional_part);
 }
 
 SyxV *parse__syxv_integer(SyxV_Parser_Context *ctx) {
@@ -88,7 +88,7 @@ SyxV *parse__syxv_integer(SyxV_Parser_Context *ctx) {
   if (ctx->it->data[0] == SYXV_TOKEN_DOT) goto upgrade;
   if (!parse_integer(ctx->it, &value)) PARSER_ERROR("expected number literal here", ctx);
   if (ctx->it->data[0] == SYXV_TOKEN_DOT) goto upgrade;
-  return make_syxv_integer(value);
+  return make_syxv_number_integer(value);
 upgrade:
   return parse__syxv_fractional(ctx, value);
 }

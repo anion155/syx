@@ -40,8 +40,7 @@ typedef enum : unsigned int {
   SYXV_KIND_SYMBOL,
   SYXV_KIND_PAIR,
   SYXV_KIND_BOOL,
-  SYXV_KIND_INTEGER,
-  SYXV_KIND_FRACTIONAL,
+  SYXV_KIND_NUMBER,
   SYXV_KIND_STRING,
   SYXV_KIND_QUOTE,
   SYXV_KIND_SPECIALF,
@@ -74,8 +73,7 @@ struct SyxV {
     SyxV_Symbol symbol;
     SyxV_Pair pair;
     syx_bool_t boolean;
-    syx_integer_t integer;
-    syx_fractional_t fractional;
+    Syx_Number number;
     syx_string_view_t string;
     SyxV *quote;
     Syx_SpecialF specialf;
@@ -105,20 +103,22 @@ SyxV *make_syxv_list_opt(size_t count, SyxV **items);
       sizeof((SyxV *[]){__VA_ARGS__}) / sizeof(SyxV *), \
       (SyxV *[]){__VA_ARGS__})
 SyxV *make_syxv_bool(syx_bool_t value);
-SyxV *make_syxv_integer(syx_integer_t value);
-SyxV *make_syxv_fractional(syx_fractional_t value);
+SyxV *make_syxv_number(Syx_Number value);
+#define make_syxv_number_integer(value) make_syxv_number(make_syx_number_integer(value))
+#define make_syxv_number_fractional(value) make_syxv_number(make_syx_number_fractional(value))
 SyxV *make_syxv_string(syx_string_t value);
 SyxV *make_syxv_string_managed_cstr(syx_string_t value);
 SyxV *make_syxv_string_sv(syx_string_view_t value);
 SyxV *make_syxv_string_n(const char *value, size_t size);
 SyxV *make_syxv_string_cstr(const char *value);
-#define make_syxv_value(value)                       \
-  _Generic(value,                                    \
-      syx_bool_t: make_syxv_bool(value),             \
-      syx_integer_t: make_syxv_integer(value),       \
-      syx_fractional_t: make_syxv_fractional(value), \
-      syx_string_t: make_syxv_string(value),         \
-      syx_string_view_t: make_syxv_string_sv(value), \
+#define make_syxv_value(value)                              \
+  _Generic(value,                                           \
+      syx_bool_t: make_syxv_bool(value),                    \
+      Syx_Number: make_syxv_number(value),                  \
+      syx_integer_t: make_syxv_number_integer(value),       \
+      syx_fractional_t: make_syxv_number_fractional(value), \
+      syx_string_t: make_syxv_string(value),                \
+      syx_string_view_t: make_syxv_string_sv(value),        \
       const char *: make_syxv_string_cstr(value))
 SyxV *make_syxv_quote(SyxV *quote);
 SyxV *make_syxv_specialf(const char *name, Syx_SpecialF_Evaluator eval);
@@ -130,9 +130,14 @@ SyxV *make_syxv_return_value(SyxV *return_value);
 SyxV *syxv_list_next_nullable(SyxV **list);
 SyxV *syxv_list_next(SyxV **list);
 
-bool syxv__list_for_each_next(SyxV **list, SyxV **value, SyxV **cdr);
-#define syxv_list_for_each(value, list, ...) \
-  for (SyxV *value##_list = (list), *value; syxv__list_for_each_next(&value##_list, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
+bool syxv__list_for_each_next(SyxV **current, SyxV **next, SyxV **value, SyxV **cdr);
+#define syxv_list_for_each(value, list, ...)                   \
+  for (SyxV * value##_current, *value##_next = (list), *value; \
+       syxv__list_for_each_next(                               \
+           &value##_current,                                   \
+           &value##_next,                                      \
+           &value,                                             \
+           WITH_DEFAULT(NULL, __VA_ARGS__));)
 
 bool syxv__list_map_next(SyxV **source_it, SyxV ***target_it, SyxV ***value, SyxV ***cdr);
 #define syxv_list_map(value, list, results, ...) \
@@ -205,8 +210,7 @@ void syxv_destructor(void *data) {
       if (syxv->pair.right) rc_release(syxv->pair.right);
       break;
     case SYXV_KIND_BOOL: break;
-    case SYXV_KIND_INTEGER: break;
-    case SYXV_KIND_FRACTIONAL: break;
+    case SYXV_KIND_NUMBER: break;
     case SYXV_KIND_STRING: free((char *)syxv->string.data); break;
     case SYXV_KIND_QUOTE: rc_release(syxv->quote); break;
     case SYXV_KIND_SPECIALF: {
@@ -281,15 +285,9 @@ SyxV *make_syxv_bool(syx_bool_t value) {
   return value ? SYXV_CONSTANTS()->bool_true : SYXV_CONSTANTS()->bool_false;
 }
 
-SyxV *make_syxv_integer(syx_integer_t value) {
-  SyxV *syxv = make_syxv(SYXV_KIND_INTEGER);
-  syxv->integer = value;
-  return syxv;
-}
-
-SyxV *make_syxv_fractional(syx_fractional_t value) {
-  SyxV *syxv = make_syxv(SYXV_KIND_FRACTIONAL);
-  syxv->fractional = value;
+SyxV *make_syxv_number(Syx_Number value) {
+  SyxV *syxv = make_syxv(SYXV_KIND_NUMBER);
+  syxv->number = value;
   return syxv;
 }
 
@@ -385,14 +383,15 @@ SyxV *syxv_list_next(SyxV **list) {
   return item;
 }
 
-bool syxv__list_for_each_next(SyxV **list, SyxV **value, SyxV **cdr) {
-  if ((*list)->kind != SYXV_KIND_PAIR) {
-    if (cdr != NULL) (*cdr) = *list;
-    else if ((*list)->kind != SYXV_KIND_NIL) UNREACHABLE("list expected");
+bool syxv__list_for_each_next(SyxV **current, SyxV **next, SyxV **value, SyxV **cdr) {
+  if (!(*next) || (*next)->kind != SYXV_KIND_PAIR) {
+    if (cdr != NULL) (*cdr) = *next;
+    else if ((*next)->kind != SYXV_KIND_NIL) UNREACHABLE("list expected");
     return false;
   }
-  (*value) = (*list)->pair.left;
-  (*list) = (*list)->pair.right;
+  (*value) = (*next)->pair.left;
+  (*current) = (*next);
+  (*next) = (*next)->pair.right;
   return true;
 }
 
@@ -455,8 +454,7 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
       return width;
     }
     case SYXV_KIND_BOOL: return value->boolean ? 5 : 6;
-    case SYXV_KIND_INTEGER: return get_integer_string_width(value->integer);
-    case SYXV_KIND_FRACTIONAL: return get_fractional_string_width(value->fractional, get_fractions_string_width(value->fractional));
+    case SYXV_KIND_NUMBER: return get_number_string_width(value->number);
     case SYXV_KIND_STRING: return 1 + value->string.count + 1;
     case SYXV_KIND_QUOTE: return 1 + stringify__cached_syxv(value->quote, cache, NULL);
     case SYXV_KIND_SPECIALF: {
@@ -540,12 +538,8 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
         *(string++) = 'e';
       }
     } break;
-    case SYXV_KIND_INTEGER: {
-      stringify_integer_n(value->integer, length, string);
-    } break;
-    case SYXV_KIND_FRACTIONAL: {
-      size_t precision = get_fractions_string_width(value->fractional);
-      stringify_fractional_n(value->fractional, length - precision - 1, precision, string);
+    case SYXV_KIND_NUMBER: {
+      stringify_number_n(value->number, length, string);
     } break;
     case SYXV_KIND_STRING: {
       *(string++) = '"';

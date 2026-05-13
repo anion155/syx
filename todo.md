@@ -1,6 +1,7 @@
 - check memory cleanup
 
-- automatic fractional -> integer
+- store exponent in fractional?
+- support string on + operator
 - support vectors `#(...<values>)`, indexing as method
 - `#.<constructor>(...<values>)` - as struct constructor, getters and setters as methods
 - ? int -> int* memory storage, like in strings

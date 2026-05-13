@@ -19,12 +19,61 @@ typedef bool syx_bool_t;
 typedef long long int syx_integer_t;
 typedef long double syx_fractional_t;
 
+typedef enum Syx_Number_Kind {
+  SYX_NUMBER_KIND_INTEGER,
+  SYX_NUMBER_KIND_FRACTIONAL,
+} Syx_Number_Kind;
+
+typedef struct Syx_Number {
+  Syx_Number_Kind kind;
+
+  union {
+    syx_integer_t integer;
+    syx_fractional_t fractional;
+  };
+} Syx_Number;
+
+Syx_Number make_syx_number_integer(syx_integer_t value);
+Syx_Number make_syx_number_fractional(syx_fractional_t value);
+
+syx_integer_t syx_number_integer_value(Syx_Number number);
+syx_fractional_t syx_number_fractional_value(Syx_Number number);
+#define syx_number_value(number) ((number).kind == SYX_NUMBER_KIND_INTEGER ? (number).integer : (number).fractional)
+bool syx_number_equal(Syx_Number left, Syx_Number right);
+bool syx_number_identity_equal(Syx_Number left, Syx_Number right);
+#define syx_number_autoconvert(value)                            \
+  do {                                                           \
+    if ((value)->kind == SYX_NUMBER_KIND_FRACTIONAL) {           \
+      if (fmodl((value)->fractional, 1.0) == 0.0) {              \
+        *(value) = make_syx_number_integer((value)->fractional); \
+      }                                                          \
+    }                                                            \
+  } while (0)
+#define syx_number_operate(operator, left, right, result)                                                                                            \
+  do {                                                                                                                                               \
+    if (STRINGIFY(operator)[0] == '/') {                                                                                                             \
+      *(result) = make_syx_number_fractional((syx_fractional_t)syx_number_value(left) operator(syx_fractional_t) syx_number_value(right));           \
+    } else if ((left).kind == (right).kind) {                                                                                                        \
+      switch ((left).kind) {                                                                                                                         \
+        case SYX_NUMBER_KIND_INTEGER: (result)->integer = (left).integer operator(right).integer; break;                                             \
+        case SYX_NUMBER_KIND_FRACTIONAL: (result)->fractional = (left).fractional operator(right).fractional; break;                                 \
+      }                                                                                                                                              \
+    } else {                                                                                                                                         \
+      switch ((left).kind) {                                                                                                                         \
+        case SYX_NUMBER_KIND_INTEGER: *(result) = make_syx_number_fractional((syx_fractional_t)(left).integer operator(right).fractional); break;    \
+        case SYX_NUMBER_KIND_FRACTIONAL: *(result) = make_syx_number_fractional((left).fractional operator(syx_fractional_t)(right).integer); break; \
+      }                                                                                                                                              \
+    }                                                                                                                                                \
+    syx_number_autoconvert((result));                                                                                                                \
+  } while (0)
+
 typedef String_View syx_string_view_t;
 typedef String_Builder syx_string_t;
 
 bool parse_integer(String_View *sv, syx_integer_t *result);
 bool parse_fractions(String_View *sv, syx_fractional_t *result);
 bool parse_fractional(String_View *sv, syx_fractional_t *result);
+bool parse_number(String_View *sv, Syx_Number *result);
 
 size_t get_integer_string_width(syx_integer_t value);
 void stringify_integer_n(syx_integer_t value, size_t length, char *string);
@@ -41,6 +90,10 @@ size_t get_fractional_string_width(syx_fractional_t value, size_t precision);
 void stringify_fractional_n(syx_fractional_t value, size_t integer_width, size_t precision, char *string);
 syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision);
 #define stringify_fractional(value, ...) stringify__fractional((value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
+
+size_t get_number_string_width(Syx_Number value);
+void stringify_number_n(Syx_Number value, size_t length, char *string);
+syx_string_t stringify_number(Syx_Number value);
 
 #define define_constant(type, name)                  \
   typedef type name##_t;                             \
@@ -108,6 +161,36 @@ int hex_to_int(int c) {
   return -1;
 }
 
+Syx_Number make_syx_number_integer(syx_integer_t value) {
+  return (Syx_Number){.kind = SYX_NUMBER_KIND_INTEGER, .integer = value};
+}
+
+Syx_Number make_syx_number_fractional(syx_fractional_t value) {
+  return (Syx_Number){.kind = SYX_NUMBER_KIND_FRACTIONAL, .fractional = value};
+}
+
+syx_integer_t syx_number_integer_value(Syx_Number number) {
+  switch (number.kind) {
+    case SYX_NUMBER_KIND_INTEGER: return number.integer;
+    case SYX_NUMBER_KIND_FRACTIONAL: return number.fractional;
+  }
+}
+
+syx_fractional_t syx_number_fractional_value(Syx_Number number) {
+  switch (number.kind) {
+    case SYX_NUMBER_KIND_INTEGER: return number.integer;
+    case SYX_NUMBER_KIND_FRACTIONAL: return number.fractional;
+  }
+}
+
+bool syx_number_equal(Syx_Number left, Syx_Number right) {
+  return syx_number_value(left) == syx_number_value(right);
+}
+
+bool syx_number_identity_equal(Syx_Number left, Syx_Number right) {
+  return left.kind == right.kind && syx_number_value(left) == syx_number_value(right);
+}
+
 struct Nob_Dynamic_Array__Abstract {
   void **items;
   size_t count;
@@ -148,6 +231,7 @@ bool parse_fractions(String_View *sv, syx_fractional_t *result) {
     fractional_part = fractional_part * 10 + (sv->data[i] - '0');
     exponent *= 10;
     i += 1;
+    // TODO: implement number separators: 1.000_000_1;
   }
   sv->count -= i;
   sv->data += i;
@@ -165,6 +249,20 @@ bool parse_fractional(String_View *sv, syx_fractional_t *result) {
   if (!parse_fractions(sv, result)) return false;
   if (integer_part < 0) *result = integer_part - *result;
   else *result = integer_part + *result;
+  return true;
+}
+
+bool parse_number(String_View *sv, Syx_Number *result) {
+  syx_integer_t integer_value = 0;
+  if (!parse_integer(sv, &integer_value)) return false;
+  syx_fractional_t value = 0;
+  if (!parse_fractions(sv, &value)) {
+    *result = make_syx_number_integer(integer_value);
+    return true;
+  }
+  if (integer_value < 0) value = integer_value - value;
+  else value = integer_value + value;
+  *result = make_syx_number_fractional(value);
   return true;
 }
 
@@ -209,6 +307,7 @@ size_t get_fractions_string_width(syx_fractional_t value) {
     value -= (syx_integer_t)value;
     width++;
   }
+  if (width == 0) return 1;
   return width;
 }
 
@@ -238,6 +337,7 @@ void stringify_fractional_n(syx_fractional_t value, size_t integer_width, size_t
   syx_integer_t exponent = 1;
   for (size_t index = 0; index < precision; index += 1)
     exponent *= 10;
+  value = value - (syx_integer_t)value;
   syx_integer_t fractions = (syx_integer_t)((value < 0 ? -value : value) * exponent + 0.5);
   stringify_integer_n(fractions, precision, string + integer_width + 1);
   return;
@@ -252,6 +352,30 @@ syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision) {
   res.items = malloc(res.count + 1);
   stringify_fractional_n(value, get_integer_string_width(value), _precision, res.items);
   return res;
+}
+
+size_t get_number_string_width(Syx_Number value) {
+  switch (value.kind) {
+    case SYX_NUMBER_KIND_INTEGER: return get_integer_string_width(value.integer);
+    case SYX_NUMBER_KIND_FRACTIONAL: return get_fractional_string_width(value.fractional, get_fractions_string_width(value.fractional));
+  }
+}
+
+void stringify_number_n(Syx_Number value, size_t length, char *string) {
+  switch (value.kind) {
+    case SYX_NUMBER_KIND_INTEGER: return stringify_integer_n(value.integer, length, string);
+    case SYX_NUMBER_KIND_FRACTIONAL: {
+      size_t precision = get_fractions_string_width(value.fractional);
+      return stringify_fractional_n(value.fractional, length - precision - 1, precision, string);
+    }
+  }
+}
+
+syx_string_t stringify_number(Syx_Number value) {
+  switch (value.kind) {
+    case SYX_NUMBER_KIND_INTEGER: return stringify_integer(value.integer);
+    case SYX_NUMBER_KIND_FRACTIONAL: return stringify_fractional(value.fractional);
+  }
 }
 
 size_t io_putc(FILE *fd, char char_v) {

@@ -89,32 +89,33 @@ typedef struct Syx_Eval_Forms_List_Opt {
 SyxV *syx__eval_forms_list_opt(Syx_Eval_Ctx *ctx, SyxV *forms_list, Syx_Eval_Forms_List_Opt opt);
 #define syx_eval_forms_list(env, forms_list, ...) syx__eval_forms_list_opt((env), (forms_list), (Syx_Eval_Forms_List_Opt){__VA_ARGS__})
 
-#define syx_convert_to(ctx, value, storage, ...)                        \
-  do {                                                                  \
-    SyxV *__value = (value);                                            \
-    syx_eval_early_exit(__value __VA_OPT__(, ) __VA_ARGS__);            \
-    rc_acquire(__value);                                                \
-    SyxV *converted = _Generic(storage,                                 \
-        bool *: syx_convert_to_bool,                                    \
-        syx_integer_t *: syx_convert_to_integer,                        \
-        syx_fractional_t *: syx_convert_to_fractional,                  \
-        syx_string_view_t *: syx_convert_to_string,                     \
-        syx_string_t *: syx_convert_to_string)((ctx), __value);         \
-    syx_eval_early_exit(converted, __value __VA_OPT__(, ) __VA_ARGS__); \
-    rc_acquire(converted);                                              \
-    rc_release(__value);                                                \
-    *(storage) = _Generic(storage,                                      \
-        bool *: converted->boolean,                                     \
-        syx_integer_t *: converted->integer,                            \
-        syx_fractional_t *: converted->fractional,                      \
-        syx_string_view_t *: converted->string,                         \
-        syx_string_t *: sb_copy_from_sv(converted->string));            \
-    rc_release(converted);                                              \
+#define syx_convert_to(ctx, value, storage, ...)                            \
+  do {                                                                      \
+    SyxV *__value = (value);                                                \
+    syx_eval_early_exit(__value __VA_OPT__(, ) __VA_ARGS__);                \
+    rc_acquire(__value);                                                    \
+    SyxV *converted = _Generic(storage,                                     \
+        bool *: syx_convert_to_bool,                                        \
+        Syx_Number *: syx_convert_to_number,                                \
+        syx_integer_t *: syx_convert_to_number,                             \
+        syx_fractional_t *: syx_convert_to_number,                          \
+        syx_string_view_t *: syx_convert_to_string,                         \
+        syx_string_t *: syx_convert_to_string)((ctx), __value);             \
+    syx_eval_early_exit(converted, __value __VA_OPT__(, ) __VA_ARGS__);     \
+    rc_acquire(converted);                                                  \
+    rc_release(__value);                                                    \
+    *(storage) = _Generic(storage,                                          \
+        bool *: converted->boolean,                                         \
+        Syx_Number *: converted->number,                                    \
+        syx_integer_t *: syx_number_integer_value(converted->number),       \
+        syx_fractional_t *: syx_number_fractional_value(converted->number), \
+        syx_string_view_t *: converted->string,                             \
+        syx_string_t *: sb_copy_from_sv(converted->string));                \
+    rc_release(converted);                                                  \
   } while (0)
 
 SyxV *syx_convert_to_bool(Syx_Eval_Ctx *ctx, SyxV *value);
-SyxV *syx_convert_to_integer(Syx_Eval_Ctx *ctx, SyxV *value);
-SyxV *syx_convert_to_fractional(Syx_Eval_Ctx *ctx, SyxV *value);
+SyxV *syx_convert_to_number(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value);
 
 #define PRINT_SYX_ENV_DEEP_CURRENT_ONLY 1
@@ -432,8 +433,7 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
     case SYXV_KIND_SYMBOL: RUNTIME_ERROR(ctx, "symbol is not a procedure");
     case SYXV_KIND_PAIR: RUNTIME_ERROR(ctx, "pair is not a procedure");
     case SYXV_KIND_BOOL: RUNTIME_ERROR(ctx, "bool is not a procedure");
-    case SYXV_KIND_INTEGER: RUNTIME_ERROR(ctx, "integer is not a procedure");
-    case SYXV_KIND_FRACTIONAL: RUNTIME_ERROR(ctx, "fractional is not a procedure");
+    case SYXV_KIND_NUMBER: RUNTIME_ERROR(ctx, "number is not a procedure");
     case SYXV_KIND_STRING: RUNTIME_ERROR(ctx, "string is not a procedure");
     case SYXV_KIND_QUOTE: RUNTIME_ERROR(ctx, "quote is not a procedure");
     case SYXV_KIND_SPECIALF: result = syx_eval_specialf(ctx, &head->specialf, arguments); break;
@@ -499,8 +499,7 @@ SyxV *syx_convert_to_bool(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_SYMBOL: return make_syxv_bool(true);
     case SYXV_KIND_PAIR: return make_syxv_bool(true);
     case SYXV_KIND_BOOL: return value;
-    case SYXV_KIND_INTEGER: return make_syxv_bool((syx_bool_t)value->integer);
-    case SYXV_KIND_FRACTIONAL: return make_syxv_bool((syx_bool_t)value->fractional);
+    case SYXV_KIND_NUMBER: return make_syxv_bool((syx_bool_t)syx_number_value(value->number));
     case SYXV_KIND_STRING: return make_syxv_bool((bool)value->string.count);
     case SYXV_KIND_QUOTE: return syx_convert_to_bool(ctx, value->quote);
     case SYXV_KIND_SPECIALF: return make_syxv_bool(true);
@@ -511,47 +510,23 @@ SyxV *syx_convert_to_bool(Syx_Eval_Ctx *ctx, SyxV *value) {
   }
 }
 
-SyxV *syx_convert_to_integer(Syx_Eval_Ctx *ctx, SyxV *value) {
+SyxV *syx_convert_to_number(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
-    case SYXV_KIND_NIL: return make_syxv_integer(0);
-    case SYXV_KIND_SYMBOL: RUNTIME_ERROR(ctx, "illegal conversion of symbol to integer number");
-    case SYXV_KIND_PAIR: RUNTIME_ERROR(ctx, "illegal conversion of pair to integer number");
-    case SYXV_KIND_BOOL: return make_syxv_integer(value->boolean ? 1 : 0);
-    case SYXV_KIND_INTEGER: return value;
-    case SYXV_KIND_FRACTIONAL: return make_syxv_integer((syx_integer_t)value->fractional);
+    case SYXV_KIND_NIL: return make_syxv_number_integer(0);
+    case SYXV_KIND_SYMBOL: RUNTIME_ERROR(ctx, "illegal conversion of symbol to number");
+    case SYXV_KIND_PAIR: RUNTIME_ERROR(ctx, "illegal conversion of pair to number");
+    case SYXV_KIND_BOOL: return make_syxv_number_integer(value->boolean ? 1 : 0);
+    case SYXV_KIND_NUMBER: return value;
     case SYXV_KIND_STRING: {
       String_View sv = value->string;
-      syx_integer_t result = 0;
-      if (!parse_integer(&sv, &result)) RUNTIME_ERROR(ctx, "illegal conversion of string to integer number");
-      return make_syxv_integer(result);
+      Syx_Number result = {0};
+      if (!parse_number(&sv, &result)) RUNTIME_ERROR(ctx, "illegal conversion of string to number");
+      return make_syxv_number(result);
     }
-    case SYXV_KIND_QUOTE: return syx_convert_to_integer(ctx, value->quote);
-    case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to integer number");
-    case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to integer number");
-    case SYXV_KIND_CLOSURE: RUNTIME_ERROR(ctx, "illegal conversion of closure to integer number");
-    case SYXV_KIND_THROWN: RUNTIME_ERROR(ctx, "thrown object can't be converted");
-    case SYXV_KIND_RETURN_VALUE: RUNTIME_ERROR(ctx, "return value object can't be converted");
-  }
-}
-
-SyxV *syx_convert_to_fractional(Syx_Eval_Ctx *ctx, SyxV *value) {
-  switch (value->kind) {
-    case SYXV_KIND_NIL: return make_syxv_fractional(0.0);
-    case SYXV_KIND_SYMBOL: RUNTIME_ERROR(ctx, "illegal conversion of symbol to fractional number");
-    case SYXV_KIND_PAIR: RUNTIME_ERROR(ctx, "illegal conversion of pair to fractional number");
-    case SYXV_KIND_BOOL: return make_syxv_fractional(value->boolean ? 1.0 : 0.0);
-    case SYXV_KIND_INTEGER: return make_syxv_fractional((syx_fractional_t)value->integer);
-    case SYXV_KIND_FRACTIONAL: return value;
-    case SYXV_KIND_STRING: {
-      String_View sv = value->string;
-      syx_fractional_t result = 0;
-      if (!parse_fractional(&sv, &result)) RUNTIME_ERROR(ctx, "illegal conversion of string to fractional number");
-      return make_syxv_fractional(result);
-    }
-    case SYXV_KIND_QUOTE: return syx_convert_to_fractional(ctx, value->quote);
-    case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to fractional number");
-    case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to fractional number");
-    case SYXV_KIND_CLOSURE: RUNTIME_ERROR(ctx, "illegal conversion of closure to fractional number");
+    case SYXV_KIND_QUOTE: return syx_convert_to_number(ctx, value->quote);
+    case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to number");
+    case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to number");
+    case SYXV_KIND_CLOSURE: RUNTIME_ERROR(ctx, "illegal conversion of closure to number");
     case SYXV_KIND_THROWN: RUNTIME_ERROR(ctx, "thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: RUNTIME_ERROR(ctx, "return value object can't be converted");
   }
@@ -563,8 +538,7 @@ SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_SYMBOL: RUNTIME_ERROR(ctx, "illegal conversion of symbol to string");
     case SYXV_KIND_PAIR: return make_syxv_string_managed_cstr(stringify_syxv(value));
     case SYXV_KIND_BOOL: return make_syxv_string_cstr(value->boolean ? "#true" : "#false");
-    case SYXV_KIND_INTEGER: return make_syxv_string_managed_cstr(stringify_integer(value->integer));
-    case SYXV_KIND_FRACTIONAL: return make_syxv_string_managed_cstr(stringify_fractional(value->fractional));
+    case SYXV_KIND_NUMBER: return make_syxv_string_managed_cstr(stringify_number(value->number));
     case SYXV_KIND_STRING: return value;
     case SYXV_KIND_QUOTE: return syx_convert_to_string(ctx, value->quote);
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to string");

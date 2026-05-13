@@ -79,8 +79,8 @@ int run_syx(const char *source_cstr) {
   SyxV *result = rc_acquire(syx_parse_and_eval(script_ctx.eval_ctx, source_cstr));
   if (result->kind == SYXV_KIND_RETURN_VALUE) {
     syx_integer_t code;
-    SyxV *converted = rc_acquire(syx_convert_to_integer(script_ctx.eval_ctx, result));
-    if (converted->kind == SYXV_KIND_INTEGER) code = converted->integer;
+    SyxV *converted = rc_acquire(syx_convert_to_number(script_ctx.eval_ctx, result));
+    if (converted->kind == SYXV_KIND_NUMBER) code = syx_number_integer_value(converted->number);
     else if (converted->kind == SYXV_KIND_THROWN) code = 1;
     else code = 0;
     rc_release(result);
