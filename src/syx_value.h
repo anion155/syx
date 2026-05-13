@@ -157,6 +157,8 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
 #define stringify_syxv_n(value, length, string, ...) stringify__syxv_n((value), (length), (string), WITH_DEFAULT(NULL, __VA_ARGS__))
 String_Builder stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache);
 #define stringify_syxv(value, ...) stringify__syxv((value), WITH_DEFAULT(NULL, __VA_ARGS__))
+void sb_append__syxv(String_Builder *sb, SyxV *value, SyxV_Stringify_Cache *cache);
+#define sb_append_syxv(sb, value, ...) sb_append__syxv((sb), (value), WITH_DEFAULT(NULL, __VA_ARGS__))
 
 void fprint_syxv(FILE *f, SyxV *value);
 #define print_syxv(value) fprint_syxv(stdout, (value))
@@ -481,7 +483,7 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
   }
 }
 
-void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_Cache *cache) {
+void stringify__syxv_n(SyxV *value, size_t width, char *string, SyxV_Stringify_Cache *cache) {
   syx_string_t *cached = cache ? ht_find(cache, value) : NULL;
   if (cached) {
     memcpy(string, cached->items, cached->count);
@@ -500,7 +502,7 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
         memcpy(string, value->symbol.name, value->symbol.length);
         string[value->symbol.length] = '|';
       } else {
-        memcpy(string, value->symbol.name, length);
+        memcpy(string, value->symbol.name, width);
       }
     } break;
     case SYXV_KIND_PAIR: {
@@ -539,7 +541,7 @@ void stringify__syxv_n(SyxV *value, size_t length, char *string, SyxV_Stringify_
       }
     } break;
     case SYXV_KIND_NUMBER: {
-      stringify_number_n(value->number, length, string);
+      stringify_number_n(value->number, width, string);
     } break;
     case SYXV_KIND_STRING: {
       *(string++) = '"';
@@ -606,21 +608,38 @@ void syxv_stringify_cache_destructor(void *data) {
   ht_free(cache);
 }
 
+SyxV_Stringify_Cache *make_syxv_stringify_cache() {
+  SyxV_Stringify_Cache *cache = rc_alloc(sizeof(SyxV_Stringify_Cache), syxv_stringify_cache_destructor);
+  memset(cache, 0, sizeof(SyxV_Stringify_Cache));
+  return cache;
+}
+
 syx_string_t stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache) {
   SyxV_Stringify_Cache *_cache;
-  if (cache) {
-    _cache = rc_acquire(cache);
-  } else {
-    _cache = rc_acquire(rc_alloc(sizeof(SyxV_Stringify_Cache), syxv_stringify_cache_destructor));
-    memset(_cache, 0, sizeof(SyxV_Stringify_Cache));
-  }
+  if (cache) _cache = rc_acquire(cache);
+  else _cache = rc_acquire(make_syxv_stringify_cache());
+
   size_t width = get__syxv_string_width(value, _cache);
   char *string = malloc(width + 1);
   syx_string_t result = {.items = string, .count = width, .capacity = width + 1};
   result.items[width] = 0;
   stringify__syxv_n(value, width, string, _cache);
+
   rc_release(_cache);
   return result;
+}
+
+void sb_append__syxv(String_Builder *sb, SyxV *value, SyxV_Stringify_Cache *cache) {
+  SyxV_Stringify_Cache *_cache;
+  if (cache) _cache = rc_acquire(cache);
+  else _cache = rc_acquire(make_syxv_stringify_cache());
+
+  size_t width = get__syxv_string_width(value, _cache);
+  da_reserve(sb, sb->count + width);
+  stringify__syxv_n(value, width, sb->items + sb->count, _cache);
+  sb->count += width;
+
+  rc_release(_cache);
 }
 
 void fprint_syxv(FILE *f, SyxV *value) {

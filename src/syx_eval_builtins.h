@@ -107,8 +107,22 @@ SyxV *syx_builtin_map(Syx_Eval_Ctx *ctx, SyxV *arguments) {
     return make_syxv_number(value);                            \
   } while (0)
 
+/** Concat arguments to string. */
+SyxV *syx_builtin_concat(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+  String_Builder sb = {0};
+  syxv_list_for_each(argument, arguments) {
+    sb_append_converted_syxv(&sb, ctx, argument);
+  }
+  sb_append(&sb, 0);
+  SyxV *string = make_syxv_string_n(sb.items, sb.count - 1);
+  sb_free(sb);
+  return string;
+}
+
 /** Sum of all arguments. */
 SyxV *syx_builtin_summ(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+  SyxV *first = arguments->kind == SYXV_KIND_PAIR ? arguments->pair.left : NULL;
+  if (first->kind == SYXV_KIND_STRING) return syx_builtin_concat(ctx, arguments);
   syx__builtin_operator(ctx, arguments, +, (value.kind = SYX_NUMBER_KIND_INTEGER, value.integer = 0));
 }
 
@@ -156,7 +170,7 @@ bool syx__builtin_equivalent_comparator(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *rig
         syx__builtin_equivalent_comparator(ctx, left->pair.right, right->pair.right));
     case SYXV_KIND_BOOL: return false; // should work on left == right level
     case SYXV_KIND_NUMBER: return right->kind == SYXV_KIND_NUMBER && syx_number_equal(left->number, right->number);
-    case SYXV_KIND_STRING: return right->kind == SYXV_KIND_SYMBOL && sv_eq(left->string, right->string) == 0;
+    case SYXV_KIND_STRING: return right->kind == SYXV_KIND_STRING && sv_eq(left->string, right->string);
     case SYXV_KIND_QUOTE: return right->kind == SYXV_KIND_QUOTE && syx__builtin_equivalent_comparator(ctx, left->quote, right->quote);
     case SYXV_KIND_SPECIALF: return false; // should work on left == right level
     case SYXV_KIND_BUILTIN: return false;  // should work on left == right level

@@ -1,0 +1,26 @@
+(setopt x #true)
+(define (assert-eq a b) (println a) (if (= a b) #nil (throw "Asserion failed")))
+
+;; 1. Basic Concatenation
+; Simple two-string join
+(assert-eq (+ "hello" " " "world") "hello world")
+; Multiple strings
+(assert-eq (+ "A" "B" "C" "D") "ABCD")
+
+;; 2. Mixed Type Concatenation (Implicit Conversion)
+; Integer to String
+(assert-eq (+ "Count: " 42) "Count: 42")
+; Fractional to String
+(assert-eq (+ "Value: " 3.14) "Value: 3.14")
+
+;; 3. The "Empty" and Nil Cases
+; Empty string should act as identity
+(assert-eq (+ "" "test" "") "test")
+; Nil handling (depending on your language spec, nil often becomes "nil" or "")
+(assert-eq (+ "Result: " #nil) "Result: #nil")
+
+;; 4. Edge Cases: All Numbers as Strings
+; This should NOT be 3
+(assert-eq (+ "1" "2") "12")
+; Mixed math and strings
+(assert-eq (+ 1 2 "3") 6)

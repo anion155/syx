@@ -117,6 +117,7 @@ SyxV *syx__eval_forms_list_opt(Syx_Eval_Ctx *ctx, SyxV *forms_list, Syx_Eval_For
 SyxV *syx_convert_to_bool(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *syx_convert_to_number(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value);
+SyxV *sb_append_converted_syxv(String_Builder *sb, Syx_Eval_Ctx *ctx, SyxV *value);
 
 #define PRINT_SYX_ENV_DEEP_CURRENT_ONLY 1
 #define PRINT_SYX_ENV_DEEP_ALL 0
@@ -547,6 +548,24 @@ SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_THROWN: RUNTIME_ERROR(ctx, "thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: RUNTIME_ERROR(ctx, "return value object can't be converted");
   }
+}
+
+SyxV *sb_append_converted_syxv(String_Builder *sb, Syx_Eval_Ctx *ctx, SyxV *value) {
+  switch (value->kind) {
+    case SYXV_KIND_NIL: sb_append_cstr(sb, "#nil"); break;
+    case SYXV_KIND_SYMBOL: RUNTIME_ERROR(ctx, "illegal conversion of symbol to string");
+    case SYXV_KIND_PAIR: sb_append_syxv(sb, value); break;
+    case SYXV_KIND_BOOL: sb_append_cstr(sb, value->boolean ? "#true" : "#false"); break;
+    case SYXV_KIND_NUMBER: sb_append_number(sb, value->number); break;
+    case SYXV_KIND_STRING: sb_append_buf(sb, value->string.data, value->string.count); break;
+    case SYXV_KIND_QUOTE: sb_append_converted_syxv(sb, ctx, value->quote); break;
+    case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to string");
+    case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to string");
+    case SYXV_KIND_CLOSURE: RUNTIME_ERROR(ctx, "illegal conversion of closure to string");
+    case SYXV_KIND_THROWN: RUNTIME_ERROR(ctx, "thrown object can't be converted");
+    case SYXV_KIND_RETURN_VALUE: RUNTIME_ERROR(ctx, "return value object can't be converted");
+  }
+  return NULL;
 }
 
 void fprint_syx_env_opt(FILE *f, Syx_Env *env, Print_Syx_Env_Opt opt) {
