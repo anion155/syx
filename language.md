@@ -199,6 +199,16 @@ Type checks first argument.
 Returns `false` if argument is truthy, `true` if falsy.
 `(not <value>) => true | false`
 
+## Structures
+
+Structures provide a mechanism for custom data types with dedicated constructors, accessors, and memory management:
+`#.<constructor>(...<value>) => <obj>` - will instantiate structure using constructor with arguments
+`(<obj> <integer-number>)` - will call indexed getter
+`(<obj> <integer-number> <value>)` - will call indexed setter
+`(<obj> '<method-symbol>)` - will call method
+`(<obj> '<field-symbol>)` - will call field getter
+`(<obj> '<field-symbol> <value>)` - will call field setter
+
 ## Miscellaneous Builtins
 
 ### FD

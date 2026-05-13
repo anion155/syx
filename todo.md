@@ -1,8 +1,8 @@
 - check memory cleanup
 
 - struct fields and methods
+- struct convert to basic types using predefined methods
 - struct methods as callables on stack
-- struct conversion
 - attach stack frame to error object on throw
 - catch parser errors
 - compiler test runner
