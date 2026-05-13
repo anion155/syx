@@ -409,6 +409,7 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments)
 }
 
 SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
+  if (input->kind == SYXV_KIND_THROWN) return input;
   if (input->kind == SYXV_KIND_QUOTE) return input->quote;
   if (input->kind == SYXV_KIND_SYMBOL) {
     SyxV *item = syx_env_lookup_get(ctx->env, &input->symbol);

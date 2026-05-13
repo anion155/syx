@@ -1,14 +1,10 @@
 - check memory cleanup
 
-- struct instantiation
 - struct fields and methods
+- struct methods as callables on stack
 - struct conversion
-- ? int -> int* memory storage, like in strings
-- ? make structs are basically mapped to real memory
 - attach stack frame to error object on throw
-- support method call `(<value> <method> ...<value>>)`
-- support indexing as method of `#(...<values>)`
-- struct getters and setters as methods
+- catch parser errors
 - compiler test runner
 - unit tests for parser : compiler test runner
 - unit tests for evaluator : compiler test runner
