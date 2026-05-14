@@ -1,7 +1,7 @@
 #ifndef SYX_VECTOR_H
 #define SYX_VECTOR_H
 
-#include "syx_structure.h"
+#include "syx_structure_type_info.h"
 #include "syx_value.h"
 
 void syx_env_define_vector(Syx_Env *env);
@@ -14,12 +14,12 @@ SyxV *syxv_vector_setter(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index, Syx
 #if defined(SYX_VECTOR_IMPL) && !defined(SYX_VECTOR_IMPL_C)
 #define SYX_VECTOR_IMPL_C
 
-#define SYX_STRUCTURE_IMPL
-#include "syx_structure.h"
+#define SYX_STRUCTURE_TYPE_INFO_IMPL
+#include "syx_structure_type_info.h"
 
 void syx_env_define_vector(Syx_Env *env) {
   // clang-format off
-  syx_env_define_cstr(env, "vector", make_syxv_constructor(make_syxv_structure_info(
+  syx_env_define_cstr(env, "vector", make_syxv_constructor(make_syx_structure_type_info(
     .symbol = (&make_syxv_symbol_cstr("vector")->symbol),
     .size = sizeof(SyxV_Vector),
     .constructor = syxv_vector_constructor,

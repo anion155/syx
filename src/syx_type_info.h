@@ -1,0 +1,153 @@
+#ifndef SYX_TYPE_INFO_H
+#define SYX_TYPE_INFO_H
+
+#include <limits.h>
+#include <stddef.h>
+#include <stdint.h>
+
+typedef enum Syx_Type_Info_Kind {
+  SYX_TYPE_INFO_KIND_PTR,
+  SYX_TYPE_INFO_KIND_STRUCTURE,
+  SYX_TYPE_INFO_KIND_FUNCTION,
+  SYX_TYPE_INFO_KIND_VOID, // void
+  // stdint
+  SYX_TYPE_INFO_KIND_I8,   // int8_t
+  SYX_TYPE_INFO_KIND_I16,  // int16_t
+  SYX_TYPE_INFO_KIND_I32,  // int32_t
+  SYX_TYPE_INFO_KIND_I64,  // int64_t
+  SYX_TYPE_INFO_KIND_I128, // int128_t
+  SYX_TYPE_INFO_KIND_U8,   // uint8_t
+  SYX_TYPE_INFO_KIND_U16,  // uint16_t
+  SYX_TYPE_INFO_KIND_U32,  // uint32_t
+  SYX_TYPE_INFO_KIND_U64,  // uint64_t
+  SYX_TYPE_INFO_KIND_U128, // uint128_t
+  // int
+  SYX_TYPE_INFO_KIND_INT,
+  SYX_TYPE_INFO_KIND_INT_LONG,
+  SYX_TYPE_INFO_KIND_INT_LONG_LONG,
+  SYX_TYPE_INFO_KIND_UINT,
+  SYX_TYPE_INFO_KIND_UINT_LONG,
+  SYX_TYPE_INFO_KIND_UINT_LONG_LONG,
+  // stdfloat
+  SYX_TYPE_INFO_KIND_F16,  // _Float16
+  SYX_TYPE_INFO_KIND_F32,  // _Float32
+  SYX_TYPE_INFO_KIND_F64,  // _Float64
+  SYX_TYPE_INFO_KIND_F128, // _Float128
+  // float
+  SYX_TYPE_INFO_KIND_FLOAT,
+  SYX_TYPE_INFO_KIND_DOUBLE,
+  SYX_TYPE_INFO_KIND_DOUBLE_LONG,
+} Syx_Type_Info_Kind;
+
+typedef struct Syx_Type_Info Syx_Type_Info;
+typedef struct Syx_Structure_Type_Info Syx_Structure_Type_Info;
+typedef struct Syx_Function_Type_Info Syx_Function_Type_Info;
+
+struct Syx_Type_Info {
+  size_t size;
+  Syx_Type_Info_Kind kind;
+
+  union {
+    Syx_Type_Info *ptr;
+    Syx_Structure_Type_Info *structure;
+    Syx_Function_Type_Info *function;
+  };
+};
+
+void syx_type_info_rc_count_circular(RC_Circulars *circulars, Syx_Type_Info *typeinfo, void *parent_type);
+Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt);
+#define make_syx_type_info(...) make_syx_type_info_opt((Syx_Type_Info){__VA_ARGS__})
+
+void syx_structure_type_info_rc_count_circular(RC_Circulars *circulars, Syx_Structure_Type_Info *structure, void *parent_type);
+Syx_Structure_Type_Info *make_syx_structure_type_info_opt(Syx_Structure_Type_Info opt);
+#define make_syx_structure_type_info(...) make_syx_structure_type_info_opt((Syx_Structure_Type_Info){__VA_ARGS__})
+
+void syx_function_type_info_rc_count_circular(RC_Circulars *circulars, Syx_Function_Type_Info *function, void *parent_type);
+Syx_Function_Type_Info *make_syx_function_type_info_opt(Syx_Function_Type_Info opt);
+#define make_syx_function_type_info(...) make_syx_function_type_info_opt((Syx_Function_Type_Info){__VA_ARGS__})
+
+#endif // SYX_TYPE_INFO_H
+
+#if defined(SYX_TYPE_INFO_IMPL) && !defined(SYX_TYPE_INFO_IMPL_C)
+#define SYX_TYPE_INFO_IMPL_C
+
+void syx_type_info_rc_count_circular(RC_Circulars *circulars, Syx_Type_Info *typeinfo, void *parent_type) {
+  switch (typeinfo->kind) {
+    case SYX_TYPE_INFO_KIND_PTR: {
+      rc_count_circular(syx_type_info_rc_count_circular, circulars, &typeinfo->ptr, parent_type);
+    } break;
+    case SYX_TYPE_INFO_KIND_STRUCTURE: {
+      rc_count_circular(syx_structure_type_info_rc_count_circular, circulars, &typeinfo->structure, parent_type);
+    } break;
+    case SYX_TYPE_INFO_KIND_FUNCTION: {
+      rc_count_circular(syx_function_type_info_rc_count_circular, circulars, &typeinfo->function, parent_type);
+    }; break;
+    default:
+  }
+}
+
+void syx_type_info_destructor(void *data) {
+  Syx_Type_Info *typeinfo = data;
+  switch (typeinfo->kind) {
+    case SYX_TYPE_INFO_KIND_PTR: {
+      if (typeinfo->ptr) rc_release_circular(syx_type_info_rc_count_circular, typeinfo->ptr);
+    } break;
+    case SYX_TYPE_INFO_KIND_STRUCTURE: {
+      if (typeinfo->structure) rc_release_circular(syx_structure_type_info_rc_count_circular, typeinfo->structure);
+    } break;
+    case SYX_TYPE_INFO_KIND_FUNCTION: {
+      if (typeinfo->function) rc_release_circular(syx_function_type_info_rc_count_circular, typeinfo->function);
+    } break;
+    default:
+  }
+}
+
+Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt) {
+  Syx_Type_Info *info = rc_alloc(sizeof(Syx_Type_Info), syx_type_info_destructor);
+  memset(info, 0, sizeof(Syx_Type_Info));
+  *info = opt;
+  switch (info->kind) {
+    case SYX_TYPE_INFO_KIND_PTR: {
+      if (info->size == 0) {
+        switch (info->ptr->kind) {
+          case SYX_TYPE_INFO_KIND_FUNCTION: info->size = info->ptr->size; break;
+          default: info->size = __SIZEOF_POINTER__;
+        }
+      }
+    } break;
+    case SYX_TYPE_INFO_KIND_STRUCTURE: {
+      if (info->size == 0) info->size = info->structure->size;
+    } break;
+    case SYX_TYPE_INFO_KIND_FUNCTION: {
+      if (info->size == 0) info->size = sizeof(void (*)());
+      rc_acquire(info->function);
+    } break;
+    case SYX_TYPE_INFO_KIND_VOID: break;
+    case SYX_TYPE_INFO_KIND_I8: info->size = 8; break;
+    case SYX_TYPE_INFO_KIND_I16: info->size = 16; break;
+    case SYX_TYPE_INFO_KIND_I32: info->size = 32; break;
+    case SYX_TYPE_INFO_KIND_I64: info->size = 64; break;
+    case SYX_TYPE_INFO_KIND_I128: info->size = 128; break;
+    case SYX_TYPE_INFO_KIND_U8: info->size = 8; break;
+    case SYX_TYPE_INFO_KIND_U16: info->size = 16; break;
+    case SYX_TYPE_INFO_KIND_U32: info->size = 32; break;
+    case SYX_TYPE_INFO_KIND_U64: info->size = 64; break;
+    case SYX_TYPE_INFO_KIND_U128: info->size = 128; break;
+    case SYX_TYPE_INFO_KIND_INT: info->size = __SIZEOF_INT__; break;
+    case SYX_TYPE_INFO_KIND_INT_LONG: info->size = __SIZEOF_LONG__; break;
+    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: info->size = __SIZEOF_LONG_LONG__; break;
+    case SYX_TYPE_INFO_KIND_UINT: info->size = __SIZEOF_INT__; break;
+    case SYX_TYPE_INFO_KIND_UINT_LONG: info->size = __SIZEOF_LONG__; break;
+    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: info->size = __SIZEOF_LONG_LONG__; break;
+    case SYX_TYPE_INFO_KIND_F16: info->size = 16; break;
+    case SYX_TYPE_INFO_KIND_F32: info->size = 32; break;
+    case SYX_TYPE_INFO_KIND_F64: info->size = 64; break;
+    case SYX_TYPE_INFO_KIND_F128: info->size = 128; break;
+    case SYX_TYPE_INFO_KIND_FLOAT: info->size = __SIZEOF_FLOAT__; break;
+    case SYX_TYPE_INFO_KIND_DOUBLE: info->size = __SIZEOF_DOUBLE__; break;
+    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: info->size = __SIZEOF_LONG_DOUBLE__; break;
+  }
+  return info;
+}
+
+#endif // SYX_TYPE_INFO_IMPL

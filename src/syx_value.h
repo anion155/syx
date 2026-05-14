@@ -6,6 +6,7 @@
 #include <nob.h>
 #include <rc.h>
 
+#include "syx_type_info.h"
 #include "syx_utils.h"
 
 typedef enum : unsigned int {
@@ -62,8 +63,6 @@ typedef struct Syx_Closure {
   SyxV *defines;
   SyxV *forms;
 } Syx_Closure;
-
-typedef struct Syx_Structure_Type_Info Syx_Structure_Type_Info;
 
 typedef struct Syx_Constructor {
   Syx_Structure_Type_Info *typeinfo;
@@ -191,13 +190,15 @@ void fprint_syxv(FILE *f, SyxV *value);
 #include <nob.h>
 #define RC_IMPL
 #include <rc.h>
-#define NANOID_IMPL
-#include <nanoid.h>
 
 #define SYX_UTILS_IMPL
 #include "syx_utils.h"
-#define SYX_STRUCTURE_IMPL
-#include "syx_structure.h"
+#define SYX_TYPE_INFO_IMPL
+#include "syx_type_info.h"
+#define SYX_STRUCTURE_TYPE_INFO_IMPL
+#include "syx_structure_type_info.h"
+#define SYX_FUNCTION_TYPE_INFO_IMPL
+#include "syx_function_type_info.h"
 
 SyxV *make_syxv(SyxV_Kind kind) {
   SyxV *value = rc_alloc(sizeof(SyxV), syxv_destructor);

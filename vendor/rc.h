@@ -47,6 +47,32 @@ void rc__release_all(const void *items[], size_t count);
 
 ptrdiff_t rc_count(void *data);
 
+typedef struct RC_Circulars {
+  void ***items;
+  size_t count;
+  size_t capacity;
+} RC_Circulars;
+
+#define rc_count_circular(count_circular, circulars, data, parent_type) \
+  do {                                                                  \
+    if (*(data) == (parent_type)) da_append(circulars, (void **)data);  \
+    else count_circular(circulars, *(data), (parent_type));             \
+  } while (0)
+
+#define rc_release_circular(count_circular, data)         \
+  do {                                                    \
+    rc_release((data));                                   \
+    RC_Circulars circulars = {0};                         \
+    count_circular(&circulars, (data), (data));           \
+    if (rc_count((data)) == (ptrdiff_t)circulars.count) { \
+      da_foreach(void **, link, &circulars) {             \
+        **link = NULL;                                    \
+        rc_release((data));                               \
+      }                                                   \
+    }                                                     \
+    da_free(circulars);                                   \
+  } while (0)
+
 #endif // RC_H
 
 #if defined(RC_IMPL) && !defined(RC_IMPL_C)

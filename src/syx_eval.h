@@ -142,10 +142,12 @@ void fprint_syx_env_opt(FILE *f, Syx_Env *env, Print_Syx_Env_Opt opt);
 #if defined(SYX_EVAL_IMPL) && !defined(SYX_EVAL_IMPL_C)
 #define SYX_EVAL_IMPL_C
 
+#define SYX_TYPE_INFO_IMPL
+#include "syx_type_info.h"
 #define SYX_VALUE_IMPL
 #include "syx_value.h"
-#define SYX_STRUCTURE_IMPL
-#include "syx_structure.h"
+#define SYX_STRUCTURE_TYPE_INFO_IMPL
+#include "syx_structure_type_info.h"
 #define SYX_GLOBAL_ENV_IMPL
 #include "syx_global_env.h"
 
