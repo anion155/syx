@@ -55,7 +55,7 @@ SyxV *syxv_eval_instantiate_structure(Syx_Eval_Ctx *ctx, Syx_Constructor *constr
   memset(data, 0, constructor->typeinfo->size);
   SyxV *structure = make_syxv_structure(constructor->typeinfo, data);
   if (constructor->typeinfo->constructor) {
-    syx_ctx_push_frame(ctx, (SyxV *)((char *)constructor - offsetof(SyxV, constructor)));
+    syx_ctx_push_frame(ctx, constructor->typeinfo->symbol->name);
     SyxV *result = constructor->typeinfo->constructor(ctx, data, arguments);
     syx_ctx_pop_frame(ctx);
     syx_eval_early_exit(result, structure);
@@ -71,16 +71,17 @@ SyxV *syxv_eval_structure(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, SyxV *ar
   if (field->kind == SYXV_KIND_NUMBER && field->number.kind == SYX_NUMBER_KIND_INTEGER) {
     syx_integer_t index = field->number.integer;
     rc_release(field);
-    // SyxV *argument = syxv_list_next_nullable(&arguments);
     if (arguments->kind == SYXV_KIND_NIL) {
       if (!structure->typeinfo->index_getter) RUNTIME_ERROR(ctx, "structure does not implement index getter");
-      syx_ctx_push_frame(ctx, NULL); // TODO index getter as callable
+      const char *function_name = strdup(temp_sprintf("(#.%s %lld)", structure->typeinfo->symbol->name, index));
+      syx_ctx_push_frame(ctx, function_name);
       SyxV *result = rc_acquire(structure->typeinfo->index_getter(ctx, structure->data, index));
       syx_ctx_pop_frame(ctx);
       return rc_move(result);
     } else {
       if (!structure->typeinfo->index_setter) RUNTIME_ERROR(ctx, "structure does not implement index setter");
-      syx_ctx_push_frame(ctx, NULL); // TODO index setter as callable
+      const char *function_name = strdup(temp_sprintf("(#.%s %lld <value>)", structure->typeinfo->symbol->name, index));
+      syx_ctx_push_frame(ctx, function_name);
       SyxV *result = structure->typeinfo->index_setter(ctx, structure->data, index, arguments->pair.left);
       if (!result) result = rc_acquire(make_syxv_nil());
       else rc_acquire(result);

@@ -27,7 +27,7 @@ struct Syx_Env {
 
 struct Syx_Frame {
   Syx_Frame *prev;
-  SyxV *callable;
+  const char *function_name;
 };
 
 typedef struct Syx_Frame_Stack {
@@ -42,7 +42,7 @@ struct Syx_Eval_Ctx {
 Syx_Eval_Ctx *make_global_syx_eval_ctx();
 Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
 #define inherit_syx_eval_ctx(parent, ...) inherit_syx_eval_ctx_opt((parent), ((Syx_Eval_Ctx){__VA_ARGS__}))
-void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, SyxV *callable);
+void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, const char *function_name);
 void syx_ctx_pop_frame(Syx_Eval_Ctx *ctx);
 syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame);
 
@@ -151,7 +151,7 @@ void fprint_syx_env_opt(FILE *f, Syx_Env *env, Print_Syx_Env_Opt opt);
 
 void syx_frame_destructor(void *data) {
   Syx_Frame *frame = (Syx_Frame *)data;
-  if (frame->callable) rc_release(frame->callable);
+  if (frame->function_name) free((char *)frame->function_name);
   if (frame->prev) rc_release(frame->prev);
 }
 
@@ -181,10 +181,10 @@ Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt) {
   return ctx;
 }
 
-void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, SyxV *callable) {
+void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, const char *function_name) {
   Syx_Frame *prev = ctx->frame_stack->latest;
   Syx_Frame *next = rc_alloc(sizeof(Syx_Frame), syx_frame_destructor);
-  next->callable = callable ? rc_acquire(callable) : NULL;
+  next->function_name = function_name ? strdup(function_name) : NULL;
   if (prev) {
     next->prev = rc_acquire(prev);
     rc_release(prev);
@@ -204,15 +204,7 @@ syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame) {
   UNUSED(ctx);
   syx_string_t sb = {0};
   while (frame) {
-    const char *name = NULL;
-    if (frame->callable) {
-      switch (frame->callable->kind) {
-        case SYXV_KIND_BUILTIN: name = frame->callable->builtin.name; break;
-        case SYXV_KIND_CLOSURE: name = frame->callable->closure.name; break;
-        case SYXV_KIND_CONSTRUCTOR: name = frame->callable->constructor.typeinfo->symbol->name; break;
-        default: break;
-      }
-    }
+    const char *name = frame->function_name;
     if (!name) name = "<anonim>";
     sb_appendf(&sb, " at %s\n", name);
     frame = frame->prev;
@@ -330,7 +322,7 @@ SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments)
     rc_acquire(*argument);
     rc_move(*argument);
   }
-  syx_ctx_push_frame(ctx, (SyxV *)((char *)builtin - offsetof(SyxV, builtin)));
+  syx_ctx_push_frame(ctx, builtin->name);
   SyxV *result = builtin->eval(ctx, evaluated);
   if (!result) result = make_syxv_nil();
   rc_acquire(result);
@@ -396,7 +388,7 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments)
     syx_eval_early_exit(*value, call_ctx);
     rc_acquire(*value);
   }
-  syx_ctx_push_frame(ctx, (SyxV *)((char *)closure - offsetof(SyxV, closure)));
+  syx_ctx_push_frame(ctx, closure->name);
   SyxV *result = rc_acquire(syx_eval_forms_list(call_ctx, closure->forms));
   syx_ctx_pop_frame(ctx);
   rc_release(call_ctx);
