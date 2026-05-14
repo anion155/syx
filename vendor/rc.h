@@ -1,20 +1,20 @@
 #ifndef RC_H
 #define RC_H
 
-#include <stddef.h>
-#include <magic.h>
 #include <assert.h>
+#include <magic.h>
+#include <stddef.h>
 
 typedef struct {
-    ptrdiff_t count;
-    void (*destroy)(void *data);
+  ptrdiff_t count;
+  void (*destroy)(void *data);
 } Rc;
 
-#define RcBox(T, ...) \
-struct __VA_ARGS__ {  \
-    Rc rc;            \
-    T data;           \
-}
+#define RcBox(T, ...)  \
+  struct __VA_ARGS__ { \
+    Rc rc;             \
+    T data;            \
+  }
 
 void *rc__alloc(size_t size, void (*destroy)(void *data));
 #define rc_alloc(size, ...) rc__alloc((size), WITH_DEFAULT(NULL, __VA_ARGS__))
@@ -52,86 +52,75 @@ ptrdiff_t rc_count(void *data);
 #if defined(RC_IMPL) && !defined(RC_IMPL_C)
 #define RC_IMPL_C
 
-void *rc__alloc(size_t size, void (*destroy)(void *data))
-{
-    Rc *rc = malloc(sizeof(Rc) + size);
-    assert(rc);
-    rc->count = 0;
-    rc->destroy = destroy;
-    return rc + 1;
+void *rc__alloc(size_t size, void (*destroy)(void *data)) {
+  Rc *rc = malloc(sizeof(Rc) + size);
+  assert(rc);
+  rc->count = 0;
+  rc->destroy = destroy;
+  return rc + 1;
 }
 
-void *rc__realloc(const void *data, size_t size)
-{
-    Rc *rc = (Rc*)data - 1;
-    assert(rc);
-    rc = realloc(rc, sizeof(Rc) + size);
-    return rc + 1;
+void *rc__realloc(const void *data, size_t size) {
+  Rc *rc = (Rc *)data - 1;
+  assert(rc);
+  rc = realloc(rc, sizeof(Rc) + size);
+  return rc + 1;
 }
 
-void *rc__manage_copy(const void *data, size_t size, void (*destroy)(void *data))
-{
-    Rc *rc = malloc(sizeof(Rc) + size);
-    rc->count = 0;
-    rc->destroy = destroy;
-    memcpy(rc + 1, data, size);
-    return rc + 1;
+void *rc__manage_copy(const void *data, size_t size, void (*destroy)(void *data)) {
+  Rc *rc = malloc(sizeof(Rc) + size);
+  rc->count = 0;
+  rc->destroy = destroy;
+  memcpy(rc + 1, data, size);
+  return rc + 1;
 }
 
-char *rc__manage_strndup(const char *data, size_t size, void (*destroy)(void *data))
-{
-    char *name = rc__manage_copy(data, (size + 1) * sizeof(char), destroy);
-    name[size] = 0;
-    return name;
+char *rc__manage_strndup(const char *data, size_t size, void (*destroy)(void *data)) {
+  char *name = rc__manage_copy(data, (size + 1) * sizeof(char), destroy);
+  name[size] = 0;
+  return name;
 }
 
-char *rc__manage_strdup(const char *data, void (*destroy)(void *data))
-{
-    return rc__manage_strndup(data, strlen(data), destroy);
+char *rc__manage_strdup(const char *data, void (*destroy)(void *data)) {
+  return rc__manage_strndup(data, strlen(data), destroy);
 }
 
-void *rc__manage(void *data, size_t size, void (*destroy)(void *data))
-{
-    Rc *rc = rc__manage_copy((void *)data, size, destroy);
-    free(data);
-    return rc + 1;
+void *rc__manage(void *data, size_t size, void (*destroy)(void *data)) {
+  Rc *rc = rc__manage_copy((void *)data, size, destroy);
+  free(data);
+  return rc + 1;
 }
 
-void *rc__acquire(void *data)
-{
-    Rc *rc = (Rc*)data - 1;
-    rc->count += 1;
-    return data;
+void *rc__acquire(void *data) {
+  Rc *rc = (Rc *)data - 1;
+  rc->count += 1;
+  return data;
 }
 
-void *rc__move(void *data)
-{
-    Rc *rc = (Rc*)data - 1;
-    rc->count -= 1;
-    return data;
+void *rc__move(void *data) {
+  Rc *rc = (Rc *)data - 1;
+  rc->count -= 1;
+  return data;
 }
 
-void rc_release(const void *data)
-{
-    Rc *rc = (Rc*)data - 1;
-    rc->count -= 1;
-    if (rc->count <= 0) {
-        if (rc->destroy != NULL) rc->destroy(rc + 1);
-        free(rc);
-    }
+void rc_release(const void *data) {
+  Rc *rc = (Rc *)data - 1;
+  rc->count -= 1;
+  if (rc->count <= 0) {
+    if (rc->destroy != NULL) rc->destroy(rc + 1);
+    free(rc);
+  }
 }
 
-void rc__release_all(const void *items[], size_t count)
-{
-    for (size_t index = 0; index < count; index += 1) {
-        if (items[index]) rc_release(items[index]);
-    }
+void rc__release_all(const void *items[], size_t count) {
+  for (size_t index = 0; index < count; index += 1) {
+    if (items[index]) rc_release(items[index]);
+  }
 }
 
-ptrdiff_t rc_count(void *data)
-{
-    Rc *rc = (Rc*)data - 1;
-    return rc->count;
+ptrdiff_t rc_count(void *data) {
+  Rc *rc = (Rc *)data - 1;
+  return rc->count;
 }
 
 #endif // RC_IMPL
