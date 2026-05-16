@@ -13,7 +13,7 @@ typedef struct Rc_Header {
 } Rc_Header;
 
 typedef struct Rc_Methods {
-  void (*destructor)(const void *data);
+  void (*destructor)(void *data);
   void (*graph_visitor)(Rc_Circulars *circulars, const void *data, const void *source);
 } Rc_Methods;
 
@@ -29,15 +29,13 @@ void *rc__realloc(void *(*realloc)(void *__ptr, size_t __size), const void *data
 void *rc__manage(void *(*alloc)(size_t size), void (*free)(void *data), void *data, size_t size, Rc_Methods opt);
 #define rc_manage(data, size, ...) (__typeof__(data))rc__manage(malloc, free, (data), (size), (Rc_Methods){__VA_ARGS__})
 
-void *rc__acquire(const void *data);
+void *rc__acquire(void *data);
 #define rc_acquire(data) (__typeof__(data))rc__acquire((data))
-void *rc__acquire(const void *data);
-#define rc_acquire(data) (__typeof__(data))rc__acquire((data))
-void *rc__move(const void *data);
+void *rc__move(void *data);
 #define rc_move(data) (__typeof__(data))rc__move((data))
-void rc_release(const void *data);
-void rc__release_all(const void *items[], size_t count);
-#define rc_release_all(...) rc__release_all((const void *[]){__VA_ARGS__}, sizeof((const void *[]){__VA_ARGS__}) / sizeof(const void *))
+void rc_release(void *data);
+void rc__release_all(void *items[], size_t count);
+#define rc_release_all(...) rc__release_all((void *[]){__VA_ARGS__}, sizeof((void *[]){__VA_ARGS__}) / sizeof(void *))
 
 void **rc__downgrade(void *(*alloc)(size_t size), void *data);
 #define rc_downgrade(data) (__typeof__(data) *)rc__downgrade(malloc, (data))
@@ -54,7 +52,7 @@ struct Rc_Circulars {
   size_t capacity;
 };
 
-void rc_graph_visitor(Rc_Circulars *circulars, void **data, void *source);
+void rc_graph_visitor(Rc_Circulars *circulars, void **data, const void *source);
 
 #endif // RC_H
 
@@ -86,20 +84,20 @@ void *rc__manage(void *(*alloc)(size_t size), void (*free)(void *data), void *da
   return rc + 1;
 }
 
-void *rc__acquire(const void *data) {
+void *rc__acquire(void *data) {
   Rc *rc = (Rc *)data - 1;
   rc->header->strong += 1;
   return data;
 }
 
-void *rc__move(const void *data) {
+void *rc__move(void *data) {
   Rc *rc = (Rc *)data - 1;
   if (!rc->header->strong) UNREACHABLE("trying to move floating memory");
   rc->header->strong -= 1;
   return data;
 }
 
-void rc_release(const void *data) {
+void rc_release(void *data) {
   Rc *rc = (Rc *)data - 1;
   Rc_Header *header = rc->header;
   if (!header->strong) UNREACHABLE("trying to either double free memory or release floating memory");
@@ -119,7 +117,7 @@ void rc_release(const void *data) {
   }
 }
 
-void rc__release_all(const void *items[], size_t count) {
+void rc__release_all(void *items[], size_t count) {
   for (size_t index = 0; index < count; index += 1) {
     if (items[index]) rc_release(items[index]);
   }
@@ -160,7 +158,7 @@ size_t rc_count(const void *data) {
   return rc->header->strong;
 }
 
-void rc_graph_visitor(Rc_Circulars *circulars, void **data, void *source) {
+void rc_graph_visitor(Rc_Circulars *circulars, void **data, const void *source) {
   if (*data == source) {
     da_append(circulars, data);
     return;

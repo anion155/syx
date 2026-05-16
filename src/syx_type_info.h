@@ -54,15 +54,12 @@ struct Syx_Type_Info {
   };
 };
 
-void syx_type_info_rc_count_circular(RC_Circulars *circulars, Syx_Type_Info *typeinfo, void *parent_type);
 Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt);
 #define make_syx_type_info(...) make_syx_type_info_opt((Syx_Type_Info){__VA_ARGS__})
 
-void syx_structure_type_info_rc_count_circular(RC_Circulars *circulars, Syx_Structure_Type_Info *structure, void *parent_type);
 Syx_Structure_Type_Info *make_syx_structure_type_info_opt(Syx_Structure_Type_Info opt);
 #define make_syx_structure_type_info(...) make_syx_structure_type_info_opt((Syx_Structure_Type_Info){__VA_ARGS__})
 
-void syx_function_type_info_rc_count_circular(RC_Circulars *circulars, Syx_Function_Type_Info *function, void *parent_type);
 Syx_Function_Type_Info *make_syx_function_type_info_opt(Syx_Function_Type_Info opt);
 #define make_syx_function_type_info(...) make_syx_function_type_info_opt((Syx_Function_Type_Info){__VA_ARGS__})
 
@@ -71,39 +68,40 @@ Syx_Function_Type_Info *make_syx_function_type_info_opt(Syx_Function_Type_Info o
 #if defined(SYX_TYPE_INFO_IMPL) && !defined(SYX_TYPE_INFO_IMPL_C)
 #define SYX_TYPE_INFO_IMPL_C
 
-void syx_type_info_rc_count_circular(RC_Circulars *circulars, Syx_Type_Info *typeinfo, void *parent_type) {
+void syx_type_info_destructor(void *data) {
+  Syx_Type_Info *typeinfo = data;
   switch (typeinfo->kind) {
     case SYX_TYPE_INFO_KIND_PTR: {
-      rc_count_circular(syx_type_info_rc_count_circular, circulars, &typeinfo->ptr, parent_type);
+      if (typeinfo->ptr) rc_release(typeinfo->ptr);
     } break;
     case SYX_TYPE_INFO_KIND_STRUCTURE: {
-      rc_count_circular(syx_structure_type_info_rc_count_circular, circulars, &typeinfo->structure, parent_type);
+      if (typeinfo->structure) rc_release(typeinfo->structure);
     } break;
     case SYX_TYPE_INFO_KIND_FUNCTION: {
-      rc_count_circular(syx_function_type_info_rc_count_circular, circulars, &typeinfo->function, parent_type);
+      if (typeinfo->function) rc_release(typeinfo->function);
+    } break;
+    default:
+  }
+}
+
+void syx_type_info_graph_visitor(Rc_Circulars *circulars, const void *data, const void *source) {
+  const Syx_Type_Info *typeinfo = data;
+  switch (typeinfo->kind) {
+    case SYX_TYPE_INFO_KIND_PTR: {
+      rc_graph_visitor(circulars, (void **)&typeinfo->ptr, source);
+    } break;
+    case SYX_TYPE_INFO_KIND_STRUCTURE: {
+      rc_graph_visitor(circulars, (void **)&typeinfo->structure, source);
+    } break;
+    case SYX_TYPE_INFO_KIND_FUNCTION: {
+      rc_graph_visitor(circulars, (void **)&typeinfo->function, source);
     }; break;
     default:
   }
 }
 
-void syx_type_info_destructor(void *data) {
-  Syx_Type_Info *typeinfo = data;
-  switch (typeinfo->kind) {
-    case SYX_TYPE_INFO_KIND_PTR: {
-      if (typeinfo->ptr) rc_release_circular(syx_type_info_rc_count_circular, typeinfo->ptr);
-    } break;
-    case SYX_TYPE_INFO_KIND_STRUCTURE: {
-      if (typeinfo->structure) rc_release_circular(syx_structure_type_info_rc_count_circular, typeinfo->structure);
-    } break;
-    case SYX_TYPE_INFO_KIND_FUNCTION: {
-      if (typeinfo->function) rc_release_circular(syx_function_type_info_rc_count_circular, typeinfo->function);
-    } break;
-    default:
-  }
-}
-
 Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt) {
-  Syx_Type_Info *info = rc_alloc(sizeof(Syx_Type_Info), syx_type_info_destructor);
+  Syx_Type_Info *info = rc_malloc(sizeof(Syx_Type_Info), .destructor = syx_type_info_destructor, .graph_visitor = syx_type_info_graph_visitor);
   memset(info, 0, sizeof(Syx_Type_Info));
   *info = opt;
   switch (info->kind) {

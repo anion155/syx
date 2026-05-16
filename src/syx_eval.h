@@ -169,15 +169,15 @@ void syx_eval_ctx_destructor(void *data) {
 }
 
 Syx_Eval_Ctx *make_global_syx_eval_ctx() {
-  Syx_Eval_Ctx *ctx = rc_alloc(sizeof(Syx_Eval_Ctx), syx_eval_ctx_destructor);
+  Syx_Eval_Ctx *ctx = rc_malloc(sizeof(Syx_Eval_Ctx), .destructor = syx_eval_ctx_destructor);
   ctx->env = rc_acquire(make_global_syx_env());
-  ctx->frame_stack = rc_acquire(rc_alloc(sizeof(Syx_Frame_Stack), syx_frame_stack_destructor));
+  ctx->frame_stack = rc_acquire(rc_malloc(sizeof(Syx_Frame_Stack), .destructor = syx_frame_stack_destructor));
   ctx->frame_stack->latest = NULL;
   return ctx;
 }
 
 Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt) {
-  Syx_Eval_Ctx *ctx = rc_alloc(sizeof(Syx_Eval_Ctx), syx_eval_ctx_destructor);
+  Syx_Eval_Ctx *ctx = rc_malloc(sizeof(Syx_Eval_Ctx), .destructor = syx_eval_ctx_destructor);
   ctx->env = rc_acquire(opt.env ? opt.env : parent->env);
   ctx->frame_stack = rc_acquire(opt.frame_stack ? opt.frame_stack : parent->frame_stack);
   return ctx;
@@ -185,7 +185,7 @@ Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt) {
 
 void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, const char *function_name) {
   Syx_Frame *prev = ctx->frame_stack->latest;
-  Syx_Frame *next = rc_alloc(sizeof(Syx_Frame), syx_frame_destructor);
+  Syx_Frame *next = rc_malloc(sizeof(Syx_Frame), .destructor = syx_frame_destructor);
   next->function_name = function_name ? strdup(function_name) : NULL;
   if (prev) {
     next->prev = rc_acquire(prev);
@@ -243,7 +243,7 @@ uintptr_t ht_syxv_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t
 }
 
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description) {
-  Syx_Env *env = rc_alloc(sizeof(Syx_Env), syx_env_destructor);
+  Syx_Env *env = rc_malloc(sizeof(Syx_Env), .destructor = syx_env_destructor);
   env->parent = parent ? rc_acquire(parent) : NULL;
   env->symbols = (Syx_Env_Symbols){.hasheq = ht_syxv_symbol_hasheq};
   env->description = description ? strdup(description) : NULL;

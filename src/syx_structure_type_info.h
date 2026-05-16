@@ -10,7 +10,7 @@
 typedef SyxV *(*Syx_Structure_Type_Info_Constructor)(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments);
 typedef SyxV *(*Syx_Structure_Type_Info_Index_Getter)(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index);
 typedef SyxV *(*Syx_Structure_Type_Info_Index_Setter)(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index, SyxV *argument);
-typedef void (*Syx_Structure_Type_Info_Desstructor)(void *data);
+typedef void (*Syx_Structure_Type_Info_Destructor)(void *data);
 
 typedef struct Syx_Structure_Type_Info_Field {
   size_t offset;
@@ -26,7 +26,7 @@ struct Syx_Structure_Type_Info {
   Syx_Structure_Type_Info_Index_Getter index_getter;
   Syx_Structure_Type_Info_Index_Setter index_setter;
   Syx_Structure_Type_Info_Fields fields;
-  Syx_Structure_Type_Info_Desstructor destructor;
+  Syx_Structure_Type_Info_Destructor destructor;
 };
 
 SyxV *syxv_eval_instantiate_structure(Syx_Eval_Ctx *ctx, Syx_Constructor *constructor, SyxV *arguments);
@@ -42,24 +42,25 @@ SyxV *syxv_eval_structure(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, SyxV *ar
 #define SYX_EVAL_IMPL
 #include "syx_eval.h"
 
-void syx_structure_type_info_rc_count_circular(RC_Circulars *circulars, Syx_Structure_Type_Info *structure, void *parent_type) {
-  ht_foreach(field, &structure->fields) {
-    rc_count_circular(syx_type_info_rc_count_circular, circulars, &field->typeinfo, parent_type);
-  }
-}
-
 void syx_structure_type_info_destructor(void *data) {
   Syx_Structure_Type_Info *typeinfo = data;
-  rc_release(typeinfo->symbol);
+  rc_release(get_syxv_from_symbol(typeinfo->symbol));
   ht_foreach(field, &typeinfo->fields) {
-    if (field) rc_release_circular(syx_type_info_rc_count_circular, field->typeinfo);
+    if (field) rc_release(field->typeinfo);
     free((char *)ht_key(&typeinfo->fields, field));
   }
   ht_free(&typeinfo->fields);
 }
 
+void syx_structure_type_info_graph_visitor(Rc_Circulars *circulars, const void *data, const void *parent_type) {
+  const Syx_Structure_Type_Info *structure = data;
+  ht_foreach(field, &structure->fields) {
+    rc_graph_visitor(circulars, (void **)&field->typeinfo, parent_type);
+  }
+}
+
 Syx_Structure_Type_Info *make_syx_structure_type_info_opt(Syx_Structure_Type_Info opt) {
-  Syx_Structure_Type_Info *info = rc_alloc(sizeof(Syx_Structure_Type_Info), syx_structure_type_info_destructor);
+  Syx_Structure_Type_Info *info = rc_malloc(sizeof(Syx_Structure_Type_Info), .destructor = syx_structure_type_info_destructor);
   memset(info, 0, sizeof(Syx_Structure_Type_Info));
   *info = opt;
   rc_acquire(get_syxv_from_symbol(opt.symbol));

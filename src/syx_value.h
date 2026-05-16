@@ -201,7 +201,7 @@ void fprint_syxv(FILE *f, SyxV *value);
 #include "syx_function_type_info.h"
 
 SyxV *make_syxv(SyxV_Kind kind) {
-  SyxV *value = rc_alloc(sizeof(SyxV), syxv_destructor);
+  SyxV *value = rc_malloc(sizeof(SyxV), .destructor = syxv_destructor);
   memset(value, 0, sizeof(SyxV));
   value->kind = kind;
   return value;
@@ -680,7 +680,7 @@ void syxv_stringify_cache_destructor(void *data) {
 }
 
 SyxV_Stringify_Cache *make_syxv_stringify_cache() {
-  SyxV_Stringify_Cache *cache = rc_alloc(sizeof(SyxV_Stringify_Cache), syxv_stringify_cache_destructor);
+  SyxV_Stringify_Cache *cache = rc_malloc(sizeof(SyxV_Stringify_Cache), .destructor = syxv_stringify_cache_destructor);
   memset(cache, 0, sizeof(SyxV_Stringify_Cache));
   return cache;
 }

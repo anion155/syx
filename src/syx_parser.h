@@ -233,7 +233,7 @@ SyxV *parse_syxv(String_View *source) {
 
 SyxV_Vector *parse_syxvs(String_View *source) {
   SyxV_Parser_Context ctx = {.source = *source, .it = source, .line = *source, .linenumber = 0};
-  SyxV_Vector *syxvs = rc_alloc(sizeof(SyxV_Vector), da_destructor);
+  SyxV_Vector *syxvs = rc_malloc(sizeof(SyxV_Vector), .destructor = da_destructor);
   syxvs->count = 0;
   syxvs->capacity = 0;
   syxvs->items = NULL;
@@ -253,7 +253,7 @@ void parser__syxvs_for_each_iterator_destructor(void *data) {
 }
 
 SyxV ***parser__make_syxvs_for_each_iterator(const char *source_src) {
-  struct SyxVs_Iterator *it = rc_acquire(rc_alloc(sizeof(struct SyxVs_Iterator), parser__syxvs_for_each_iterator_destructor));
+  struct SyxVs_Iterator *it = rc_acquire(rc_malloc(sizeof(struct SyxVs_Iterator), .destructor = parser__syxvs_for_each_iterator_destructor));
   String_View source_sv = sv_from_cstr(source_src);
   String_View *source_it = malloc(sizeof(String_View));
   source_it->data = source_sv.data;

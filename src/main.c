@@ -118,9 +118,8 @@ SyxV *eval_import(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   String_Builder module_sb = {0};
   if (!nob_read_entire_file(name->string.data, &module_sb)) UNREACHABLE("Failed to read file");
   sb_append(&module_sb, 0);
-  char *module_content = module_sb.items;
-  module_sb.items = rc_acquire(rc_manage_strndup(module_content, module_sb.count));
-  free(module_content);
+  module_sb.items = rc_acquire(rc_manage(module_sb.items, module_sb.count));
+  sb_free(module_sb);
   syx_ctx_push_frame(ctx, callable->name);
   Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = syx_env_global(ctx->env)));
   SyxV *result = syx_parse_and_eval(import_ctx, module_sb.items);
@@ -171,7 +170,7 @@ int main(int argc, char **argv) {
   if (*opt_print) script_ctx.opt_print = true;
   if (!(*opt_error)) script_ctx.opt_error = false;
 
-  script_ctx.eval_ctx = make_global_syx_eval_ctx();
+  script_ctx.eval_ctx = rc_acquire(make_global_syx_eval_ctx());
 
   syx_env_define_cstr(script_ctx.eval_ctx->env, "quit", make_syxv_builtin(NULL, eval_quit));
   syx_env_define_cstr(script_ctx.eval_ctx->env, "setopt", make_syxv_specialf(NULL, eval_setopt));
