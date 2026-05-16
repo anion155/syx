@@ -5,136 +5,117 @@
 #include <magic.h>
 #include <stddef.h>
 
-typedef struct {
-  ptrdiff_t count;
-  void (*destroy)(void *data);
+typedef struct Rc_Circulars Rc_Circulars;
+
+typedef struct Rc_Header {
+  size_t strong;
+  size_t weak;
+} Rc_Header;
+
+typedef struct Rc_Methods {
+  void (*destructor)(const void *data);
+  void (*graph_visitor)(Rc_Circulars *circulars, const void *data, const void *source);
+} Rc_Methods;
+
+typedef struct Rc {
+  Rc_Header *header;
+  Rc_Methods methods;
 } Rc;
 
-#define RcBox(T, ...)  \
-  struct __VA_ARGS__ { \
-    Rc rc;             \
-    T data;            \
-  }
+void *rc__alloc(void *(*alloc)(size_t size), size_t size, Rc_Methods opt);
+#define rc_malloc(size, ...) rc__alloc(malloc, (size), (Rc_Methods){__VA_ARGS__})
+void *rc__realloc(void *(*realloc)(void *__ptr, size_t __size), const void *data, size_t size);
+#define rc_realloc(data, size, ...) (__typeof__(data))rc__realloc(realloc, (data), (size))
+void *rc__manage(void *(*alloc)(size_t size), void (*free)(void *data), void *data, size_t size, Rc_Methods opt);
+#define rc_manage(data, size, ...) (__typeof__(data))rc__manage(malloc, free, (data), (size), (Rc_Methods){__VA_ARGS__})
 
-void *rc__alloc(size_t size, void (*destroy)(void *data));
-#define rc_alloc(size, ...) rc__alloc((size), WITH_DEFAULT(NULL, __VA_ARGS__))
-
-void *rc__realloc(const void *data, size_t size);
-#define rc_realloc(data, size) (__typeof__(data))rc__realloc((data), (size))
-
-void *rc__manage_copy(const void *data, size_t size, void (*destroy)(void *data));
-#define rc_manage_copy(data, size, ...) rc__manage_copy((data), (size), WITH_DEFAULT(NULL, __VA_ARGS__))
-
-char *rc__manage_strndup(const char *data, size_t size, void (*destroy)(void *data));
-#define rc_manage_strndup(data, size, ...) rc__manage_strndup((data), (size), WITH_DEFAULT(NULL, __VA_ARGS__))
-
-char *rc__manage_strdup(const char *data, void (*destroy)(void *data));
-#define rc_manage_strdup(data, ...) rc__manage_strdup((data), WITH_DEFAULT(NULL, __VA_ARGS__))
-
-void *rc__manage(void *data, size_t size, void (*destroy)(void *data));
-#define rc_manage(data, size, ...) (__typeof__(data))rc__manage((data), (size), WITH_DEFAULT(NULL, __VA_ARGS__))
-
-void *rc__acquire(void *data);
+void *rc__acquire(const void *data);
 #define rc_acquire(data) (__typeof__(data))rc__acquire((data))
-
-void *rc__move(void *data);
+void *rc__acquire(const void *data);
+#define rc_acquire(data) (__typeof__(data))rc__acquire((data))
+void *rc__move(const void *data);
 #define rc_move(data) (__typeof__(data))rc__move((data))
-
 void rc_release(const void *data);
-
 void rc__release_all(const void *items[], size_t count);
 #define rc_release_all(...) rc__release_all((const void *[]){__VA_ARGS__}, sizeof((const void *[]){__VA_ARGS__}) / sizeof(const void *))
 
-ptrdiff_t rc_count(void *data);
+void **rc__downgrade(void *(*alloc)(size_t size), void *data);
+#define rc_downgrade(data) (__typeof__(data) *)rc__downgrade(malloc, (data))
+void *rc__upgrade(void (*free)(void *data), void **weak_data);
+#define rc_upgrade(weak_data) (__typeof__(*weak_data))rc__upgrade(free, (weak_data))
+void rc__weak_free(void (*free)(void *data), void **weak_data);
+#define rc_weak_free(weak_data) rc__weak_free(free, (weak_data))
 
-typedef struct RC_Circulars {
+size_t rc_count(const void *data);
+
+struct Rc_Circulars {
   void ***items;
   size_t count;
   size_t capacity;
-} RC_Circulars;
+};
 
-#define rc_count_circular(count_circular, circulars, data, parent_type) \
-  do {                                                                  \
-    if (*(data) == (parent_type)) da_append(circulars, (void **)data);  \
-    else count_circular(circulars, *(data), (parent_type));             \
-  } while (0)
-
-#define rc_release_circular(count_circular, data)         \
-  do {                                                    \
-    rc_release((data));                                   \
-    RC_Circulars circulars = {0};                         \
-    count_circular(&circulars, (data), (data));           \
-    if (rc_count((data)) == (ptrdiff_t)circulars.count) { \
-      da_foreach(void **, link, &circulars) {             \
-        **link = NULL;                                    \
-        rc_release((data));                               \
-      }                                                   \
-    }                                                     \
-    da_free(circulars);                                   \
-  } while (0)
+void rc_graph_visitor(Rc_Circulars *circulars, void **data, void *source);
 
 #endif // RC_H
 
 #if defined(RC_IMPL) && !defined(RC_IMPL_C)
 #define RC_IMPL_C
 
-void *rc__alloc(size_t size, void (*destroy)(void *data)) {
-  Rc *rc = malloc(sizeof(Rc) + size);
+void *rc__alloc(void *(*alloc)(size_t size), size_t size, Rc_Methods opt) {
+  Rc *rc = alloc(sizeof(Rc) + size);
   assert(rc);
-  rc->count = 0;
-  rc->destroy = destroy;
+  rc->header = alloc(sizeof(Rc_Header));
+  assert(rc->header);
+  rc->header->strong = 0;
+  rc->header->weak = 0;
+  rc->methods = opt;
   return rc + 1;
 }
 
-void *rc__realloc(const void *data, size_t size) {
+void *rc__realloc(void *(*realloc)(void *__ptr, size_t __size), const void *data, size_t size) {
   Rc *rc = (Rc *)data - 1;
-  assert(rc);
   rc = realloc(rc, sizeof(Rc) + size);
+  assert(rc);
   return rc + 1;
 }
 
-void *rc__manage_copy(const void *data, size_t size, void (*destroy)(void *data)) {
-  Rc *rc = malloc(sizeof(Rc) + size);
-  rc->count = 0;
-  rc->destroy = destroy;
+void *rc__manage(void *(*alloc)(size_t size), void (*free)(void *data), void *data, size_t size, Rc_Methods opt) {
+  Rc *rc = (Rc *)rc__alloc(alloc, size, opt) - 1;
   memcpy(rc + 1, data, size);
-  return rc + 1;
-}
-
-char *rc__manage_strndup(const char *data, size_t size, void (*destroy)(void *data)) {
-  char *name = rc__manage_copy(data, (size + 1) * sizeof(char), destroy);
-  name[size] = 0;
-  return name;
-}
-
-char *rc__manage_strdup(const char *data, void (*destroy)(void *data)) {
-  return rc__manage_strndup(data, strlen(data), destroy);
-}
-
-void *rc__manage(void *data, size_t size, void (*destroy)(void *data)) {
-  Rc *rc = rc__manage_copy((void *)data, size, destroy);
   free(data);
   return rc + 1;
 }
 
-void *rc__acquire(void *data) {
+void *rc__acquire(const void *data) {
   Rc *rc = (Rc *)data - 1;
-  rc->count += 1;
+  rc->header->strong += 1;
   return data;
 }
 
-void *rc__move(void *data) {
+void *rc__move(const void *data) {
   Rc *rc = (Rc *)data - 1;
-  rc->count -= 1;
+  if (!rc->header->strong) UNREACHABLE("trying to move floating memory");
+  rc->header->strong -= 1;
   return data;
 }
 
 void rc_release(const void *data) {
   Rc *rc = (Rc *)data - 1;
-  rc->count -= 1;
-  if (rc->count <= 0) {
-    if (rc->destroy != NULL) rc->destroy(rc + 1);
+  Rc_Header *header = rc->header;
+  if (!header->strong) UNREACHABLE("trying to either double free memory or release floating memory");
+  header->strong -= 1;
+  if (!header->strong) {
+    if (rc->methods.destructor) rc->methods.destructor(data);
     free(rc);
+    if (!header->weak) free(header);
+  } else if (rc->methods.graph_visitor) {
+    Rc_Circulars circulars = {0};
+    rc->methods.graph_visitor(&circulars, data, data);
+    if (header->strong == circulars.count) {
+      da_foreach(void **, link, &circulars) **link = NULL;
+      for (size_t index = 0; index < circulars.count; index++) rc_release(data);
+    }
+    da_free(circulars);
   }
 }
 
@@ -144,9 +125,48 @@ void rc__release_all(const void *items[], size_t count) {
   }
 }
 
-ptrdiff_t rc_count(void *data) {
+void **rc__downgrade(void *(*alloc)(size_t size), void *data) {
+  Rc_Header **weak = alloc(sizeof(Rc_Header *) + sizeof(void *));
+  assert(weak);
+  *weak = ((Rc *)data - 1)->header;
+  (*weak)->weak += 1;
+  *((void **)(weak + 1)) = data;
+  return (void **)(weak + 1);
+}
+
+void *rc__upgrade(void (*free)(void *data), void **weak_data) {
+  Rc_Header **weak = ((Rc_Header **)weak_data - 1);
+  Rc_Header *header = *weak;
+  void *data = *weak_data;
+  if (!header->weak) UNREACHABLE("trying to double free weak pointer");
+  free(weak);
+  header->weak -= 1;
+  if (!header->weak && !header->strong) return (free(header), NULL);
+  if (!header->strong) return NULL;
+  return rc_acquire(data);
+}
+
+void rc__weak_free(void (*free)(void *data), void **weak_data) {
+  Rc_Header **weak = ((Rc_Header **)weak_data - 1);
+  Rc_Header *header = *weak;
+  if (!header->weak) UNREACHABLE("trying to double free weak pointer");
+  free(weak);
+  header->weak -= 1;
+  if (!header->weak && !header->strong) free(header);
+}
+
+size_t rc_count(const void *data) {
   Rc *rc = (Rc *)data - 1;
-  return rc->count;
+  return rc->header->strong;
+}
+
+void rc_graph_visitor(Rc_Circulars *circulars, void **data, void *source) {
+  if (*data == source) {
+    da_append(circulars, data);
+    return;
+  }
+  Rc *rc = (Rc *)data - 1;
+  if (rc->methods.graph_visitor) rc->methods.graph_visitor(circulars, *data, source);
 }
 
 #endif // RC_IMPL
