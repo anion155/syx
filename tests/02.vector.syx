@@ -63,3 +63,13 @@
 (vec 2)
 ;; (println vec)
 (vec 'count)
+
+;; Test: Call method
+(define vec #(10 20 30))
+;; (println vec)
+(vec 'append 40 50 60)
+(vec 'count)
+(vec 'capacity)
+(vec 3)
+(vec 4)
+(vec 5)

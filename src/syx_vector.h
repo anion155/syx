@@ -75,6 +75,16 @@ SyxV *syxv_vector_count_setter(Syx_Eval_Ctx *ctx, void *data, SyxV *argument) {
   return NULL;
 }
 
+SyxV *syxv_vector_append(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments) {
+  SyxV_Vector *vector = data;
+  SyxV *last_argument = NULL;
+  syxv_list_for_each(argument, arguments, &last_argument) {
+    da_append(vector, rc_acquire(argument));
+  }
+  if (last_argument->kind != SYXV_KIND_NIL) RUNTIME_ERROR(ctx, "list expected as arguments");
+  return make_syxv_number_integer(vector->count);
+}
+
 void syx_env_define_vector(Syx_Env *env) {
   // clang-format off
   syx_env_define_cstr(env, "vector", make_syxv_constructor(make_syx_structure_type_info(
@@ -100,6 +110,7 @@ void syx_env_define_vector(Syx_Env *env) {
         .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
         .readonly = true,
       }}},
+      {"append", {.kind = SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_METHOD, .method = syxv_vector_append}},
     ),
     .destructor = da_destructor)));
   // clang-format on

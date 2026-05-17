@@ -27,6 +27,7 @@ typedef SyxV *(*Syx_Structure_Type_Info_Method)(Syx_Eval_Ctx *ctx, void *data, S
 typedef enum Syx_Structure_Type_Info_Field_Kind {
   SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_DATA,
   SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_ACCESSOR,
+  SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_METHOD,
 } Syx_Structure_Type_Info_Field_Kind;
 
 typedef struct Syx_Structure_Type_Info_Field {
@@ -35,6 +36,7 @@ typedef struct Syx_Structure_Type_Info_Field {
   union {
     Syx_Structure_Type_Info_Data_Field data;
     Syx_Structure_Type_Info_Accessor_Field accessor;
+    Syx_Structure_Type_Info_Method method;
   };
 } Syx_Structure_Type_Info_Field;
 
@@ -108,6 +110,7 @@ void syx_structure_type_info_destructor(void *data) {
         if (field->data.typeinfo) rc_release(field->data.typeinfo);
       } break;
       case SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_ACCESSOR: break;
+      case SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_METHOD: break;
     }
     free((char *)ht_key(&typeinfo->fields, field));
   }
@@ -122,6 +125,7 @@ void syx_structure_type_info_graph_visitor(Rc_Circulars *circulars, const void *
         if (field->data.typeinfo) rc_graph_visitor(circulars, (void **)&field->data.typeinfo, parent_type);
       } break;
       case SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_ACCESSOR: break;
+      case SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_METHOD: break;
     }
   }
 }
@@ -137,6 +141,7 @@ Syx_Structure_Type_Info *make_syx_structure_type_info_opt(Syx_Structure_Type_Inf
         if (field->data.typeinfo) rc_acquire(field->data.typeinfo);
       } break;
       case SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_ACCESSOR: break;
+      case SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_METHOD: break;
     }
   }
   return info;
@@ -160,7 +165,7 @@ SyxV *syxv_eval_instantiate_structure(Syx_Eval_Ctx *ctx, Syx_Constructor *constr
   return structure;
 }
 
-SyxV *syxv_eval_structure_getter(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, SyxV *field_arg) {
+SyxV *syxv_eval_structure_getter(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, SyxV *field_arg, SyxV *arguments) {
   if (field_arg->kind == SYXV_KIND_NUMBER && field_arg->number.kind == SYX_NUMBER_KIND_INTEGER) {
     if (!structure->typeinfo->index_getter) RUNTIME_ERROR(ctx, "structure does not implement index getter");
     return structure->typeinfo->index_getter(ctx, structure->data, field_arg->number.integer);
@@ -171,17 +176,22 @@ SyxV *syxv_eval_structure_getter(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, S
       return structure->typeinfo->field_getter(ctx, structure->data, field_name);
     } else if (!(field = ht_find(&structure->typeinfo->fields, field_name))) {
       RUNTIME_ERROR(ctx, temp_sprintf("structure does not have '%s' field", field_name));
-    } else if (field->kind == SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_DATA) {
-      return syx_type_info_to_syxv(ctx, field->data.typeinfo, structure->data + field->data.offset);
-    } else if (field->kind == SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_ACCESSOR) {
-      if (!field->accessor.getter) RUNTIME_ERROR(ctx, temp_sprintf("structure does not implement '%s' field getter", field_name));
-      return field->accessor.getter(ctx, structure->data);
+    } else {
+      switch (field->kind) {
+        case SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_DATA:
+          return syx_type_info_to_syxv(ctx, field->data.typeinfo, structure->data + field->data.offset);
+        case SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_ACCESSOR:
+          if (!field->accessor.getter) RUNTIME_ERROR(ctx, temp_sprintf("structure does not implement '%s' field getter", field_name));
+          return field->accessor.getter(ctx, structure->data);
+        case SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_METHOD:
+          return field->method(ctx, structure->data, arguments);
+      }
     }
   }
   RUNTIME_ERROR(ctx, "unsupported type of field");
 }
 
-SyxV *syxv_eval_structure__setter(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, SyxV *field_arg, SyxV *argument) {
+SyxV *syxv_eval_structure_setter(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, SyxV *field_arg, SyxV *argument, SyxV *arguments) {
   if (field_arg->kind == SYXV_KIND_NUMBER && field_arg->number.kind == SYX_NUMBER_KIND_INTEGER) {
     if (!structure->typeinfo->index_setter) RUNTIME_ERROR(ctx, "structure does not implement index setter");
     return structure->typeinfo->index_setter(ctx, structure->data, field_arg->number.integer, argument);
@@ -192,25 +202,19 @@ SyxV *syxv_eval_structure__setter(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, 
       return structure->typeinfo->field_setter(ctx, structure->data, field_name, argument);
     } else if (!(field = ht_find(&structure->typeinfo->fields, field_name))) {
       RUNTIME_ERROR(ctx, temp_sprintf("structure does not have '%s' field", field_name));
-    } else if (field->kind == SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_DATA) {
-      return syx_type_info_from_syxv(ctx, field->data.typeinfo, structure->data + field->data.offset, argument);
-    } else if (field->kind == SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_ACCESSOR) {
-      if (!field->accessor.setter) RUNTIME_ERROR(ctx, temp_sprintf("structure does not implement '%s' field getter", field_name));
-      return field->accessor.setter(ctx, structure->data, argument);
+    } else {
+      switch (field->kind) {
+        case SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_DATA:
+          return syx_type_info_from_syxv(ctx, field->data.typeinfo, structure->data + field->data.offset, argument);
+        case SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_ACCESSOR:
+          if (!field->accessor.setter) RUNTIME_ERROR(ctx, temp_sprintf("structure does not implement '%s' field getter", field_name));
+          return field->accessor.setter(ctx, structure->data, argument);
+        case SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_METHOD:
+          return field->method(ctx, structure->data, arguments);
+      }
     }
   }
   RUNTIME_ERROR(ctx, "unsupported type of field");
-}
-
-SyxV *syxv_eval_structure_setter(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, SyxV *field_arg, SyxV *argument) {
-  argument = syx_eval(ctx, argument);
-  syx_eval_early_exit(argument);
-  rc_acquire(argument);
-  SyxV *result = syxv_eval_structure__setter(ctx, structure, field_arg, argument);
-  if (!result) result = make_syxv_nil();
-  rc_acquire(result);
-  rc_release(argument);
-  return rc_move(result);
 }
 
 SyxV *syxv_eval_structure(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, SyxV *arguments) {
@@ -225,17 +229,26 @@ SyxV *syxv_eval_structure(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, SyxV *ar
   else function_name = temp_sprintf("(#.%s %s)", structure->typeinfo->symbol->name, field_str.items);
   sb_free(field_str);
 
+  SyxV *evaluated = NULL;
+  syxv_list_map(argument, arguments, &evaluated) {
+    *argument = syx_eval(ctx, *argument);
+    syx_eval_early_exit(*argument, evaluated, field_arg);
+  }
+
   SyxV *result;
   syx_ctx_push_frame(ctx, function_name);
-  if (arguments->kind == SYXV_KIND_NIL) {
-    result = syxv_eval_structure_getter(ctx, structure, field_arg);
+  if (evaluated->kind == SYXV_KIND_NIL) {
+    result = syxv_eval_structure_getter(ctx, structure, field_arg, evaluated);
+  } else if (evaluated->kind == SYXV_KIND_PAIR) {
+    result = syxv_eval_structure_setter(ctx, structure, field_arg, evaluated->pair.left, evaluated);
   } else {
-    result = syxv_eval_structure_setter(ctx, structure, field_arg, syxv_list_next(&arguments));
+    result = make_syxv_thrown(ctx->frame_stack->latest, make_syxv_string_cstr("list of arguments expected"));
   }
   if (!result) result = make_syxv_nil();
   rc_acquire(result);
   syx_ctx_pop_frame(ctx);
   rc_release(field_arg);
+  rc_release(evaluated);
   return rc_move(result);
 }
 
