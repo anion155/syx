@@ -37,6 +37,8 @@ typedef enum Syx_Type_Info_Kind {
   SYX_TYPE_INFO_KIND_FLOAT,
   SYX_TYPE_INFO_KIND_DOUBLE,
   SYX_TYPE_INFO_KIND_DOUBLE_LONG,
+  // stddef
+  SYX_TYPE_INFO_KIND_SIZE, // size_t
 } Syx_Type_Info_Kind;
 
 typedef struct Syx_Type_Info Syx_Type_Info;
@@ -144,6 +146,7 @@ Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt) {
     case SYX_TYPE_INFO_KIND_FLOAT: info->size = __SIZEOF_FLOAT__; break;
     case SYX_TYPE_INFO_KIND_DOUBLE: info->size = __SIZEOF_DOUBLE__; break;
     case SYX_TYPE_INFO_KIND_DOUBLE_LONG: info->size = __SIZEOF_LONG_DOUBLE__; break;
+    case SYX_TYPE_INFO_KIND_SIZE: info->size = __SIZEOF_SIZE_T__; break;
   }
   return info;
 }

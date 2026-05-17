@@ -480,6 +480,11 @@ size_t get_syxv_symbol_string_width(SyxV_Symbol *symbol) {
   return symbol->length + (symbol->guarded ? 2 : 0);
 }
 
+size_t get_syx_structure_symbol_string_width(SyxV_Symbol *symbol) {
+  if (!symbol || !symbol->name) return 8;
+  return symbol->length + (symbol->guarded ? 2 : 0);
+}
+
 size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
   syx_string_t *cached = cache ? ht_find(cache, value) : NULL;
   if (cached) return (*cached).count;
@@ -507,7 +512,7 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
     case SYXV_KIND_BOOL: return value->boolean ? 5 : 6;
     case SYXV_KIND_NUMBER: return get_number_string_width(value->number);
     case SYXV_KIND_STRING: return 1 + value->string.count + 1;
-    case SYXV_KIND_STRUCTURE: return 1 + 1 + get_syxv_symbol_string_width(value->structure.typeinfo->symbol) + 0; // TODO: structure to string
+    case SYXV_KIND_STRUCTURE: return 1 + 1 + get_syx_structure_symbol_string_width(value->structure.typeinfo->symbol) + 0; // TODO: structure to string
     case SYXV_KIND_QUOTE: return 1 + stringify__cached_syxv(value->quote, cache, NULL);
     case SYXV_KIND_SPECIALF: {
       size_t name_width = (value->specialf.name ? strlen(value->specialf.name) : 0);
@@ -528,20 +533,39 @@ size_t get__syxv_string_width(SyxV *value, SyxV_Stringify_Cache *cache) {
       width += 1;
       return width;
     }
-    case SYXV_KIND_CONSTRUCTOR: return 4 + get_syxv_symbol_string_width(value->constructor.typeinfo->symbol);
+    case SYXV_KIND_CONSTRUCTOR: return 4 + get_syx_structure_symbol_string_width(value->constructor.typeinfo->symbol);
     case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be convderted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be convderted");
   }
 }
 
-void stringify__syxv_symbol_n(SyxV_Symbol *symbol, char *string) {
-  if (!symbol->name) return;
+size_t stringify__syxv_symbol_n(SyxV_Symbol *symbol, char *string) {
+  if (!symbol->name) return 0;
   if (symbol->guarded) {
     *(string++) = '|';
     memcpy(string, symbol->name, symbol->length);
     string[symbol->length] = '|';
+    return symbol->length + 2;
   } else {
     memcpy(string, symbol->name, symbol->length);
+    return symbol->length;
+  }
+}
+
+size_t stringify__syx_structure_symbol_n(SyxV_Symbol *symbol, char *string) {
+  if (!symbol || !symbol->name) {
+    char *start = string;
+    *(string++) = '<';
+    *(string++) = 'a';
+    *(string++) = 'n';
+    *(string++) = 'o';
+    *(string++) = 'n';
+    *(string++) = 'i';
+    *(string++) = 'm';
+    *(string++) = '>';
+    return string - start;
+  } else {
+    return stringify__syxv_symbol_n(symbol, string);
   }
 }
 
@@ -559,8 +583,7 @@ void stringify__syxv_n(SyxV *value, size_t width, char *string, SyxV_Stringify_C
       *(string++) = 'l';
     } break;
     case SYXV_KIND_SYMBOL: {
-      stringify__syxv_symbol_n(&value->symbol, string);
-      string += width;
+      string += stringify__syxv_symbol_n(&value->symbol, string);
     } break;
     case SYXV_KIND_PAIR: {
       *(string++) = '(';
@@ -609,8 +632,7 @@ void stringify__syxv_n(SyxV *value, size_t width, char *string, SyxV_Stringify_C
     case SYXV_KIND_STRUCTURE: {
       *(string++) = '#';
       *(string++) = '.';
-      stringify__syxv_symbol_n(value->structure.typeinfo->symbol, string);
-      // string += get_syxv_symbol_string_width(value->structure.typeinfo->symbol);
+      string += stringify__syx_structure_symbol_n(value->structure.typeinfo->symbol, string);
       // TODO: structure to string
     } break;
     case SYXV_KIND_QUOTE: {
@@ -663,7 +685,7 @@ void stringify__syxv_n(SyxV *value, size_t width, char *string, SyxV_Stringify_C
       *(string++) = 'e';
       *(string++) = 'w';
       *(string++) = ' ';
-      stringify__syxv_symbol_n(value->constructor.typeinfo->symbol, string);
+      string += stringify__syx_structure_symbol_n(value->structure.typeinfo->symbol, string);
     } break;
     case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be convderted");

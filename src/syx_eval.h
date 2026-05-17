@@ -321,8 +321,6 @@ SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments)
   syxv_list_map(argument, arguments, &evaluated) {
     *argument = syx_eval(ctx, *argument);
     syx_eval_early_exit(*argument, evaluated);
-    rc_acquire(*argument);
-    rc_move(*argument);
   }
   syx_ctx_push_frame(ctx, builtin->name);
   SyxV *result = builtin->eval(ctx, evaluated);
@@ -429,7 +427,7 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
     case SYXV_KIND_SPECIALF: result = syx_eval_specialf(ctx, &head->specialf, arguments); break;
     case SYXV_KIND_BUILTIN: result = syx_eval_builtin(ctx, &head->builtin, arguments); break;
     case SYXV_KIND_CLOSURE: result = syx_eval_closure(ctx, &head->closure, arguments); break;
-    case SYXV_KIND_CONSTRUCTOR: result = syxv_eval_instantiate_structure(ctx, &head->constructor, arguments); break;
+    case SYXV_KIND_CONSTRUCTOR: UNREACHABLE("can not call constructor without new");
     case SYXV_KIND_THROWN: UNREACHABLE("thrown object should not be called");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be called");
   }

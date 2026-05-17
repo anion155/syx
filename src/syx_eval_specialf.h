@@ -293,6 +293,20 @@ SyxV *syx_special_form_return(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *a
   return make_syxv_return_value(value);
 }
 
+/** Instantiates a user-defined structure type, allocates its dedicated block of native heap memory, and executes its associated constructor behavior. */
+SyxV *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
+  SyxV *head = syx_eval(ctx, syxv_list_next(&arguments));
+  syx_eval_early_exit(head);
+  if (head->kind != SYXV_KIND_CONSTRUCTOR) RUNTIME_ERROR(ctx, "constructor expected here");
+  SyxV *evaluated = NULL;
+  syxv_list_map(argument, arguments, &evaluated) {
+    *argument = syx_eval(ctx, *argument);
+    syx_eval_early_exit(*argument, evaluated);
+  }
+  return syxv_eval_instantiate_structure(ctx, &head->constructor, evaluated);
+}
+
 void syx_env_define_special_forms(Syx_Env *env) {
   /** Special forms */
   syx_env_define_cstr(env, "quote", make_syxv_specialf(NULL, syx_special_form_quote));
@@ -311,6 +325,7 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define_cstr(env, "throw", make_syxv_specialf(NULL, syx_special_form_throw));
   syx_env_define_cstr(env, "try", make_syxv_specialf(NULL, syx_special_form_try));
   syx_env_define_cstr(env, "return", make_syxv_specialf(NULL, syx_special_form_return));
+  syx_env_define_cstr(env, "new", make_syxv_specialf(NULL, syx_special_form_new));
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL

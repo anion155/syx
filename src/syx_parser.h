@@ -305,7 +305,7 @@ SyxV *parser__dispatch_syxv_false(SyxV_Parser_Context *ctx) {
 SyxV *parser__dispatch_syxv_vector(SyxV_Parser_Context *ctx) {
   SyxV *arguments = parse__syxv_list(ctx, true);
   syx_eval_early_exit(arguments);
-  return make_syxv_pair(make_syxv_symbol_cstr("vector"), arguments);
+  return make_syxv_pair(make_syxv_symbol_cstr("new"), make_syxv_pair(make_syxv_symbol_cstr("vector"), arguments));
 }
 
 SyxV *parser__dispatch_syxv_structure(SyxV_Parser_Context *ctx) {
@@ -315,7 +315,7 @@ SyxV *parser__dispatch_syxv_structure(SyxV_Parser_Context *ctx) {
   syx_eval_early_exit(structure_symbol);
   SyxV *arguments = parse__syxv_list(ctx, true);
   syx_eval_early_exit(arguments);
-  return make_syxv_pair(structure_symbol, arguments);
+  return make_syxv_pair(make_syxv_symbol_cstr("new"), make_syxv_pair(structure_symbol, arguments));
 }
 
 #endif // SYX_PARSER_IMPL

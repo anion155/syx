@@ -13,11 +13,22 @@ typedef SyxV *(*Syx_Structure_Type_Info_Index_Setter)(Syx_Eval_Ctx *ctx, void *d
 typedef void (*Syx_Structure_Type_Info_Destructor)(void *data);
 
 typedef struct Syx_Structure_Type_Info_Field {
-  size_t offset;
   Syx_Type_Info *typeinfo;
+  size_t offset;
 } Syx_Structure_Type_Info_Field;
 
 typedef Ht(const char *, Syx_Structure_Type_Info_Field, Syx_Structure_Type_Info_Fields) Syx_Structure_Type_Info_Fields;
+
+typedef struct Syx_Field_Pair {
+  const char *key;
+  Syx_Structure_Type_Info_Field field;
+} Syx_Field_Pair;
+
+Syx_Structure_Type_Info_Fields make_syx_structure_type_info_fields_opt(Syx_Field_Pair *pairs, size_t count);
+#define make_syx_structure_type_info_fields(...) \
+  make_syx_structure_type_info_fields_opt(       \
+      (Syx_Field_Pair[]){__VA_ARGS__},           \
+      sizeof((Syx_Field_Pair[]){__VA_ARGS__}) / sizeof(Syx_Field_Pair))
 
 struct Syx_Structure_Type_Info {
   size_t size;
@@ -42,9 +53,21 @@ SyxV *syxv_eval_structure(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, SyxV *ar
 #define SYX_EVAL_IMPL
 #include "syx_eval.h"
 
+Syx_Structure_Type_Info_Fields make_syx_structure_type_info_fields_opt(Syx_Field_Pair *pairs, size_t count) {
+  Syx_Structure_Type_Info_Fields fields = {0};
+  fields.hasheq = ht_cstr_hasheq;
+  size_t offset = 0;
+  for (size_t index = 0; index < count; index += 1) {
+    if (!pairs[index].field.offset) pairs[index].field.offset = offset;
+    *ht_put(&fields, pairs[index].key) = pairs[index].field;
+    offset += pairs[index].field.typeinfo->size;
+  }
+  return fields;
+}
+
 void syx_structure_type_info_destructor(void *data) {
   Syx_Structure_Type_Info *typeinfo = data;
-  rc_release(get_syxv_from_symbol(typeinfo->symbol));
+  if (typeinfo->symbol) rc_release(get_syxv_from_symbol(typeinfo->symbol));
   ht_foreach(field, &typeinfo->fields) {
     if (field) rc_release(field->typeinfo);
     free((char *)ht_key(&typeinfo->fields, field));
@@ -63,7 +86,7 @@ Syx_Structure_Type_Info *make_syx_structure_type_info_opt(Syx_Structure_Type_Inf
   Syx_Structure_Type_Info *info = rc_malloc(sizeof(Syx_Structure_Type_Info), .destructor = syx_structure_type_info_destructor);
   memset(info, 0, sizeof(Syx_Structure_Type_Info));
   *info = opt;
-  rc_acquire(get_syxv_from_symbol(opt.symbol));
+  if (info->symbol) rc_acquire(get_syxv_from_symbol(info->symbol));
   return info;
 }
 
@@ -73,7 +96,8 @@ SyxV *syxv_eval_instantiate_structure(Syx_Eval_Ctx *ctx, Syx_Constructor *constr
   memset(data, 0, constructor->typeinfo->size);
   SyxV *structure = make_syxv_structure(constructor->typeinfo, data);
   if (constructor->typeinfo->constructor) {
-    syx_ctx_push_frame(ctx, constructor->typeinfo->symbol->name);
+    if (constructor->typeinfo->symbol) syx_ctx_push_frame(ctx, constructor->typeinfo->symbol->name);
+    else syx_ctx_push_frame(ctx, "constructor");
     SyxV *result = constructor->typeinfo->constructor(ctx, data, arguments);
     syx_ctx_pop_frame(ctx);
     syx_eval_early_exit(result, structure);
@@ -85,20 +109,28 @@ SyxV *syxv_eval_instantiate_structure(Syx_Eval_Ctx *ctx, Syx_Constructor *constr
 SyxV *syxv_eval_structure_indexed(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, syx_integer_t index, SyxV *arguments) {
   if (arguments->kind == SYXV_KIND_NIL) {
     if (!structure->typeinfo->index_getter) RUNTIME_ERROR(ctx, "structure does not implement index getter");
-    const char *function_name = strdup(temp_sprintf("(#.%s %lld)", structure->typeinfo->symbol->name, index));
-    syx_ctx_push_frame(ctx, function_name);
-    SyxV *result = rc_acquire(structure->typeinfo->index_getter(ctx, structure->data, index));
-    syx_ctx_pop_frame(ctx);
-    return rc_move(result);
   } else {
     if (!structure->typeinfo->index_setter) RUNTIME_ERROR(ctx, "structure does not implement index setter");
-    const char *function_name = strdup(temp_sprintf("(#.%s %lld <value>)", structure->typeinfo->symbol->name, index));
-    syx_ctx_push_frame(ctx, function_name);
-    SyxV *result = structure->typeinfo->index_setter(ctx, structure->data, index, arguments->pair.left);
-    if (!result) result = rc_acquire(make_syxv_nil());
-    else rc_acquire(result);
-    syx_ctx_pop_frame(ctx);
-    return rc_move(result);
+  }
+  const char *function_name;
+  if (structure->typeinfo->symbol) function_name = strdup(temp_sprintf("(#.%s %lld)", structure->typeinfo->symbol->name, index));
+  else function_name = strdup(temp_sprintf("(#.<anonim> %lld)", index));
+  syx_ctx_push_frame(ctx, function_name);
+  SyxV *result;
+  if (arguments->kind == SYXV_KIND_NIL) {
+    result = structure->typeinfo->index_getter(ctx, structure->data, index);
+  } else {
+    result = structure->typeinfo->index_setter(ctx, structure->data, index, arguments->pair.left);
+    if (!result) result = make_syxv_nil();
+  }
+  rc_acquire(result);
+  syx_ctx_pop_frame(ctx);
+  return rc_move(result);
+}
+
+void __gg__(Syx_Structure_Type_Info_Fields *fields) {
+  ht_foreach(field, fields) {
+    printf("'%s'[%zu]: %u\n", ht_key(fields, field), field->offset, field->typeinfo->kind);
   }
 }
 

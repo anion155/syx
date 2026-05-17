@@ -202,12 +202,26 @@ Returns `false` if argument is truthy, `true` if falsy.
 ## Structures
 
 Structures provide a mechanism for custom data types with dedicated constructors, accessors, and memory management:
+`(new <constructor> ...<value>) => <obj>` - will instantiate structure using constructor with arguments
 `#.<constructor>(...<value>) => <obj>` - will instantiate structure using constructor with arguments
 `(<obj> <integer-number>)` - will call indexed getter
 `(<obj> <integer-number> <value>)` - will call indexed setter
 `(<obj> '<method-symbol>)` - will call method
 `(<obj> '<field-symbol>)` - will call field getter
 `(<obj> '<field-symbol> <value>)` - will call field setter
+
+### vector
+
+Shortcut to create vector instance is
+`#(...<value>) => <vector>`
+
+Vector implements indexed access with signed index overflow and boundaries check
+`(<vector> 0) => <first value>`
+`(<vector> -1) => <last value>`
+`(#(1 2 3) 4) => <throw: out of bound>`
+
+Fields and methods:
+- `(<vector> count) => <number of elements>`
 
 ## Miscellaneous Builtins
 
