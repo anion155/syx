@@ -203,7 +203,7 @@ struct Nob_Dynamic_Array__Abstract {
 
 void da_destructor(void *data) {
   struct Nob_Dynamic_Array__Abstract *da = data;
-  da_foreach(void *, it, da) rc_release(*it);
+  da_foreach(void *, it, da) if (*it) rc_release(*it);
   da_free(*da);
 }
 

@@ -5,9 +5,6 @@
 #include "syx_value.h"
 
 void syx_env_define_vector(Syx_Env *env);
-SyxV *syxv_vector_constructor(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments);
-SyxV *syxv_vector_getter(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index);
-SyxV *syxv_vector_setter(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index, SyxV *argument);
 
 #endif // SYX_VECTOR_H
 
@@ -17,23 +14,10 @@ SyxV *syxv_vector_setter(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index, Syx
 #define SYX_STRUCTURE_TYPE_INFO_IMPL
 #include "syx_structure_type_info.h"
 
-void syx_env_define_vector(Syx_Env *env) {
-  // clang-format off
-  syx_env_define_cstr(env, "vector", make_syxv_constructor(make_syx_structure_type_info(
-    .symbol = (&make_syxv_symbol_cstr("vector")->symbol),
-    .size = sizeof(SyxV_Vector),
-    .constructor = syxv_vector_constructor,
-    .index_getter = syxv_vector_getter,
-    .index_setter = syxv_vector_setter,
-    .fields = make_syx_structure_type_info_fields(
-      {"items", {.typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_PTR, .ptr = make_syx_type_info(
-        .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
-        .structure = make_syx_structure_type_info(.symbol = (&make_syxv_symbol_cstr("vector")->symbol))
-      ))}},
-      {"count", {.typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE)}},
-    ),
-    .destructor = da_destructor)));
-  // clang-format on
+void syxv_vector_zero_init_rest(SyxV_Vector *vector) {
+  if (vector->capacity > vector->count) {
+    memset(vector->items + vector->count, 0, sizeof(vector->items[0]) * (vector->capacity - vector->count));
+  }
 }
 
 SyxV *syxv_vector_constructor(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments) {
@@ -44,9 +28,7 @@ SyxV *syxv_vector_constructor(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments) {
   if (last_item->kind != SYXV_KIND_NIL) RUNTIME_ERROR(ctx, "vector expects list as arguments");
   da_realloc_capacity(vector, size);
   syxv_list_for_each(item, arguments) da_append(vector, rc_acquire(item));
-  if (vector->capacity > vector->count) {
-    memset(vector->items + vector->count, 0, sizeof(vector->items[0]) * (vector->capacity - vector->count));
-  }
+  syxv_vector_zero_init_rest(vector);
   return NULL;
 }
 
@@ -67,6 +49,50 @@ SyxV *syxv_vector_setter(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index, Syx
   if (vector->items[index]) rc_release(vector->items[index]);
   vector->items[index] = argument;
   return NULL;
+}
+
+SyxV *syxv_vector_count_getter(Syx_Eval_Ctx *ctx, void *data) {
+  UNUSED(ctx);
+  SyxV_Vector *vector = data;
+  return make_syxv_number_integer(vector->count);
+}
+
+SyxV *syxv_vector_count_setter(Syx_Eval_Ctx *ctx, void *data, SyxV *argument) {
+  SyxV_Vector *vector = data;
+  Syx_Number number = {0};
+  syx_convert_to(ctx, argument, &number);
+  size_t new_count = syx_number_integer_value(number);
+  if (new_count > vector->count) {
+    da_realloc_capacity(vector, new_count);
+    syxv_vector_zero_init_rest(vector);
+    vector->count = new_count;
+  } else if (new_count < vector->count) {
+    for (size_t index = new_count; index < vector->count; index += 1) {
+      if (vector->items[index]) rc_release(vector->items[index]);
+    }
+    vector->count = new_count;
+  }
+  return NULL;
+}
+
+void syx_env_define_vector(Syx_Env *env) {
+  // clang-format off
+  syx_env_define_cstr(env, "vector", make_syxv_constructor(make_syx_structure_type_info(
+    .symbol = (&make_syxv_symbol_cstr("vector")->symbol),
+    .size = sizeof(SyxV_Vector),
+    .constructor = syxv_vector_constructor,
+    .index_getter = syxv_vector_getter,
+    .index_setter = syxv_vector_setter,
+    .fields = make_syx_structure_type_info_fields(
+      {"items", {.typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_PTR, .ptr = make_syx_type_info(
+        .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
+        .structure = make_syx_structure_type_info(.symbol = (&make_syxv_symbol_cstr("vector")->symbol))
+      ))}},
+      {"count", {.getter = syxv_vector_count_getter, .setter = syxv_vector_count_setter}},
+      {"capacity", {.offset = offsetof(SyxV_Vector, capacity), .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE)}},
+    ),
+    .destructor = da_destructor)));
+  // clang-format on
 }
 
 #endif // SYX_VECTOR_IMPL

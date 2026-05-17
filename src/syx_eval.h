@@ -43,7 +43,8 @@ Syx_Eval_Ctx *make_global_syx_eval_ctx();
 Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
 #define inherit_syx_eval_ctx(parent, ...) inherit_syx_eval_ctx_opt((parent), ((Syx_Eval_Ctx){__VA_ARGS__}))
 void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, const char *function_name);
-void syx_ctx_pop_frame(Syx_Eval_Ctx *ctx);
+void syx__ctx_pop_frame(Syx_Eval_Ctx *ctx, SyxV **to_save, size_t count);
+#define syx_ctx_pop_frame(ctx, ...) syx__ctx_pop_frame((ctx), (SyxV *[]){__VA_ARGS__}, sizeof((SyxV *[]){__VA_ARGS__}) / sizeof(SyxV *))
 syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame);
 
 void syx_env_destructor(void *data);
@@ -196,10 +197,14 @@ void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, const char *function_name) {
   ctx->frame_stack->latest = rc_acquire(next);
 }
 
-void syx_ctx_pop_frame(Syx_Eval_Ctx *ctx) {
+void syx__ctx_pop_frame(Syx_Eval_Ctx *ctx, SyxV **to_save, size_t count) {
   Syx_Frame *current = ctx->frame_stack->latest;
   ctx->frame_stack->latest = current->prev ? rc_acquire(current->prev) : NULL;
+  for (size_t index = 0; index < count; index += 1)
+    if (to_save[index]) rc_acquire(to_save[index]);
   rc_release(current);
+  for (size_t index = 0; index < count; index += 1)
+    if (to_save[index]) rc_move(to_save[index]);
 }
 
 syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame) {

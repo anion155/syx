@@ -123,11 +123,11 @@ SyxV *eval_import(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   syx_ctx_push_frame(ctx, callable->name);
   Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = syx_env_global(ctx->env)));
   SyxV *result = syx_parse_and_eval(import_ctx, module_sb.items);
+  syx_ctx_pop_frame(ctx, result);
   syx_eval_early_exit(result, module_sb.items, import_ctx);
   // TODO: implement exports from module
   rc_release(result);
   rc_release(import_ctx);
-  syx_ctx_pop_frame(ctx);
   return make_syxv_nil();
 }
 
