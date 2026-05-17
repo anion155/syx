@@ -38,11 +38,15 @@ void syx_env_define_vector(Syx_Env *env) {
 
 SyxV *syxv_vector_constructor(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments) {
   SyxV_Vector *vector = data;
+  size_t size = 0;
   SyxV *last_item;
-  syxv_list_for_each(item, arguments, &last_item) {
-    da_append(vector, rc_acquire(item));
-  }
+  syxv_list_for_each(item, arguments, &last_item) size += 1;
   if (last_item->kind != SYXV_KIND_NIL) RUNTIME_ERROR(ctx, "vector expects list as arguments");
+  da_realloc_capacity(vector, size);
+  syxv_list_for_each(item, arguments) da_append(vector, rc_acquire(item));
+  if (vector->capacity > vector->count) {
+    memset(vector->items + vector->count, 0, sizeof(vector->items[0]) * (vector->capacity - vector->count));
+  }
   return NULL;
 }
 
@@ -59,8 +63,9 @@ SyxV *syxv_vector_setter(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index, Syx
   if ((syx_integer_t)vector->count <= index) RUNTIME_ERROR(ctx, "index out of bounds");
   if (-(syx_integer_t)vector->count > index) RUNTIME_ERROR(ctx, "index out of bounds");
   if (index < 0) index = vector->count + index;
+  rc_acquire(argument);
   if (vector->items[index]) rc_release(vector->items[index]);
-  vector->items[index] = rc_acquire(argument);
+  vector->items[index] = argument;
   return NULL;
 }
 

@@ -47,3 +47,15 @@
 (let ((vec #(10 20 30)))
   (vec -1 777)
   (vec 2))
+
+;; Test: Set field value
+(let ((vec #(10 20 30)))
+  ;; (println vec)
+  (println (vec 'count))
+  (vec 'count 2)
+  ;; (println vec)
+  (println (vec 'count))
+  (vec 'count 3)
+  ;; (println vec)
+  (println (vec 'count))
+)

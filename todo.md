@@ -1,6 +1,6 @@
 - check memory cleanup
 
-- struct fields and methods
+- struct methods
 - struct convert to basic types using predefined methods
 - struct methods as callables on stack
 - attach stack frame to error object on throw
