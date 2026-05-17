@@ -41,6 +41,33 @@ typedef enum Syx_Type_Info_Kind {
   SYX_TYPE_INFO_KIND_SIZE, // size_t
 } Syx_Type_Info_Kind;
 
+#define SYX_TYPE_VOID void
+#define SYX_TYPE_I8 int8_t
+#define SYX_TYPE_I16 int16_t
+#define SYX_TYPE_I32 int32_t
+#define SYX_TYPE_I64 int64_t
+#define SYX_TYPE_I128 __int128
+#define SYX_TYPE_U8 uint8_t
+#define SYX_TYPE_U16 uint16_t
+#define SYX_TYPE_U32 uint32_t
+#define SYX_TYPE_U64 uint64_t
+#define SYX_TYPE_U128 unsigned __int128
+#define SYX_TYPE_INT int
+#define SYX_TYPE_INT_LONG signed long
+#define SYX_TYPE_INT_LONG_LONG signed long long
+#define SYX_TYPE_UINT unsigned
+#define SYX_TYPE_UINT_LONG unsigned long
+#define SYX_TYPE_UINT_LONG_LONG unsigned long long
+#define SYX_TYPE_F16 _Float16
+#define SYX_TYPE_F32 _Float32
+#define SYX_TYPE_F64 _Float64
+#define SYX_TYPE_F128 _Float128
+#define SYX_TYPE_FLOAT float
+#define SYX_TYPE_DOUBLE double
+#define SYX_TYPE_DOUBLE_LONG long double
+#define SYX_TYPE_SIZE size_t
+const char *syx_type_info_kind_name(Syx_Type_Info_Kind kind);
+
 typedef struct Syx_Type_Info Syx_Type_Info;
 typedef struct Syx_Structure_Type_Info Syx_Structure_Type_Info;
 typedef struct Syx_Function_Type_Info Syx_Function_Type_Info;
@@ -69,6 +96,39 @@ Syx_Function_Type_Info *make_syx_function_type_info_opt(Syx_Function_Type_Info o
 
 #if defined(SYX_TYPE_INFO_IMPL) && !defined(SYX_TYPE_INFO_IMPL_C)
 #define SYX_TYPE_INFO_IMPL_C
+
+const char *syx_type_info_kind_name(Syx_Type_Info_Kind kind) {
+  switch (kind) {
+    case SYX_TYPE_INFO_KIND_PTR: return "*";
+    case SYX_TYPE_INFO_KIND_STRUCTURE: return "struct {}";
+    case SYX_TYPE_INFO_KIND_FUNCTION: return "fn()";
+    case SYX_TYPE_INFO_KIND_VOID: return STRINGIFY2(SYX_TYPE_VOID);
+    case SYX_TYPE_INFO_KIND_I8: return STRINGIFY2(SYX_TYPE_I8);
+    case SYX_TYPE_INFO_KIND_I16: return STRINGIFY2(SYX_TYPE_I16);
+    case SYX_TYPE_INFO_KIND_I32: return STRINGIFY2(SYX_TYPE_I32);
+    case SYX_TYPE_INFO_KIND_I64: return STRINGIFY2(SYX_TYPE_I64);
+    case SYX_TYPE_INFO_KIND_I128: return STRINGIFY2(SYX_TYPE_I128);
+    case SYX_TYPE_INFO_KIND_U8: return STRINGIFY2(SYX_TYPE_U8);
+    case SYX_TYPE_INFO_KIND_U16: return STRINGIFY2(SYX_TYPE_U16);
+    case SYX_TYPE_INFO_KIND_U32: return STRINGIFY2(SYX_TYPE_U32);
+    case SYX_TYPE_INFO_KIND_U64: return STRINGIFY2(SYX_TYPE_U64);
+    case SYX_TYPE_INFO_KIND_U128: return STRINGIFY2(SYX_TYPE_U128);
+    case SYX_TYPE_INFO_KIND_INT: return STRINGIFY2(SYX_TYPE_INT);
+    case SYX_TYPE_INFO_KIND_INT_LONG: return STRINGIFY2(SYX_TYPE_INT_LONG);
+    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: return STRINGIFY2(SYX_TYPE_INT_LONG_LONG);
+    case SYX_TYPE_INFO_KIND_UINT: return STRINGIFY2(SYX_TYPE_UINT);
+    case SYX_TYPE_INFO_KIND_UINT_LONG: return STRINGIFY2(SYX_TYPE_UINT_LONG);
+    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: return STRINGIFY2(SYX_TYPE_UINT_LONG_LONG);
+    case SYX_TYPE_INFO_KIND_F16: return STRINGIFY2(SYX_TYPE_F16);
+    case SYX_TYPE_INFO_KIND_F32: return STRINGIFY2(SYX_TYPE_F32);
+    case SYX_TYPE_INFO_KIND_F64: return STRINGIFY2(SYX_TYPE_F64);
+    case SYX_TYPE_INFO_KIND_F128: return STRINGIFY2(SYX_TYPE_F128);
+    case SYX_TYPE_INFO_KIND_FLOAT: return STRINGIFY2(SYX_TYPE_FLOAT);
+    case SYX_TYPE_INFO_KIND_DOUBLE: return STRINGIFY2(SYX_TYPE_DOUBLE);
+    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: return STRINGIFY2(SYX_TYPE_DOUBLE_LONG);
+    case SYX_TYPE_INFO_KIND_SIZE: return STRINGIFY2(SYX_TYPE_SIZE);
+  }
+}
 
 void syx_type_info_destructor(void *data) {
   Syx_Type_Info *typeinfo = data;
@@ -114,13 +174,15 @@ Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt) {
           default: info->size = __SIZEOF_POINTER__;
         }
       }
+      if (info->ptr) rc_acquire(info->ptr);
     } break;
     case SYX_TYPE_INFO_KIND_STRUCTURE: {
       if (info->size == 0) info->size = info->structure->size;
+      if (info->structure) rc_acquire(info->structure);
     } break;
     case SYX_TYPE_INFO_KIND_FUNCTION: {
       if (info->size == 0) info->size = sizeof(void (*)());
-      rc_acquire(info->function);
+      if (info->function) rc_acquire(info->function);
     } break;
     case SYX_TYPE_INFO_KIND_VOID: break;
     case SYX_TYPE_INFO_KIND_I8: info->size = 8; break;

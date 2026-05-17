@@ -59,7 +59,8 @@ Syx_Structure_Type_Info_Fields make_syx_structure_type_info_fields_opt(Syx_Field
   size_t offset = 0;
   for (size_t index = 0; index < count; index += 1) {
     if (!pairs[index].field.offset) pairs[index].field.offset = offset;
-    *ht_put(&fields, pairs[index].key) = pairs[index].field;
+    char *key = strdup(pairs[index].key);
+    *ht_put(&fields, key) = pairs[index].field;
     offset += pairs[index].field.typeinfo->size;
   }
   return fields;
@@ -69,7 +70,7 @@ void syx_structure_type_info_destructor(void *data) {
   Syx_Structure_Type_Info *typeinfo = data;
   if (typeinfo->symbol) rc_release(get_syxv_from_symbol(typeinfo->symbol));
   ht_foreach(field, &typeinfo->fields) {
-    if (field) rc_release(field->typeinfo);
+    if (field->typeinfo) rc_release(field->typeinfo);
     free((char *)ht_key(&typeinfo->fields, field));
   }
   ht_free(&typeinfo->fields);
@@ -87,6 +88,9 @@ Syx_Structure_Type_Info *make_syx_structure_type_info_opt(Syx_Structure_Type_Inf
   memset(info, 0, sizeof(Syx_Structure_Type_Info));
   *info = opt;
   if (info->symbol) rc_acquire(get_syxv_from_symbol(info->symbol));
+  ht_foreach(field, &info->fields) {
+    if (field->typeinfo) rc_acquire(field->typeinfo);
+  }
   return info;
 }
 
@@ -113,8 +117,8 @@ SyxV *syxv_eval_structure_indexed(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, 
     if (!structure->typeinfo->index_setter) RUNTIME_ERROR(ctx, "structure does not implement index setter");
   }
   const char *function_name;
-  if (structure->typeinfo->symbol) function_name = strdup(temp_sprintf("(#.%s %lld)", structure->typeinfo->symbol->name, index));
-  else function_name = strdup(temp_sprintf("(#.<anonim> %lld)", index));
+  if (structure->typeinfo->symbol) function_name = temp_sprintf("(#.%s %lld)", structure->typeinfo->symbol->name, index);
+  else function_name = temp_sprintf("(#.<anonim> %lld)", index);
   syx_ctx_push_frame(ctx, function_name);
   SyxV *result;
   if (arguments->kind == SYXV_KIND_NIL) {
@@ -145,11 +149,52 @@ SyxV *syxv_eval_structure(Syx_Eval_Ctx *ctx, SyxV_Structure *structure, SyxV *ar
   } else if (field_name->kind == SYXV_KIND_SYMBOL) {
     Syx_Structure_Type_Info_Field *field = ht_find(&structure->typeinfo->fields, field_name->symbol.name);
     if (!field) RUNTIME_ERROR(ctx, temp_sprintf("structure does not have '%s' field", field_name->symbol.name));
+    rc_release(field_name);
     void *data = structure->data + field->offset;
-    UNUSED(data);
     if (field->typeinfo->kind == SYX_TYPE_INFO_KIND_FUNCTION) TODO("implement method call");
     if (field->typeinfo->kind == SYX_TYPE_INFO_KIND_PTR && field->typeinfo->ptr->kind == SYX_TYPE_INFO_KIND_FUNCTION) TODO("implement method call");
     if (arguments->kind == SYXV_KIND_NIL) {
+      switch (field->typeinfo->kind) {
+        case SYX_TYPE_INFO_KIND_PTR: TODO("implement ptr field getter");
+        case SYX_TYPE_INFO_KIND_STRUCTURE: TODO("implement structure field getter");
+        case SYX_TYPE_INFO_KIND_FUNCTION: TODO("implement function field getter");
+        case SYX_TYPE_INFO_KIND_VOID: RUNTIME_ERROR(ctx, "can not get void field");
+        case SYX_TYPE_INFO_KIND_I8: return make_syxv_number_integer(*((SYX_TYPE_I8 *)data));
+        case SYX_TYPE_INFO_KIND_I16: return make_syxv_number_integer(*((SYX_TYPE_I16 *)data));
+        case SYX_TYPE_INFO_KIND_I32: return make_syxv_number_integer(*((SYX_TYPE_I32 *)data));
+        case SYX_TYPE_INFO_KIND_I64: return make_syxv_number_integer(*((SYX_TYPE_I64 *)data));
+#ifdef __SIZEOF_INT128__
+        case SYX_TYPE_INFO_KIND_I128: return make_syxv_number_integer(*((SYX_TYPE_I128 *)data));
+#endif
+        case SYX_TYPE_INFO_KIND_U8: return make_syxv_number_integer(*((SYX_TYPE_U8 *)data));
+        case SYX_TYPE_INFO_KIND_U16: return make_syxv_number_integer(*((SYX_TYPE_U16 *)data));
+        case SYX_TYPE_INFO_KIND_U32: return make_syxv_number_integer(*((SYX_TYPE_U32 *)data));
+        case SYX_TYPE_INFO_KIND_U64: return make_syxv_number_integer(*((SYX_TYPE_U64 *)data));
+#ifdef __SIZEOF_INT128__
+        case SYX_TYPE_INFO_KIND_U128: return make_syxv_number_integer(*((SYX_TYPE_U128 *)data));
+#endif
+        case SYX_TYPE_INFO_KIND_INT: return make_syxv_number_integer(*((SYX_TYPE_INT *)data));
+        case SYX_TYPE_INFO_KIND_INT_LONG: return make_syxv_number_integer(*((SYX_TYPE_INT_LONG *)data));
+        case SYX_TYPE_INFO_KIND_INT_LONG_LONG: return make_syxv_number_integer(*((SYX_TYPE_INT_LONG_LONG *)data));
+        case SYX_TYPE_INFO_KIND_UINT: return make_syxv_number_integer(*((SYX_TYPE_UINT *)data));
+        case SYX_TYPE_INFO_KIND_UINT_LONG: return make_syxv_number_integer(*((SYX_TYPE_UINT_LONG *)data));
+        case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: return make_syxv_number_integer(*((SYX_TYPE_UINT_LONG_LONG *)data));
+#if defined(__STDC_IEC_60559_TYPES__) || defined(__clang__) && defined(__is_identifier) && !__is_identifier(_Float32)
+        case SYX_TYPE_INFO_KIND_F16: return make_syxv_number_fractional(*((SYX_TYPE_F16 *)data));
+        case SYX_TYPE_INFO_KIND_F32: return make_syxv_number_fractional(*((SYX_TYPE_F32 *)data));
+        case SYX_TYPE_INFO_KIND_F64: return make_syxv_number_fractional(*((SYX_TYPE_F64 *)data));
+        case SYX_TYPE_INFO_KIND_F128: return make_syxv_number_fractional(*((SYX_TYPE_F128 *)data));
+#endif
+        case SYX_TYPE_INFO_KIND_FLOAT: return make_syxv_number_fractional(*((SYX_TYPE_FLOAT *)data));
+        case SYX_TYPE_INFO_KIND_DOUBLE: return make_syxv_number_fractional(*((SYX_TYPE_DOUBLE *)data));
+        case SYX_TYPE_INFO_KIND_DOUBLE_LONG: return make_syxv_number_fractional(*((SYX_TYPE_DOUBLE_LONG *)data));
+#ifdef __SIZEOF_SIZE_T__
+        case SYX_TYPE_INFO_KIND_SIZE: return make_syxv_number_integer(*((SYX_TYPE_SIZE *)data));
+#endif
+        default: {
+          RUNTIME_ERROR(ctx, temp_sprintf("field kind is not supported: %u '%s'", field->typeinfo->kind, syx_type_info_kind_name(field->typeinfo->kind)));
+        }
+      }
       TODO("implement field getter");
     } else {
       TODO("implement field setter");

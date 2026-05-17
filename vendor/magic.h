@@ -2,6 +2,7 @@
 #define MAGIC_H_
 
 #define STRINGIFY(x) #x
+#define STRINGIFY2(x) STRINGIFY(x)
 
 #define SECOND_ARG(a, b, ...) b
 #define THIRD_ARG(a, b, c, ...) c

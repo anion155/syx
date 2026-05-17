@@ -304,7 +304,9 @@ SyxV *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
     *argument = syx_eval(ctx, *argument);
     syx_eval_early_exit(*argument, evaluated);
   }
-  return syxv_eval_instantiate_structure(ctx, &head->constructor, evaluated);
+  SyxV *result = rc_acquire(syxv_eval_instantiate_structure(ctx, &head->constructor, evaluated));
+  rc_release(evaluated);
+  return rc_move(result);
 }
 
 void syx_env_define_special_forms(Syx_Env *env) {

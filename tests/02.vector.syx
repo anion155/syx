@@ -1,6 +1,7 @@
 (setopt x #true)
+(setopt e #false)
 
-;;;; Syx Vector Behavior Tests
+;; Syx Vector Behavior Tests
 
 ;; Test: Literal Vector Instantiation
 ;; Expected: #true (Instance is truthy)
@@ -37,12 +38,12 @@
 
 ;; Test: Functional Mutation (Indexed Setter)
 ;; Expected: 999
-(let (vec #(10 20 30))
+(let ((vec #(10 20 30)))
   (vec 1 999)
   (vec 1))
 
 ;; Test: Functional Mutation via negative index
 ;; Expected: 777
-(let (vec #(10 20 30))
+(let ((vec #(10 20 30)))
   (vec -1 777)
   (vec 2))

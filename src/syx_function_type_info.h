@@ -42,9 +42,6 @@ Syx_Function_Type_Info *make_syx_function_type_info_opt(Syx_Function_Type_Info o
   memset(function, 0, sizeof(Syx_Function_Type_Info));
   *function = opt;
   rc_acquire(function->return_type);
-  for (size_t index = 0; index < function->argc; index += 1) {
-    rc_acquire(function->argv[index]);
-  }
   for (size_t index = 0; index < function->argc; index += 1) rc_acquire(function->argv[index]);
   return function;
 }

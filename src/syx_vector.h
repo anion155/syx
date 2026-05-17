@@ -28,9 +28,7 @@ void syx_env_define_vector(Syx_Env *env) {
     .fields = make_syx_structure_type_info_fields(
       {"items", {.typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_PTR, .ptr = make_syx_type_info(
         .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
-        .structure = make_syx_structure_type_info(
-          .symbol = (&make_syxv_symbol_cstr("vector")->symbol),
-        )
+        .structure = make_syx_structure_type_info(.symbol = (&make_syxv_symbol_cstr("vector")->symbol))
       ))}},
       {"count", {.typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE)}},
     ),
