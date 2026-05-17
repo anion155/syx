@@ -302,7 +302,7 @@ syx_string_t stringify_integer(syx_integer_t value) {
 
 void sb_append_integer(String_Builder *sb, syx_integer_t value) {
   size_t width = get_integer_string_width(value);
-  da_reserve(sb, sb->count + width);
+  da_realloc_capacity(sb, sb->count + width);
   stringify_integer_n(value, width, sb->items + sb->count);
   sb->count += width;
 }
@@ -371,7 +371,7 @@ void sb_append__fractional(String_Builder *sb, syx_fractional_t value, ssize_t p
   if (precision == 0) return sb_append_integer(sb, (syx_integer_t)value + round_const);
   size_t _precision = fractions__precision(value, precision);
   size_t integer_width = get_integer_string_width(value);
-  da_reserve(sb, sb->count + integer_width + 1 + _precision);
+  da_realloc_capacity(sb, sb->count + integer_width + 1 + _precision);
   stringify_fractional_n(value, integer_width, _precision, sb->items + sb->count);
   sb->count += integer_width + 1 + _precision;
 }
@@ -589,7 +589,7 @@ size_t io_puts_cstr(FILE *fd, const char *str) {
 
 String_Builder sb_copy_from_cstr(const char *string) {
   String_Builder sb = {0};
-  da_reserve(&sb, strlen(string) + 1);
+  da_realloc_capacity(&sb, strlen(string) + 1);
   sb_append_cstr(&sb, string);
   sb_append(&sb, 0);
   return sb;
@@ -597,7 +597,7 @@ String_Builder sb_copy_from_cstr(const char *string) {
 
 String_Builder sb_copy_from_sv(String_View sv) {
   String_Builder sb = {0};
-  da_reserve(&sb, sv.count + 1);
+  da_realloc_capacity(&sb, sv.count + 1);
   sb_append_sv(&sb, sv);
   sb_append(&sb, 0);
   return sb;

@@ -728,7 +728,7 @@ void sb_append__syxv(String_Builder *sb, SyxV *value, SyxV_Stringify_Cache *cach
   else _cache = rc_acquire(make_syxv_stringify_cache());
 
   size_t width = get__syxv_string_width(value, _cache);
-  da_reserve(sb, sb->count + width);
+  da_realloc_capacity(sb, sb->count + width);
   stringify__syxv_n(value, width, sb->items + sb->count, _cache);
   sb->count += width;
 

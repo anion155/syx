@@ -362,6 +362,16 @@ NOBDEF void nob_dir_entry_close(Nob_Dir_Entry dir);
         }                                                                                  \
     } while (0)
 
+// Reserve specific size to a dynamic array
+#define nob_da_realloc_capacity(da, target_capacity)                                       \
+    do {                                                                                   \
+        if ((target_capacity) > (da)->capacity) {                                          \
+            (da)->capacity = (target_capacity);                                            \
+            (da)->items = NOB_DECLTYPE_CAST((da)->items)NOB_REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items)); \
+            NOB_ASSERT((da)->items != NULL && "Buy more RAM lol");                         \
+        }                                                                                  \
+    } while (0)
+
 // Append an item to a dynamic array
 #define nob_da_append(da, item)                \
     do {                                       \
@@ -2920,6 +2930,7 @@ NOBDEF char *nob_temp_running_executable_path(void)
         #define da_append_many nob_da_append_many
         #define da_resize nob_da_resize
         #define da_reserve nob_da_reserve
+        #define da_realloc_capacity nob_da_realloc_capacity
         #define da_last nob_da_last
         #define da_first nob_da_first
         #define da_pop nob_da_pop
