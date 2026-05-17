@@ -84,12 +84,22 @@ void syx_env_define_vector(Syx_Env *env) {
     .index_getter = syxv_vector_getter,
     .index_setter = syxv_vector_setter,
     .fields = make_syx_structure_type_info_fields(
-      {"items", {.typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_PTR, .ptr = make_syx_type_info(
-        .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
-        .structure = make_syx_structure_type_info(.symbol = (&make_syxv_symbol_cstr("vector")->symbol))
-      ))}},
-      {"count", {.getter = syxv_vector_count_getter, .setter = syxv_vector_count_setter}},
-      {"capacity", {.offset = offsetof(SyxV_Vector, capacity), .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE)}},
+      {"items", {.kind = SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_DATA, .data = {
+        .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_PTR, .ptr = make_syx_type_info(
+          .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
+          .structure = make_syx_structure_type_info(.symbol = (&make_syxv_symbol_cstr("vector")->symbol))
+        )),
+        .readonly = true,
+      }}},
+      {"count", {.kind = SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_ACCESSOR, .accessor = {
+        .getter = syxv_vector_count_getter,
+        .setter = syxv_vector_count_setter,
+      }}},
+      {"capacity", {.kind = SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_DATA, .data = {
+        .offset = offsetof(SyxV_Vector, capacity),
+        .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
+        .readonly = true,
+      }}},
     ),
     .destructor = da_destructor)));
   // clang-format on

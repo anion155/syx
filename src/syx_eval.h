@@ -15,6 +15,10 @@
     return make_syxv_thrown((ctx)->frame_stack->latest, reason); \
   } while (0)
 
+#define RETURN(value, ...)     \
+  rc_release_all(__VA_ARGS__); \
+  return value
+
 typedef struct SyxV_Symbol SyxV_Symbol;
 typedef struct SyxV SyxV;
 typedef Ht(SyxV_Symbol *, SyxV *) Syx_Env_Symbols;
