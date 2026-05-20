@@ -77,12 +77,31 @@ bool parse_number(String_View *sv, Syx_Number *result);
 
 void string_reverse(char *string, size_t width);
 
-size_t stringify_string_n(const char *source, size_t width, char *string);
+#define __strpush(ch) ((string != NULL ? *((char *)string_it) = (ch) : (void)0), (string_it += 1))
+#define __stringify_body(converter_n, buffer_size)                                                      \
+  do {                                                                                                  \
+    char *string = malloc(buffer_size);                                                                 \
+    assert(string);                                                                                     \
+    size_t width = converter_n(string, __VA_ARGS__);                                                    \
+    syx_string_t result = {.items = realloc(string, width + 1), .count = width, .capacity = width + 1}; \
+    assert(result.items);                                                                               \
+    result.items[width] = 0;                                                                            \
+    return result;                                                                                      \
+  } while (0)
+#define __sb_append_body(converter_n, buffer_size, ...) \
+  do {                                                  \
+    char *string = malloc(buffer_size);                 \
+    assert(string);                                     \
+    size_t width = converter_n(string, __VA_ARGS__);    \
+    da_realloc_capacity(sb, sb->count + width);         \
+    memcpy(sb->items + sb->count, string, width);       \
+    sb->count += width;                                 \
+    free(string);                                       \
+  } while (0)
 
-#define get_cstring_width(cstr) strlen((cstr))
-size_t stringify_cstring_n(const char *cstr, char *string);
+size_t stringify_string_n(char *string, const char *source, size_t width);
+size_t stringify_cstring_n(char *string, const char *cstr);
 
-size_t get_integer_string_width(syx_integer_t value);
 size_t stringify_integer_n(char *string, syx_integer_t value);
 syx_string_t stringify_integer(syx_integer_t value);
 void sb_append_integer(String_Builder *sb, syx_integer_t value);
@@ -94,7 +113,6 @@ size_t get_fractions_string_width(syx_fractional_t value);
 size_t fractions__precision(syx_fractional_t value, ssize_t precision);
 #define fractions_precision(value, ...) fractions__precision((value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
 
-size_t get_fractional_string_width(syx_fractional_t value, size_t precision);
 size_t stringify__fractional_n(char *string, syx_fractional_t value, ssize_t precision);
 #define stringify_fractional_n(string, value, ...) stringify__fractional_n((string), (value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
 syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision);
@@ -102,7 +120,6 @@ syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision);
 void sb_append__fractional(String_Builder *sb, syx_fractional_t value, ssize_t precision);
 #define sb_append_fractional(sb, value, ...) sb_append__fractional((sb), (value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
 
-size_t get_number_string_width(Syx_Number value);
 void stringify_number_n(Syx_Number value, size_t width, char *string);
 syx_string_t stringify_number(Syx_Number value);
 void sb_append_number(String_Builder *sb, Syx_Number value);
@@ -287,54 +304,35 @@ void string_reverse(char *string, size_t width) {
   }
 }
 
-size_t stringify_string_n(const char *source, size_t width, char *string) {
-  memcpy(string, source, width);
+size_t stringify_string_n(char *string, const char *source, size_t width) {
+  if (string) memcpy(string, source, width);
   return width;
 }
 
-size_t stringify_cstring_n(const char *cstr, char *string) {
-  return stringify_string_n(cstr, get_cstring_width(cstr), string);
-}
-
-size_t get_integer_string_width(syx_integer_t value) {
-  if (value == 0) return 1;
-  size_t size = 0;
-  if (value < 0) size += 1;
-  for (syx_integer_t it = value; it != 0; it /= 10) size += 1;
-  return size;
+size_t stringify_cstring_n(char *string, const char *cstr) {
+  return stringify_string_n(string, cstr, strlen(cstr));
 }
 
 size_t stringify_integer_n(char *string, syx_integer_t value) {
-  if (value == 0) {
-    *(string++) = '0';
-    return 1;
-  }
-  char *start = string;
-  if (value < 0) *(string++) = '-';
-  char *rev_start = string;
-  for (syx_integer_t it = value; it != 0; it /= 10) {
-    *(string++) = '0' + (value < 0 ? -(it % 10) : it % 10);
-  }
-  string_reverse(rev_start, string - rev_start);
-  return string - start;
+  uintptr_t string_it = string ? (uintptr_t)string : 0;
+  if (value == 0) return (__strpush('0'), 1);
+  if (value == LLONG_MIN) return stringify_cstring_n(string, STRINGIFY2(LLONG_MIN));
+  if (value < 0) (__strpush('-'), value *= -1);
+  char *rev_start = (char *)string_it;
+  for (syx_integer_t it = value; it != 0; it /= 10) __strpush('0' + it % 10);
+  if (string) string_reverse(rev_start, string_it - (uintptr_t)rev_start);
+  return string_it - (uintptr_t)string;
 }
 
 syx_string_t stringify_integer(syx_integer_t value) {
-  size_t width = get_integer_string_width(value);
-  syx_string_t result = {.items = malloc(width + 1), .count = width, .capacity = width + 1};
-  assert(result.items);
-  stringify_integer_n(result.items, value);
-  result.items[width] = 0;
-  return result;
+  __stringify_body(stringify_integer_n, 32, value);
 }
 
 void sb_append_integer(String_Builder *sb, syx_integer_t value) {
-  size_t width = get_integer_string_width(value);
-  da_realloc_capacity(sb, sb->count + width);
-  sb->count += stringify_integer_n(sb->items + sb->count, value);
+  __sb_append_body(stringify_integer_n, 32, value);
 }
 
-size_t get_fractions_string_width(syx_fractional_t value) {
+size_t get_fractions_precise(syx_fractional_t value) {
   if (value < 0) value *= -1;
   value -= (syx_integer_t)value;
   size_t width = 0;
@@ -356,55 +354,38 @@ size_t fractions__precision(syx_fractional_t value, ssize_t precision) {
   return fractional_width > exponenta ? exponenta : fractional_width;
 }
 
-size_t get_fractional_string_width(syx_fractional_t value, size_t precision) {
-  size_t integer_width = get_integer_string_width(value);
-  if (precision == 0) return integer_width;
-  return integer_width + 1 + precision;
-}
-
 size_t stringify__fractional_n(char *string, syx_fractional_t value, ssize_t precision) {
-  if (_precision == 0) return stringify_integer_n(string, (syx_integer_t)(value + (value < 0 ? -0.5 : 0.5)));
-  size_t _precision = fractions__precision(value, precision);
-  char *start = string;
-  if (value < 0) {
-    value *= -1;
-    *(string++) = '-';
-  }
+  uintptr_t string_it = string ? (uintptr_t)string : 0;
+  if (precision < 0) precision = fractions__precision(value, precision);
+  if (precision == 0) return stringify_integer_n(string, (syx_integer_t)(value + (value < 0 ? -0.5 : 0.5)));
+  if (value < 0) (__strpush('-'), value *= -1);
   syx_integer_t exponent = 1;
-  for (size_t index = 0; index < _precision; index += 1) exponent *= 10;
+  for (size_t index = 0; index < precision; index += 1) exponent *= 10;
   value += 0.5 / (syx_fractional_t)exponent;
-  syx_integer_t integer = value;
-  syx_integer_t fractions = (value - integer) * exponent;
-  string += stringify_integer_n(string, integer);
-  *(string++) = '.';
-  char *rev_start = string;
-  for (size_t index = 0; index < _precision; index += 1, fractions /= 10) {
-    *(string++) = '0' + (fractions % 10);
+  syx_integer_t integer, fractions;
+  {
+    syx_fractional_t integer_part = 0;
+    syx_fractional_t fractional_part = modfl(value, &integer_part);
+    integer = (syx_integer_t)integer_part;
+    fractions = (syx_integer_t)(fractional_part * (syx_fractional_t)exponent);
   }
-  string_reverse(rev_start, string - rev_start);
-  return string - start;
+  string_it += stringify_integer_n(string ? (char *)string_it : NULL, integer);
+  __strpush('.');
+  if (!string) return (string_it - (uintptr_t)string) + precision;
+  char *rev_start = (char *)string_it;
+  for (size_t index = 0; index < precision; index += 1, fractions /= 10) __strpush('0' + (fractions % 10));
+  string_reverse(rev_start, string_it - (uintptr_t)rev_start);
+  return string_it - (uintptr_t)string;
 }
 
 syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision) {
-  size_t width = get_fractional_string_width(value);
-  syx_string_t result = {.items = malloc(width + 1), .count = width, .capacity = width + 1};
-  assert(result.items);
-  stringify__fractional_n(result.items, value, precision);
-  result.items[width] = 0;
-  return result;
+  if (precision < 0) precision = fractions__precision(value, precision);
+  __stringify_body(stringify__fractional_n, 33 + precision, value, precision);
 }
 
 void sb_append__fractional(String_Builder *sb, syx_fractional_t value, ssize_t precision) {
-  size_t width = get_fractional_string_width(value);
-  da_realloc_capacity(sb, sb->count + width);
-  sb->count += stringify_fractional_n(sb->items + sb->count, value);
-}
-
-size_t get_number_string_width(Syx_Number value) {
-  switch (value.kind) {
-    case SYX_NUMBER_KIND_INTEGER: return get_integer_string_width(value.integer);
-    case SYX_NUMBER_KIND_FRACTIONAL: return get_fractional_string_width(value.fractional);
-  }
+  if (precision < 0) precision = fractions__precision(value, precision);
+  __sb_append_body(stringify__fractional_n, 33 + precision, value, precision);
 }
 
 void stringify_number_n(Syx_Number value, size_t width, char *string) {
