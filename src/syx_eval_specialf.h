@@ -10,6 +10,9 @@ void syx_env_define_special_forms(Syx_Env *env);
 #if defined(SYX_EVAL_SPECIALF_IMPL) && !defined(SYX_EVAL_SPECIALF_IMPL_C)
 #define SYX_EVAL_SPECIALF_IMPL_C
 
+#define SYX_TYPE_INFO_EVAL_IMPL
+#include "syx_type_info_eval.h"
+
 /** Special forms */
 
 /** Returns first argument unevaluated */
@@ -293,7 +296,7 @@ SyxV *syx_special_form_return(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *a
   return make_syxv_return_value(value);
 }
 
-/** Instantiates a user-defined structure type, allocates its dedicated block of native heap memory, and executes its associated constructor behavior. */
+/** Instantiates a user-defined boxed types, allocates its dedicated block of native heap memory, and executes its associated constructor behavior. */
 SyxV *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
   SyxV *head = syx_eval(ctx, syxv_list_next(&arguments));
@@ -304,7 +307,7 @@ SyxV *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
     *argument = syx_eval(ctx, *argument);
     syx_eval_early_exit(*argument, evaluated);
   }
-  SyxV *result = rc_acquire(syxv_eval_instantiate_structure(ctx, &head->constructor, evaluated));
+  SyxV *result = rc_acquire(syxv_eval_boxed_construct(ctx, head->constructor.typeinfo, evaluated));
   rc_release(evaluated);
   return rc_move(result);
 }

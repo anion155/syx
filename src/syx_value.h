@@ -6,7 +6,6 @@
 #include <nob.h>
 #include <rc.h>
 
-#include "syx_type_info.h"
 #include "syx_utils.h"
 
 typedef enum : unsigned int {
@@ -16,7 +15,7 @@ typedef enum : unsigned int {
   SYXV_KIND_BOOL,
   SYXV_KIND_NUMBER,
   SYXV_KIND_STRING,
-  SYXV_KIND_STRUCTURE,
+  SYXV_KIND_BOXED,
   SYXV_KIND_QUOTE,
   SYXV_KIND_SPECIALF,
   SYXV_KIND_BUILTIN,
@@ -64,14 +63,13 @@ typedef struct Syx_Closure {
   SyxV *forms;
 } Syx_Closure;
 
+typedef struct Syx_Type_Info Syx_Type_Info;
+
 typedef struct Syx_Constructor {
-  Syx_Structure_Type_Info *typeinfo;
+  Syx_Type_Info *typeinfo;
 } Syx_Constructor;
 
-typedef struct SyxV_Structure {
-  Syx_Structure_Type_Info *typeinfo;
-  void *data;
-} SyxV_Structure;
+typedef struct Syx_Boxed Syx_Boxed;
 
 typedef struct SyxV_Thrown {
   SyxV *reason;
@@ -87,7 +85,7 @@ struct SyxV {
     syx_bool_t boolean;
     Syx_Number number;
     syx_string_view_t string;
-    SyxV_Structure structure;
+    Syx_Boxed *boxed;
     SyxV *quote;
     Syx_SpecialF specialf;
     Syx_Builtin builtin;
@@ -134,12 +132,12 @@ SyxV *make_syxv_string_cstr(const char *value);
       syx_string_t: make_syxv_string(value),                \
       syx_string_view_t: make_syxv_string_sv(value),        \
       const char *: make_syxv_string_cstr(value))
-SyxV *make_syxv_structure(Syx_Structure_Type_Info *typeinfo, void *data);
+SyxV *make_syxv_boxed(Syx_Boxed *boxed);
 SyxV *make_syxv_quote(SyxV *quote);
 SyxV *make_syxv_specialf(const char *name, Syx_SpecialF_Evaluator eval);
 SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env);
-SyxV *make_syxv_constructor(Syx_Structure_Type_Info *typeinfo);
+SyxV *make_syxv_constructor(Syx_Type_Info *typeinfo);
 SyxV *make_syxv_thrown(Syx_Frame *stack_frame, SyxV *reason);
 SyxV *make_syxv_return_value(SyxV *return_value);
 
@@ -170,10 +168,6 @@ size_t stringify_syxv_symbol_n(char *string, SyxV_Symbol *symbol);
 // String_Builder stringify_syxv_symbol(SyxV_Symbol *symbol);
 // void sb_append_syxv_symbol(String_Builder *sb, SyxV_Symbol *symbol);
 
-size_t stringify_syx_boxed_string_n(char *string, SyxV_Boxed *boxed);
-// String_Builder stringify_syxv_boxed(SyxV_Boxed *boxed);
-// void sb_append_syxv_boxed(String_Builder *sb, SyxV_Boxed *boxed);
-
 typedef Ht(SyxV *, String_Builder, SyxV_Stringify_Cache) SyxV_Stringify_Cache;
 size_t stringify__syxv_n(char *string, SyxV *value, SyxV_Stringify_Cache *cache);
 #define stringify_syxv_n(value, length, string, ...) stringify__syxv_n((value), (length), (string), WITH_DEFAULT(NULL, __VA_ARGS__))
@@ -201,13 +195,10 @@ void fprint_syxv(FILE *f, SyxV *value);
 #include "syx_utils.h"
 #define SYX_TYPE_INFO_IMPL
 #include "syx_type_info.h"
-#define SYX_STRUCTURE_TYPE_INFO_IMPL
-#include "syx_structure_type_info.h"
-#define SYX_FUNCTION_TYPE_INFO_IMPL
-#include "syx_function_type_info.h"
 
 SyxV *make_syxv(SyxV_Kind kind) {
   SyxV *value = rc_malloc(sizeof(SyxV), .destructor = syxv_destructor);
+  assert(value);
   memset(value, 0, sizeof(SyxV));
   value->kind = kind;
   return value;
@@ -243,11 +234,7 @@ void syxv_destructor(void *data) {
     case SYXV_KIND_BOOL: break;
     case SYXV_KIND_NUMBER: break;
     case SYXV_KIND_STRING: free((char *)syxv->string.data); break;
-    case SYXV_KIND_STRUCTURE: {
-      if (syxv->structure.typeinfo->destructor) syxv->structure.typeinfo->destructor(syxv->structure.data);
-      free(syxv->structure.data);
-      rc_release(syxv->structure.typeinfo);
-    } break;
+    case SYXV_KIND_BOXED: rc_release(syxv->boxed); break;
     case SYXV_KIND_QUOTE: rc_release(syxv->quote); break;
     case SYXV_KIND_SPECIALF: {
       if (syxv->specialf.name) free(syxv->specialf.name);
@@ -362,10 +349,9 @@ SyxV *make_syxv_string_cstr(const char *value) {
   return make_syxv_string_sv(sv_from_cstr(value));
 }
 
-SyxV *make_syxv_structure(Syx_Structure_Type_Info *typeinfo, void *data) {
-  SyxV *value = make_syxv(SYXV_KIND_STRUCTURE);
-  value->structure.typeinfo = rc_acquire(typeinfo);
-  value->structure.data = data;
+SyxV *make_syxv_boxed(Syx_Boxed *boxed) {
+  SyxV *value = make_syxv(SYXV_KIND_BOXED);
+  if (boxed) value->boxed = rc_acquire(boxed);
   return value;
 }
 
@@ -398,7 +384,7 @@ SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *forms, Syx_Env *e
   return value;
 }
 
-SyxV *make_syxv_constructor(Syx_Structure_Type_Info *typeinfo) {
+SyxV *make_syxv_constructor(Syx_Type_Info *typeinfo) {
   SyxV *value = make_syxv(SYXV_KIND_CONSTRUCTOR);
   value->constructor.typeinfo = rc_acquire(typeinfo);
   return value;
@@ -476,27 +462,6 @@ size_t stringify_syxv_symbol_n(char *string, SyxV_Symbol *symbol) {
   return __str_width();
 }
 
-size_t stringify_syx_boxed_string_n(char *string, SyxV_Boxed *boxed) {
-  UNUSED(boxed);
-  __str_it();
-  __str_push('#');
-  __str_push('.');
-  // if (!symbol || !symbol->name) {
-  //   *(string++) = '<';
-  //   *(string++) = 'a';
-  //   *(string++) = 'n';
-  //   *(string++) = 'o';
-  //   *(string++) = 'n';
-  //   *(string++) = 'i';
-  //   *(string++) = 'm';
-  //   *(string++) = '>';
-  // } else {
-  //   string += stringify_syxv_symbol_n(string, symbol);
-  // }
-  // TODO: boxed to string
-  return __str_width();
-}
-
 void syxv_stringify_cache_destructor(void *data) {
   SyxV_Stringify_Cache *cache = data;
   ht_foreach(item, cache) {
@@ -508,6 +473,7 @@ void syxv_stringify_cache_destructor(void *data) {
 
 SyxV_Stringify_Cache *make_syxv_stringify_cache() {
   SyxV_Stringify_Cache *cache = rc_malloc(sizeof(SyxV_Stringify_Cache), .destructor = syxv_stringify_cache_destructor);
+  assert(cache);
   memset(cache, 0, sizeof(SyxV_Stringify_Cache));
   return cache;
 }
@@ -574,7 +540,7 @@ size_t stringify__syxv_n(char *string, SyxV *value, SyxV_Stringify_Cache *cache)
       __str_push('"');
     } break;
     case SYXV_KIND_BOXED: {
-      __str_convert(stringify_syx_boxed_string_n, &value->boxed);
+      __str_convert(stringify_syx_boxed_n, value->boxed);
     } break;
     case SYXV_KIND_QUOTE: {
       __str_push('\'');
@@ -610,8 +576,7 @@ size_t stringify__syxv_n(char *string, SyxV *value, SyxV_Stringify_Cache *cache)
     } break;
     case SYXV_KIND_CONSTRUCTOR: {
       __str_push_cstr("new ");
-      TODO("implement constructor to string");
-      // string += stringify_syxv_symbol_n(string, value->structure.typeinfo->symbol);
+      __str_convert(stringify_syx_type_info_n, value->constructor.typeinfo);
     } break;
     case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be convderted");

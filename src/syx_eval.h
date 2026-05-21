@@ -47,6 +47,7 @@ Syx_Eval_Ctx *make_global_syx_eval_ctx();
 Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
 #define inherit_syx_eval_ctx(parent, ...) inherit_syx_eval_ctx_opt((parent), ((Syx_Eval_Ctx){__VA_ARGS__}))
 void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, const char *function_name);
+void syx_ctx_frame_rename(Syx_Eval_Ctx *ctx, const char *function_name);
 void syx__ctx_pop_frame(Syx_Eval_Ctx *ctx, SyxV **to_save, size_t count);
 #define syx_ctx_pop_frame(ctx, ...) syx__ctx_pop_frame((ctx), (SyxV *[]){__VA_ARGS__}, sizeof((SyxV *[]){__VA_ARGS__}) / sizeof(SyxV *))
 syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame);
@@ -149,10 +150,10 @@ void fprint_syx_env_opt(FILE *f, Syx_Env *env, Print_Syx_Env_Opt opt);
 
 #define SYX_TYPE_INFO_IMPL
 #include "syx_type_info.h"
+#define SYX_TYPE_INFO_EVAL_IMPL
+#include "syx_type_info_eval.h"
 #define SYX_VALUE_IMPL
 #include "syx_value.h"
-#define SYX_STRUCTURE_TYPE_INFO_IMPL
-#include "syx_structure_type_info.h"
 #define SYX_GLOBAL_ENV_IMPL
 #include "syx_global_env.h"
 
@@ -175,14 +176,18 @@ void syx_eval_ctx_destructor(void *data) {
 
 Syx_Eval_Ctx *make_global_syx_eval_ctx() {
   Syx_Eval_Ctx *ctx = rc_malloc(sizeof(Syx_Eval_Ctx), .destructor = syx_eval_ctx_destructor);
+  assert(ctx);
   ctx->env = rc_acquire(make_global_syx_env());
-  ctx->frame_stack = rc_acquire(rc_malloc(sizeof(Syx_Frame_Stack), .destructor = syx_frame_stack_destructor));
+  ctx->frame_stack = rc_malloc(sizeof(Syx_Frame_Stack), .destructor = syx_frame_stack_destructor);
+  assert(ctx->frame_stack);
+  rc_acquire(ctx->frame_stack);
   ctx->frame_stack->latest = NULL;
   return ctx;
 }
 
 Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt) {
   Syx_Eval_Ctx *ctx = rc_malloc(sizeof(Syx_Eval_Ctx), .destructor = syx_eval_ctx_destructor);
+  assert(ctx);
   ctx->env = rc_acquire(opt.env ? opt.env : parent->env);
   ctx->frame_stack = rc_acquire(opt.frame_stack ? opt.frame_stack : parent->frame_stack);
   return ctx;
@@ -191,6 +196,7 @@ Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt) {
 void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, const char *function_name) {
   Syx_Frame *prev = ctx->frame_stack->latest;
   Syx_Frame *next = rc_malloc(sizeof(Syx_Frame), .destructor = syx_frame_destructor);
+  assert(next);
   next->function_name = function_name ? strdup(function_name) : NULL;
   if (prev) {
     next->prev = rc_acquire(prev);
@@ -199,6 +205,13 @@ void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, const char *function_name) {
     next->prev = NULL;
   }
   ctx->frame_stack->latest = rc_acquire(next);
+}
+
+void syx_ctx_frame_rename(Syx_Eval_Ctx *ctx, const char *function_name) {
+  Syx_Frame *frame = ctx->frame_stack->latest;
+  if (!frame) return;
+  if (frame->function_name) free((char *)frame->function_name);
+  frame->function_name = strdup(function_name);
 }
 
 void syx__ctx_pop_frame(Syx_Eval_Ctx *ctx, SyxV **to_save, size_t count) {
@@ -253,6 +266,7 @@ uintptr_t ht_syxv_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t
 
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description) {
   Syx_Env *env = rc_malloc(sizeof(Syx_Env), .destructor = syx_env_destructor);
+  assert(env);
   env->parent = parent ? rc_acquire(parent) : NULL;
   env->symbols = (Syx_Env_Symbols){.hasheq = ht_syxv_symbol_hasheq};
   env->description = description ? strdup(description) : NULL;
@@ -431,7 +445,7 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
     case SYXV_KIND_BOOL: RUNTIME_ERROR(ctx, "bool is not a procedure");
     case SYXV_KIND_NUMBER: RUNTIME_ERROR(ctx, "number is not a procedure");
     case SYXV_KIND_STRING: RUNTIME_ERROR(ctx, "string is not a procedure");
-    case SYXV_KIND_STRUCTURE: result = syxv_eval_structure(ctx, &head->structure, arguments); break;
+    case SYXV_KIND_BOXED: result = syxv_eval_boxed(ctx, head->boxed, arguments); break;
     case SYXV_KIND_QUOTE: RUNTIME_ERROR(ctx, "quote is not a procedure");
     case SYXV_KIND_SPECIALF: result = syx_eval_specialf(ctx, &head->specialf, arguments); break;
     case SYXV_KIND_BUILTIN: result = syx_eval_builtin(ctx, &head->builtin, arguments); break;
@@ -496,7 +510,7 @@ SyxV *syx_convert_to_bool(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_BOOL: return value;
     case SYXV_KIND_NUMBER: return make_syxv_bool((syx_bool_t)syx_number_value(value->number));
     case SYXV_KIND_STRING: return make_syxv_bool((bool)value->string.count);
-    case SYXV_KIND_STRUCTURE: return make_syxv_bool(true); // TODO: structure conversion mechanisms
+    case SYXV_KIND_BOXED: return make_syxv_bool(true); // TODO: boxed conversion mechanisms
     case SYXV_KIND_QUOTE: return syx_convert_to_bool(ctx, value->quote);
     case SYXV_KIND_SPECIALF: return make_syxv_bool(true);
     case SYXV_KIND_BUILTIN: return make_syxv_bool(true);
@@ -520,7 +534,7 @@ SyxV *syx_convert_to_number(Syx_Eval_Ctx *ctx, SyxV *value) {
       if (!parse_number(&sv, &result)) RUNTIME_ERROR(ctx, "illegal conversion of string to number");
       return make_syxv_number(result);
     }
-    case SYXV_KIND_STRUCTURE: RUNTIME_ERROR(ctx, "illegal conversion of structure to number"); // TODO: structure conversion mechanisms
+    case SYXV_KIND_BOXED: RUNTIME_ERROR(ctx, "illegal conversion of boxed value to number"); // TODO: boxed conversion mechanisms
     case SYXV_KIND_QUOTE: return syx_convert_to_number(ctx, value->quote);
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to number");
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to number");
@@ -539,7 +553,7 @@ SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_BOOL: return make_syxv_string_cstr(value->boolean ? "#true" : "#false");
     case SYXV_KIND_NUMBER: return make_syxv_string_managed_cstr(stringify_number(value->number));
     case SYXV_KIND_STRING: return value;
-    case SYXV_KIND_STRUCTURE: RUNTIME_ERROR(ctx, "illegal conversion of structure to string"); // TODO: structure conversion mechanisms
+    case SYXV_KIND_BOXED: RUNTIME_ERROR(ctx, "illegal conversion of boxed to string"); // TODO: boxed conversion mechanisms
     case SYXV_KIND_QUOTE: return syx_convert_to_string(ctx, value->quote);
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to string");
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to string");
@@ -558,7 +572,7 @@ SyxV *sb_append_converted_syxv(String_Builder *sb, Syx_Eval_Ctx *ctx, SyxV *valu
     case SYXV_KIND_BOOL: sb_append_cstr(sb, value->boolean ? "#true" : "#false"); break;
     case SYXV_KIND_NUMBER: sb_append_number(sb, value->number); break;
     case SYXV_KIND_STRING: sb_append_buf(sb, value->string.data, value->string.count); break;
-    case SYXV_KIND_STRUCTURE: RUNTIME_ERROR(ctx, "illegal conversion of structure to string"); // TODO: structure conversion mechanisms
+    case SYXV_KIND_BOXED: RUNTIME_ERROR(ctx, "illegal conversion of boxed value to string"); // TODO: boxed conversion mechanisms
     case SYXV_KIND_QUOTE: sb_append_converted_syxv(sb, ctx, value->quote); break;
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to string");
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to string");

@@ -39,8 +39,9 @@ bool command_build_run() {
 #ifdef __APPLE__
   nob_cmd_append(&ctx.cmd, "-ledit");
 #else
-  nob_cmd_append(&cmd, "-lreadline");
+  nob_cmd_append(&ctx.cmd, "-lreadline");
 #endif
+  nob_cmd_append(&ctx.cmd, "-lffi");
   nonob_append_cmd_to_ccjson();
   if (!nob_cmd_run(&ctx.cmd)) return false;
 

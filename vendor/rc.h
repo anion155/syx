@@ -22,8 +22,8 @@ typedef struct Rc {
   Rc_Methods methods;
 } Rc;
 
-void *rc__alloc(void *(*alloc)(size_t size), size_t size, Rc_Methods opt);
-#define rc_malloc(size, ...) rc__alloc(malloc, (size), (Rc_Methods){__VA_ARGS__})
+void *rc__alloc(void *(*alloc)(size_t size), void (*free)(void *data), size_t size, Rc_Methods opt);
+#define rc_malloc(size, ...) rc__alloc(malloc, free, (size), (Rc_Methods){__VA_ARGS__})
 void *rc__realloc(void *(*realloc)(void *__ptr, size_t __size), const void *data, size_t size);
 #define rc_realloc(data, size, ...) (__typeof__(data))rc__realloc(realloc, (data), (size))
 void *rc__manage(void *(*alloc)(size_t size), void (*free)(void *data), void *data, size_t size, Rc_Methods opt);
@@ -59,11 +59,11 @@ void rc_graph_visitor(Rc_Circulars *circulars, void **data, const void *source);
 #if defined(RC_IMPL) && !defined(RC_IMPL_C)
 #define RC_IMPL_C
 
-void *rc__alloc(void *(*alloc)(size_t size), size_t size, Rc_Methods opt) {
+void *rc__alloc(void *(*alloc)(size_t size), void (*free)(void *data), size_t size, Rc_Methods opt) {
   Rc *rc = alloc(sizeof(Rc) + size);
-  assert(rc);
+  if (!rc) return NULL;
   rc->header = alloc(sizeof(Rc_Header));
-  assert(rc->header);
+  if (!rc->header) return (free(rc), NULL);
   rc->header->strong = 0;
   rc->header->weak = 0;
   rc->methods = opt;
@@ -78,7 +78,7 @@ void *rc__realloc(void *(*realloc)(void *__ptr, size_t __size), const void *data
 }
 
 void *rc__manage(void *(*alloc)(size_t size), void (*free)(void *data), void *data, size_t size, Rc_Methods opt) {
-  Rc *rc = (Rc *)rc__alloc(alloc, size, opt) - 1;
+  Rc *rc = (Rc *)rc__alloc(alloc, free, size, opt) - 1;
   memcpy(rc + 1, data, size);
   free(data);
   return rc + 1;

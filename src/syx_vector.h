@@ -1,7 +1,6 @@
 #ifndef SYX_VECTOR_H
 #define SYX_VECTOR_H
 
-#include "syx_structure_type_info.h"
 #include "syx_value.h"
 
 void syx_env_define_vector(Syx_Env *env);
@@ -10,9 +9,6 @@ void syx_env_define_vector(Syx_Env *env);
 
 #if defined(SYX_VECTOR_IMPL) && !defined(SYX_VECTOR_IMPL_C)
 #define SYX_VECTOR_IMPL_C
-
-#define SYX_STRUCTURE_TYPE_INFO_IMPL
-#include "syx_structure_type_info.h"
 
 void syxv_vector_zero_init_rest(SyxV_Vector *vector) {
   if (vector->capacity > vector->count) {
@@ -87,32 +83,40 @@ SyxV *syxv_vector_append(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments) {
 
 void syx_env_define_vector(Syx_Env *env) {
   // clang-format off
-  syx_env_define_cstr(env, "vector", make_syxv_constructor(make_syx_structure_type_info(
-    .symbol = (&make_syxv_symbol_cstr("vector")->symbol),
+  syx_env_define_cstr(env, "vector", make_syxv_constructor(make_syx_type_info_opt((Syx_Type_Info){
     .size = sizeof(SyxV_Vector),
-    .constructor = syxv_vector_constructor,
-    .index_getter = syxv_vector_getter,
-    .index_setter = syxv_vector_setter,
-    .fields = make_syx_structure_type_info_fields(
-      {"items", {.kind = SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_DATA, .data = {
-        .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_PTR, .ptr = make_syx_type_info(
-          .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
-          .structure = make_syx_structure_type_info(.symbol = (&make_syxv_symbol_cstr("vector")->symbol))
-        )),
-        .readonly = true,
-      }}},
-      {"count", {.kind = SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_ACCESSOR, .accessor = {
-        .getter = syxv_vector_count_getter,
-        .setter = syxv_vector_count_setter,
-      }}},
-      {"capacity", {.kind = SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_DATA, .data = {
-        .offset = offsetof(SyxV_Vector, capacity),
-        .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
-        .readonly = true,
-      }}},
-      {"append", {.kind = SYX_STRUCTURE_TYPE_INFO_FIELD_KIND_METHOD, .method = syxv_vector_append}},
-    ),
-    .destructor = da_destructor)));
+    .symbol = (&make_syxv_symbol_cstr("vector")->symbol),
+    .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
+    .structure = {
+      .constructor = syxv_vector_constructor,
+      .index_getter = syxv_vector_getter,
+      .index_setter = syxv_vector_setter,
+      .fields = make_syx_type_info_structure_fields(
+        // {"items", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
+        //   .typeinfo = make_syx_type_info_opt((Syx_Type_Info){
+        //     .kind = SYX_TYPE_INFO_KIND_PTR,
+        //     .ptr = make_syx_type_info_opt((Syx_Type_Info){
+        //       .symbol = (&make_syxv_symbol_cstr("vector")->symbol),
+        //       .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
+        //       .structure = {},
+        //     }),
+        //   }),
+        //   .readonly = true,
+        // }}},
+        {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_ACCESSOR, .accessor = {
+          .getter = syxv_vector_count_getter,
+          .setter = syxv_vector_count_setter,
+        }}},
+        {"capacity", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
+          .offset = offsetof(SyxV_Vector, capacity),
+          .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
+          .readonly = true,
+        }}},
+        {"append", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_METHOD, .method = syxv_vector_append}},
+      ),
+      .destructor = da_destructor
+    },
+  })));
   // clang-format on
 }
 

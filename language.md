@@ -1,4 +1,4 @@
-### Values
+### Forms
 - `1`, `-1` -  integer number value
 - `1.0`, `-1.0`, `1.`, `.0` - fractional number value
 - `"something"` - string literal value
@@ -22,16 +22,11 @@ Functions can be:
 
 ### quote
 Returns first argument unevaluated.
-`(quote <value>) => value`
+`(quote <form>) => <form>`
 
 ### begin
 Evaluates forms in order and returns last result.
 `(begin ...<form>) => eval last <form>`
-
-#### arguments-names-list
-- `(a b)` two arguments `a` and `b`
-- `(a b . c)` two arguments `a`, `b` and all rest arguments will be in `c` as list
-- `((a 10) (b . 5))` argument `a` with default value `10`, and argument `b` with default `5`
 
 ### lambda
 Creates a closure that captures current environment.
@@ -41,14 +36,14 @@ Name is for debug purposes only
 
 ### define
 Binds value to a name in the current environment.
-`(define <name> <value>) >= #nil`
+`(define <name> <form>) >= #nil`
 
 Can contain shorthand version of lambda definition:
 `(define (<name> <arguments-names-list>) ...<form>) >= #nil`
 
 ### set
 Mutate an existing binding or creates new one in current environment.
-`(set <name> <value>) >= #nil`
+`(set <name> <form>) >= #nil`
 
 ### is-set?
 Checks if environment has binding.
@@ -60,15 +55,15 @@ Get an existing binding or return nil.
 
 ### let
 Create new variable bindings in parallel on new environment and execute a series of forms in that environment.
-`(let (...(<name> <value>)) ...<fors>) >= #nil`
+`(let (...(<name> <form>)) ...<fors>) >= #nil`
 
 <!-- ### let*
 Create new variable bindings sequentially on new environment and execute a series of forms in that environment.
-`(let* (...(<name> <value>)) ...<form>) >= #nil` -->
+`(let* (...(<name> <form>)) ...<form>) >= #nil` -->
 
 <!-- ### letrec
 Defin new variable bindings and then set them on new environment and execute a series of forms in that environment.
-`(letrec (...(<name> <value>)) ...<form>) >= #nil` -->
+`(letrec (...(<name> <form>)) ...<form>) >= #nil` -->
 
 ### and
 Evaluates left to right, returns first falsy or last value. Short-circuits.
@@ -87,7 +82,7 @@ Evaluates left to right, returns first truthy or last value. Short-circuits.
 ### throw
 Create value of type `throw` that is should trigger early return of said value after any evaluation.
 It carries first argument (as reason) and evaluation stack reference.
-`(throw <value>)`
+`(throw <form>)`
 
 ### try/catch/finally
 Special form for intercepting throw values and ensuring cleanup logic is executed.
@@ -95,7 +90,7 @@ Special form for intercepting throw values and ensuring cleanup logic is execute
 
 ### return
 Special form to trigger an immediate exit from the current function, carrying a value.
-`(return <value>)`
+`(return <form>)`
 
 ## Builtins List
 
@@ -105,7 +100,7 @@ Takes exactly 2 arguments and returns a pair (left . right).
 
 ### list
 Evaluates each argument and constructs a new list containing the results.
-`(list ...<value>) => (...<eval<value>>)`
+`(list ...<form>) => (...<eval<form>>)`
 
 ### car / cdr
 Returns the left / right element of a pair.
@@ -173,7 +168,7 @@ Applies operators between each consequence pairs.
 
 ### eq?
 Applies identity check between each consequence pairs.
-`(eq? <value> ...<value>) => true if all equal`
+`(eq? <form> ...<form>) => true if all equal`
 
 Examples:
 `(eq? #t #t) => true`
@@ -193,31 +188,34 @@ Examples:
 
 ### nil?, symbol?, pair?, list?, bool?, number?, integer?, fractional?, string?, quote?, procedure?, special-form?, builtin?, closure?
 Type checks first argument.
-`(<type>? <value>) => bool`
+`(<type>? <form>) => bool`
 
 ### not
 Returns `false` if argument is truthy, `true` if falsy.
-`(not <value>) => true | false`
+`(not <form>) => true | false`
 
-## Structures
+## Boxed memory mapped values
 
-Structures provide a mechanism for custom data types with dedicated constructors, accessors, and memory management:
-`(new <constructor> ...<value>) => <obj>` - will instantiate structure using constructor with arguments
-`#.<constructor>(...<value>) => <obj>` - will instantiate structure using constructor with arguments
-`(<obj> <integer-number>)` - will call indexed getter
-`(<obj> <integer-number> <value>)` - will call indexed setter
-`(<obj> '<method-symbol>)` - will call method
-`(<obj> '<field-symbol>)` - will call field getter
-`(<obj> '<field-symbol> <value>)` - will call field setter
+Boxed values provide a mechanism for custom data types with dedicated constructors, accessors, and memory management:
+`(new <constructor> ...<form>) => <boxed>` - will instantiate boxed value using constructor with arguments
+`#.<constructor>(...<form>) => <boxed>` - will instantiate boxed value using constructor with arguments
+`(<boxed> ...<field-identifier>)` - performs nested property lookup by traversing a series of field identifiers on an object
+`(<boxed> ...<field-identifier> . <form>)` - traverses a series of field identifiers on an object to mutate the terminal field cell in place
+
+Where `field-identifier` can be number or symbol:
+`(<boxed> 1 'symbol 2)`
+
+To call method:
+`((<boxed> 'method) ...<form>)`
 
 ### vector
 
 Shortcut to create vector instance is
-`#(...<value>) => <vector>`
+`#(...<form>) => <vector>`
 
 Vector implements indexed access with signed index overflow and boundaries check
-`(<vector> 0) => <first value>`
-`(<vector> -1) => <last value>`
+`(<vector> 0) => <first form>`
+`(<vector> -1) => <last form>`
 `(#(1 2 3) 4) => <throw: out of bound>`
 
 Fields and methods:

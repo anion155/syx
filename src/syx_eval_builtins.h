@@ -171,7 +171,7 @@ bool syx__builtin_equivalent_comparator(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *rig
     case SYXV_KIND_BOOL: return false; // should work on left == right level
     case SYXV_KIND_NUMBER: return right->kind == SYXV_KIND_NUMBER && syx_number_equal(left->number, right->number);
     case SYXV_KIND_STRING: return right->kind == SYXV_KIND_STRING && sv_eq(left->string, right->string);
-    case SYXV_KIND_STRUCTURE: return false; // should work on left == right level TODO: implement equivalent method
+    case SYXV_KIND_BOXED: return false; // should work on left == right level TODO: implement equivalent method
     case SYXV_KIND_QUOTE: return right->kind == SYXV_KIND_QUOTE && syx__builtin_equivalent_comparator(ctx, left->quote, right->quote);
     case SYXV_KIND_SPECIALF: return false;    // should work on left == right level
     case SYXV_KIND_BUILTIN: return false;     // should work on left == right level
@@ -274,7 +274,7 @@ bool syx__builtin_identity_comparator(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *right
     case SYXV_KIND_BOOL: return false; // should work on left == right level
     case SYXV_KIND_NUMBER: return right->kind == SYXV_KIND_NUMBER && syx_number_identity_equal(left->number, right->number);
     case SYXV_KIND_STRING: return false;      // should work on left == right level
-    case SYXV_KIND_STRUCTURE: return false;   // should work on left == right level
+    case SYXV_KIND_BOXED: return false;       // should work on left == right level
     case SYXV_KIND_QUOTE: return false;       // should work on left == right level
     case SYXV_KIND_SPECIALF: return false;    // should work on left == right level
     case SYXV_KIND_BUILTIN: return false;     // should work on left == right level
