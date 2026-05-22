@@ -163,7 +163,7 @@ void rc_graph_visitor(Rc_Circulars *circulars, void **data, const void *source) 
     da_append(circulars, data);
     return;
   }
-  Rc *rc = (Rc *)data - 1;
+  Rc *rc = (Rc *)(*data) - 1;
   if (rc->methods.graph_visitor) rc->methods.graph_visitor(circulars, *data, source);
 }
 
