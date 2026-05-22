@@ -11,7 +11,7 @@ typedef struct Syx_Boxed {
 
 Syx_Boxed *make_syx_boxed_opt(Syx_Boxed opt);
 #define make_syx_boxed(...) make_syx_boxed_opt((Syx_Boxed){__VA_ARGS__})
-// SyxV *make_syxv_boxed_construct(Syx_Eval_Ctx *ctx, Syx_Type_Info *typeinfo, SyxV *arguments);
+SyxV *syx_boxed_set(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *argument);
 SyxV *syxv_eval_boxed_construct(Syx_Eval_Ctx *ctx, Syx_Type_Info *typeinfo, SyxV *arguments);
 SyxV *syxv_eval_boxed(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments);
 
@@ -31,11 +31,16 @@ void sb_append_syx_type_info_instance(String_Builder *sb, Syx_Boxed *boxed);
 
 void syxv_eval_boxed_deconstruct(void *data) {
   Syx_Boxed *boxed = data;
+  if (boxed->parent) {
+    rc_release(boxed->parent);
+    return;
+  }
   if (boxed->typeinfo && boxed->data) {
     switch (boxed->typeinfo->kind) {
       case SYX_TYPE_INFO_KIND_PTR: {
         Syx_Boxed nested = {.typeinfo = rc_acquire(boxed->typeinfo->ptr), .data = *(void **)boxed->data, .parent = NULL};
         syxv_eval_boxed_deconstruct(&nested);
+        TODO("need to somehow release and free this pointer");
       } break;
       case SYX_TYPE_INFO_KIND_STRUCTURE: {
         if (boxed->typeinfo->structure.destructor) {
@@ -58,43 +63,32 @@ Syx_Boxed *make_syx_boxed_opt(Syx_Boxed opt) {
   return boxed;
 }
 
-SyxV *syxv_eval_boxed_construct(Syx_Eval_Ctx *ctx, Syx_Type_Info *typeinfo, SyxV *arguments) {
-  Syx_Boxed *boxed;
-  {
-    void *data = malloc(typeinfo->size);
-    if (!data) RUNTIME_ERROR(ctx, "failed to allocate boxed value");
-    boxed = make_syx_boxed_opt((Syx_Boxed){.typeinfo = typeinfo, .data = data, .parent = NULL});
-  }
-  rc_acquire(boxed);
-  memset(boxed->data, 0, typeinfo->size);
-
-  switch (typeinfo->kind) {
+SyxV *syx_boxed_set(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *argument) {
+  switch (boxed->typeinfo->kind) {
     case SYX_TYPE_INFO_KIND_PTR: {
-      SyxV *nested = syxv_eval_boxed_construct(ctx, typeinfo->ptr, arguments);
-      syx_eval_early_exit(nested, boxed);
-      *(void **)boxed->data = nested->boxed->data;
-      nested->boxed->data = NULL;
-      rc_release(nested);
+      if (argument->kind != SYXV_KIND_BOXED) RUNTIME_ERROR(ctx, "boxed pointer expected");
+      if (argument->boxed->typeinfo->kind != SYX_TYPE_INFO_KIND_PTR) RUNTIME_ERROR(ctx, "boxed pointer expected");
+      if (*(void **)boxed->data) TODO("need to somehow release this pointer");
+      TODO("need to acquire this pointer");
+      *(void **)boxed->data = argument->boxed->data;
     } break;
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: {
-      RUNTIME_ERROR(ctx, "can not instantiate function", boxed);
+      if (argument->kind != SYXV_KIND_BOXED) RUNTIME_ERROR(ctx, "boxed function expected");
+      if (argument->boxed->typeinfo->kind != SYX_TYPE_INFO_KIND_FUNCTION_PTR) RUNTIME_ERROR(ctx, "boxed function expected");
+      boxed->data = argument->boxed->data;
     } break;
     case SYX_TYPE_INFO_KIND_STRUCTURE: {
-      if (typeinfo->structure.constructor) {
-        SyxV *result = typeinfo->structure.constructor(ctx, boxed->data, arguments);
-        if (result) {
-          syx_eval_early_exit(result, boxed);
-          rc_acquire(result);
-          rc_release(result);
-        }
-      }
-    }; break;
+      if (argument->kind != SYXV_KIND_BOXED) RUNTIME_ERROR(ctx, "boxed structure expected");
+      if (argument->boxed->typeinfo->kind != SYX_TYPE_INFO_KIND_STRUCTURE) RUNTIME_ERROR(ctx, "boxed structure expected");
+      memcpy(boxed->data, argument->boxed->data, boxed->typeinfo->size);
+    } break;
     case SYX_TYPE_INFO_KIND_VOID: break;
     default: {
-      SyxV *value = syx_convert_to_number(ctx, syxv_list_next(&arguments));
-      syx_eval_early_exit(value, boxed);
-      if (value->kind != SYXV_KIND_NUMBER) RUNTIME_ERROR(ctx, "number expected", boxed);
-      switch (typeinfo->kind) {
+      SyxV *value = syx_convert_to_number(ctx, argument);
+      syx_eval_early_exit(value);
+      rc_acquire(value);
+      if (value->kind != SYXV_KIND_NUMBER) RUNTIME_ERROR(ctx, "number expected");
+      switch (boxed->typeinfo->kind) {
         case SYX_TYPE_INFO_KIND_I8: (*((SYX_TYPE_I8 *)boxed->data)) = syx_number_integer_value(value->number); break;
         case SYX_TYPE_INFO_KIND_I16: (*((SYX_TYPE_I16 *)boxed->data)) = syx_number_integer_value(value->number); break;
         case SYX_TYPE_INFO_KIND_I32: (*((SYX_TYPE_I32 *)boxed->data)) = syx_number_integer_value(value->number); break;
@@ -125,7 +119,53 @@ SyxV *syxv_eval_boxed_construct(Syx_Eval_Ctx *ctx, Syx_Type_Info *typeinfo, SyxV
         case SYX_TYPE_INFO_KIND_DOUBLE: (*((SYX_TYPE_DOUBLE *)boxed->data)) = syx_number_fractional_value(value->number); break;
         case SYX_TYPE_INFO_KIND_DOUBLE_LONG: (*((SYX_TYPE_DOUBLE_LONG *)boxed->data)) = syx_number_fractional_value(value->number); break;
         case SYX_TYPE_INFO_KIND_SIZE: (*((SYX_TYPE_SIZE *)boxed->data)) = syx_number_integer_value(value->number); break;
-        default: RUNTIME_ERROR(ctx, temp_sprintf("kind is not supported: %u '%s'", typeinfo->kind, syx_type_info_kind_name(typeinfo->kind)), boxed);
+        default: RUNTIME_ERROR(ctx, temp_sprintf("kind is not supported: '%s'", syx_type_info_kind_name(boxed->typeinfo->kind)), value);
+      }
+      rc_release(value);
+    }
+  }
+  return make_syxv_nil();
+}
+
+SyxV *syxv_eval_boxed_construct(Syx_Eval_Ctx *ctx, Syx_Type_Info *typeinfo, SyxV *arguments) {
+  Syx_Boxed *boxed;
+  {
+    void *data = malloc(typeinfo->size);
+    if (!data) RUNTIME_ERROR(ctx, "failed to allocate boxed value");
+    boxed = make_syx_boxed_opt((Syx_Boxed){.typeinfo = typeinfo, .data = data, .parent = NULL});
+  }
+  rc_acquire(boxed);
+  memset(boxed->data, 0, typeinfo->size);
+
+  SyxV *argument = arguments->pair.left;
+  if (argument->kind == SYXV_KIND_BOXED && argument->boxed->typeinfo->kind == typeinfo->kind) {
+    SyxV *result = syx_boxed_set(ctx, boxed, syxv_list_next(&arguments));
+    syx_eval_early_exit(result, boxed);
+    rc_acquire(result);
+    rc_release(result);
+  } else {
+    switch (typeinfo->kind) {
+      case SYX_TYPE_INFO_KIND_PTR: {
+        SyxV *nested = syxv_eval_boxed_construct(ctx, typeinfo->ptr, arguments);
+        syx_eval_early_exit(nested, boxed);
+        TODO("need to acquire this pointer");
+        *(void **)boxed->data = nested->boxed->data;
+        nested->boxed->data = NULL;
+        rc_release(nested);
+      } break;
+      case SYX_TYPE_INFO_KIND_FUNCTION_PTR: {
+        RUNTIME_ERROR(ctx, "can not instantiate function", boxed);
+      } break;
+      case SYX_TYPE_INFO_KIND_STRUCTURE: {
+        if (typeinfo->structure.constructor) {
+          SyxV *result = typeinfo->structure.constructor(ctx, boxed->data, arguments);
+          syx_eval_early_exit_temporary(result, boxed);
+        }
+      }; break;
+      case SYX_TYPE_INFO_KIND_VOID: break;
+      default: {
+        SyxV *result = syx_boxed_set(ctx, boxed, syxv_list_next(&arguments));
+        syx_eval_early_exit_temporary(result, boxed);
       }
     }
   }
@@ -133,18 +173,18 @@ SyxV *syxv_eval_boxed_construct(Syx_Eval_Ctx *ctx, Syx_Type_Info *typeinfo, SyxV
   return make_syxv_boxed(rc_move(boxed));
 }
 
-SyxV *syxv_eval_boxed_structure_getter(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *field_arg) {
-  syx_string_t typeinfo_str = stringify_syx_type_info(boxed->typeinfo);
-  typeinfo_str.items = rc_acquire(rc_manage(typeinfo_str.items, sizeof(char) * typeinfo_str.count));
+SyxV *syxv_eval_boxed_structure_getter(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, const char *typeinfo_string, SyxV *field_arg, SyxV **arguments) {
   SyxV *result;
   if (field_arg->kind == SYXV_KIND_NUMBER && field_arg->number.kind == SYX_NUMBER_KIND_INTEGER) {
     syx_integer_t index = field_arg->number.integer;
-    syx_ctx_frame_rename(ctx, temp_sprintf("(%s %lld)", typeinfo_str.items, index));
-    if (!boxed->typeinfo->structure.index_getter) RUNTIME_ERROR(ctx, "no index getter", typeinfo_str.items);
+    if (!boxed->typeinfo->structure.index_getter) RUNTIME_ERROR(ctx, "no index getter");
+    syx_ctx_push_frame(ctx, temp_sprintf("(%s get %lld)", typeinfo_string, index));
     result = boxed->typeinfo->structure.index_getter(ctx, boxed->data, index);
+    rc_acquire(result);
+    syx_ctx_pop_frame(ctx);
+    rc_move(result);
   } else if (field_arg->kind == SYXV_KIND_SYMBOL) {
     const char *field_name = field_arg->symbol.name;
-    syx_ctx_frame_rename(ctx, temp_sprintf("(%s %s)", typeinfo_str.items, field_name));
     Syx_Type_Info_Structure_Field *field = ht_find(&boxed->typeinfo->structure.fields, field_name);
     if (field) {
       switch (field->kind) {
@@ -153,58 +193,74 @@ SyxV *syxv_eval_boxed_structure_getter(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV
           result = make_syxv_boxed(make_syx_boxed_opt((Syx_Boxed){.typeinfo = field->data.typeinfo, .data = field_data, .parent = boxed}));
         } break;
         case SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_ACCESSOR: {
-          if (!field->accessor.getter) RUNTIME_ERROR(ctx, "no accessor field getter", typeinfo_str.items);
+          if (!field->accessor.getter) RUNTIME_ERROR(ctx, "no accessor field getter");
+          syx_ctx_push_frame(ctx, temp_sprintf("(%s get %s)", typeinfo_string, field_name));
           result = field->accessor.getter(ctx, boxed->data);
+          rc_acquire(result);
+          syx_ctx_pop_frame(ctx);
+          rc_move(result);
         } break;
         case SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_METHOD: {
-          TODO("implement return boxed method");
+          SyxV *evaluated = syx_eval_list(ctx, *arguments);
+          syx_eval_early_exit(evaluated);
+          rc_acquire(evaluated);
+          *arguments = make_syxv_nil();
+          syx_ctx_push_frame(ctx, temp_sprintf("(%s %s)", typeinfo_string, field_name));
+          result = field->method(ctx, boxed->data, evaluated);
+          rc_acquire(result);
+          syx_ctx_pop_frame(ctx);
+          rc_release(evaluated);
+          rc_move(result);
         } break;
       }
     } else if (boxed->typeinfo->structure.field_getter) {
+      syx_ctx_push_frame(ctx, temp_sprintf("(%s get %s)", typeinfo_string, field_name));
       result = boxed->typeinfo->structure.field_getter(ctx, boxed->data, field_name);
+      rc_acquire(result);
+      syx_ctx_pop_frame(ctx);
+      rc_release(result);
     } else {
-      RUNTIME_ERROR(ctx, temp_sprintf("there is no field named '%s'", field_name), typeinfo_str.items);
+      RUNTIME_ERROR(ctx, temp_sprintf("there is no field named '%s'", field_name));
     }
   } else {
     syx_string_t field_str = stringify_syxv(field_arg);
-    syx_ctx_frame_rename(ctx, temp_sprintf("(%s %s)", typeinfo_str.items, field_str.items));
+    syx_ctx_frame_rename(ctx, temp_sprintf("(%s %s)", typeinfo_string, field_str.items));
+    char *message = temp_sprintf("unsupported field kind: %s", field_str.items);
     sb_free(field_str);
-    RUNTIME_ERROR(ctx, temp_sprintf("unsupported field kind: %d", field_arg->kind), typeinfo_str.items);
+    RUNTIME_ERROR(ctx, message);
   }
-  rc_release(typeinfo_str.items);
   return result;
 }
 
 SyxV *syxv_eval_boxed(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments) {
   Syx_Boxed *current = rc_acquire(boxed);
   SyxV *result = NULL;
-  SyxV *last_argument = NULL;
   SyxV *unref_symbol = rc_acquire(make_syxv_symbol_cstr("unref"));
-  syxv_list_for_each(argument, arguments, &last_argument) {
+  syxv_list_for_each(argument, arguments) {
     if (result) rc_release(result);
-    if (!current) RUNTIME_ERROR(ctx, "Trying to access non boxed value", result);
-    if (!current->data) RUNTIME_ERROR(ctx, "Trying to access null boxed value", current, result);
+    if (!current) RUNTIME_ERROR(ctx, "trying to access non boxed value", result);
+    if (!current->data) RUNTIME_ERROR(ctx, "trying to access null boxed value", current, result);
 
-    SyxV *field_arg = syx_eval(ctx, argument);
-    syx_eval_early_exit(field_arg);
+    SyxV *field_arg = syx_eval_unquote(ctx, argument);
+    syx_eval_early_exit(field_arg, unref_symbol, current, result);
     rc_acquire(field_arg);
 
     switch (current->typeinfo->kind) {
       case SYX_TYPE_INFO_KIND_PTR: {
-        if (field_arg != unref_symbol) RUNTIME_ERROR(ctx, "can not access inner field of boxed ref value", unref_symbol, current, result, field_arg);
+        if (field_arg != unref_symbol) RUNTIME_ERROR(ctx, "can not access inner field of boxed ref value", unref_symbol, field_arg, current, result);
         result = make_syxv_boxed(make_syx_boxed_opt((Syx_Boxed){.typeinfo = current->typeinfo->ptr, .data = *(void **)current->data, .parent = current}));
       } break;
-      //     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: {
-      //       RUNTIME_ERROR(ctx, "can not instantiate function", boxed);
-      //     } break;
       case SYX_TYPE_INFO_KIND_STRUCTURE: {
-        syx_ctx_push_frame(ctx, NULL);
-        result = syxv_eval_boxed_structure_getter(ctx, current, field_arg);
-        syx_ctx_pop_frame(ctx);
+        syx_string_t typeinfo_str = stringify_syx_type_info(boxed->typeinfo);
+        result = syxv_eval_boxed_structure_getter(ctx, current, typeinfo_str.items, field_arg, &argument_next);
+        sb_free(typeinfo_str);
       }; break;
-      default: RUNTIME_ERROR(ctx, temp_sprintf("can not access inner fields of boxed value: %u", current->typeinfo->kind), unref_symbol, current, result, field_arg);
+      default: {
+        const char *kind_name = syx_type_info_kind_name(current->typeinfo->kind);
+        RUNTIME_ERROR(ctx, temp_sprintf("can not access inner fields of boxed value: '%s'", kind_name), unref_symbol, field_arg, current, result);
+      }
     }
-    syx_eval_early_exit(result, unref_symbol, current, field_arg);
+    syx_eval_early_exit(result, unref_symbol, field_arg, current);
     Syx_Boxed *prev = current;
     current = NULL;
     if (result) {
@@ -214,12 +270,9 @@ SyxV *syxv_eval_boxed(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments) {
     rc_release(prev);
     rc_release(field_arg);
   }
+  if (!result) result = rc_acquire(make_syxv_nil());
   rc_release(unref_symbol);
   if (current) rc_release(current);
-  if (last_argument->kind != SYXV_KIND_NIL) {
-    TODO("implement setter");
-  }
-  if (!result) result = rc_acquire(make_syxv_nil());
   return rc_move(result);
 }
 
@@ -260,6 +313,7 @@ SyxV *syxv_eval_boxed(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments) {
 size_t stringify_syx_boxed_n(char *string, Syx_Boxed *boxed) {
   __str_it();
   __str_convert(stringify_syx_type_info_n, boxed->typeinfo);
+  __str_push('(');
   switch (boxed->typeinfo->kind) {
     case SYX_TYPE_INFO_KIND_PTR: TODO("implement boxed pointer stringify");
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: TODO("implement boxed function pointer stringify");
@@ -297,6 +351,7 @@ size_t stringify_syx_boxed_n(char *string, Syx_Boxed *boxed) {
     case SYX_TYPE_INFO_KIND_SIZE: __str_convert(stringify_integer_n, *(SYX_TYPE_SIZE *)boxed->data); break;
     default: break;
   }
+  __str_push(')');
   return __str_width();
 }
 

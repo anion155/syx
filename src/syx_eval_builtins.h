@@ -287,16 +287,16 @@ SyxV *syx_builtin_identity(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   if (value == NULL) RUNTIME_ERROR(ctx, "argument expected"); \
   return make_syxv_bool((kind_checks))
 
-/** Type checks id first argument is nil. */
+/** Type checks if first argument is nil. */
 SyxV *syx_builtin_is_nil(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_NIL); }
 
-/** Type checks id first argument is symbol. */
+/** Type checks if first argument is symbol. */
 SyxV *syx_builtin_is_symbol(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_SYMBOL); }
 
-/** Type checks id first argument is pair. */
+/** Type checks if first argument is pair. */
 SyxV *syx_builtin_is_pair(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_PAIR); }
 
-/** Type checks id first argument is list. */
+/** Type checks if first argument is list. */
 SyxV *syx_builtin_is_list(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *value = syxv_list_next_nullable(&arguments);
   if (value == NULL) RUNTIME_ERROR(ctx, "argument expected");
@@ -305,35 +305,49 @@ SyxV *syx_builtin_is_list(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   return make_syxv_bool(it->kind == SYXV_KIND_NIL);
 }
 
-/** Type checks id first argument is bool. */
+/** Type checks if first argument is bool. */
 SyxV *syx_builtin_is_bool(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_BOOL); }
 
-/** Type checks id first argument is number. */
+/** Type checks if first argument is number. */
 SyxV *syx_builtin_is_number(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_NUMBER); }
 
-/** Type checks id first argument is integer. */
+/** Type checks if first argument is integer. */
 SyxV *syx_builtin_is_integer(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_NUMBER && value->number.kind == SYX_NUMBER_KIND_INTEGER); }
 
-/** Type checks id first argument is fractional. */
+/** Type checks if first argument is fractional. */
 SyxV *syx_builtin_is_fractional(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_NUMBER && value->number.kind == SYX_NUMBER_KIND_FRACTIONAL); }
 
-/** Type checks id first argument is string. */
+/** Type checks if first argument is string. */
 SyxV *syx_builtin_is_string(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_STRING); }
 
-/** Type checks id first argument is quote. */
-SyxV *syx_builtin_is_quote(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_QUOTE); }
+/** Type checks if first argument is boxed value. */
+SyxV *syx_builtin_is_boxed(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+  SyxV *constructor = syxv_list_next_nullable(&arguments);
+  SyxV *value = syxv_list_next_nullable(&arguments);
+  if (value == NULL) (value = constructor, constructor = NULL);
+  if (value == NULL) RUNTIME_ERROR(ctx, "argument expected");
+  if (value->kind != SYXV_KIND_BOXED) return make_syxv_bool(false);
+  if (constructor == NULL) return make_syxv_bool(true);
+  if (constructor->kind != SYXV_KIND_CONSTRUCTOR) RUNTIME_ERROR(ctx, "constructor expected");
+  return make_syxv_bool(value->boxed->typeinfo == constructor->constructor.typeinfo);
+}
 
-/** Type checks id first argument is procedure. */
-SyxV *syx_builtin_is_procedure(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_SPECIALF || value->kind == SYXV_KIND_BUILTIN || value->kind == SYXV_KIND_CLOSURE); }
+/** Type checks if first argument is procedure. */
+SyxV *syx_builtin_is_procedure(Syx_Eval_Ctx *ctx, SyxV *arguments) {
+  syx__builtin_type_guard(value->kind == SYXV_KIND_SPECIALF || value->kind == SYXV_KIND_BUILTIN || value->kind == SYXV_KIND_CLOSURE);
+}
 
-/** Type checks id first argument is special form. */
+/** Type checks if first argument is special form. */
 SyxV *syx_builtin_is_special_form(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_SPECIALF); }
 
-/** Type checks id first argument is builtin. */
+/** Type checks if first argument is builtin. */
 SyxV *syx_builtin_is_builtin(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_BUILTIN); }
 
-/** Type checks id first argument is closure. */
+/** Type checks if first argument is closure. */
 SyxV *syx_builtin_is_closure(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_CLOSURE); }
+
+/** Type checks if first argument is constructor. */
+SyxV *syx_builtin_is_constructor(Syx_Eval_Ctx *ctx, SyxV *arguments) { syx__builtin_type_guard(value->kind == SYXV_KIND_CONSTRUCTOR); }
 
 typedef struct File_Constant {
   int fd;
@@ -461,11 +475,12 @@ void syx_env_define_builtins(Syx_Env *env) {
   syx_env_define_cstr(env, "integer?", make_syxv_builtin(NULL, syx_builtin_is_integer));
   syx_env_define_cstr(env, "fractional?", make_syxv_builtin(NULL, syx_builtin_is_fractional));
   syx_env_define_cstr(env, "string?", make_syxv_builtin(NULL, syx_builtin_is_string));
-  syx_env_define_cstr(env, "quote?", make_syxv_builtin(NULL, syx_builtin_is_quote));
+  syx_env_define_cstr(env, "boxed?", make_syxv_builtin(NULL, syx_builtin_is_boxed));
   syx_env_define_cstr(env, "procedure?", make_syxv_builtin(NULL, syx_builtin_is_procedure));
   syx_env_define_cstr(env, "special-form?", make_syxv_builtin(NULL, syx_builtin_is_special_form));
   syx_env_define_cstr(env, "builtin?", make_syxv_builtin(NULL, syx_builtin_is_builtin));
   syx_env_define_cstr(env, "closure?", make_syxv_builtin(NULL, syx_builtin_is_closure));
+  syx_env_define_cstr(env, "constructor?", make_syxv_builtin(NULL, syx_builtin_is_constructor));
 
   syx_env_define_cstr(env, "not", make_syxv_builtin(NULL, syx_builtin_not));
 

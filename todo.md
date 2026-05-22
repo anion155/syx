@@ -1,5 +1,8 @@
 - check memory cleanup
 
+- boxed
+- syx_eval_should_early_exit should expect acquired value
+- syxv_list_map should not acquire result
 - struct methods
 - struct convert to basic types using predefined methods
 - struct methods as callables on stack

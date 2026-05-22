@@ -66,6 +66,8 @@ SyxV *syx_eval_specialf(Syx_Eval_Ctx *ctx, Syx_SpecialF *specialf, SyxV *argumen
 SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments);
 SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments);
 SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input);
+SyxV *syx_eval_unquote(Syx_Eval_Ctx *ctx, SyxV *unevaluated);
+SyxV *syx_eval_list(Syx_Eval_Ctx *ctx, SyxV *list);
 
 bool syx_eval_should_early_exit(SyxV *value);
 #define syx_eval_early_exit(value, ...)         \
@@ -78,6 +80,19 @@ bool syx_eval_should_early_exit(SyxV *value);
         return rc_move(_value);                 \
       }                                         \
     }                                           \
+  } while (0)
+#define syx_eval_early_exit_temporary(value, ...) \
+  do {                                            \
+    SyxV *_value = (value);                       \
+    if (_value) {                                 \
+      if (syx_eval_should_early_exit(_value)) {   \
+        rc_acquire(_value);                       \
+        rc_release_all(__VA_ARGS__);              \
+        return rc_move(_value);                   \
+      }                                           \
+      rc_acquire(_value);                         \
+      rc_release(_value);                         \
+    }                                             \
   } while (0)
 #define syx_eval_assert(ctx, control, reason, ...)                               \
   do {                                                                           \
@@ -335,16 +350,14 @@ void syx_env_set(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value) {
 
 SyxV *syx_eval_specialf(Syx_Eval_Ctx *ctx, Syx_SpecialF *specialf, SyxV *arguments) {
   SyxV *result = specialf->eval(ctx, specialf, arguments);
-  if (!result) return make_syxv_nil();
+  if (!result) result = make_syxv_nil();
   return result;
 }
 
 SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments) {
-  SyxV *evaluated = NULL;
-  syxv_list_map(argument, arguments, &evaluated) {
-    *argument = syx_eval(ctx, *argument);
-    syx_eval_early_exit(*argument, evaluated);
-  }
+  SyxV *evaluated = syx_eval_list(ctx, arguments);
+  syx_eval_early_exit(evaluated);
+  rc_acquire(evaluated);
   syx_ctx_push_frame(ctx, builtin->name);
   SyxV *result = builtin->eval(ctx, evaluated);
   if (!result) result = make_syxv_nil();
@@ -457,6 +470,24 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
   return rc_move(result);
 }
 
+SyxV *syx_eval_unquote(Syx_Eval_Ctx *ctx, SyxV *unevaluated) {
+  SyxV *unquote_symbol = rc_acquire(make_syxv_symbol_cstr("unquote"));
+  if (unevaluated->kind != SYXV_KIND_PAIR) return unevaluated;
+  if (unevaluated->pair.left != unquote_symbol) return unevaluated;
+  if (unevaluated->pair.right->kind != SYXV_KIND_PAIR) return unevaluated;
+  return syx_eval(ctx, unevaluated->pair.right->pair.left);
+}
+
+SyxV *syx_eval_list(Syx_Eval_Ctx *ctx, SyxV *list) {
+  SyxV *evaluated = NULL;
+  syxv_list_map(item, list, &evaluated) {
+    *item = syx_eval(ctx, *item);
+    if (!*item) *item = make_syxv_nil();
+    syx_eval_early_exit(*item, evaluated);
+  }
+  return rc_move(evaluated);
+}
+
 bool syx_eval_should_early_exit(SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_RETURN_VALUE:
@@ -508,7 +539,7 @@ SyxV *syx_convert_to_bool(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_BOOL: return value;
     case SYXV_KIND_NUMBER: return make_syxv_bool((syx_bool_t)syx_number_value(value->number));
     case SYXV_KIND_STRING: return make_syxv_bool((bool)value->string.count);
-    case SYXV_KIND_BOXED: return make_syxv_bool(true); // TODO: boxed conversion mechanisms
+    case SYXV_KIND_BOXED: return make_syxv_bool(value->boxed->data != NULL); // TODO: boxed conversion mechanisms
     case SYXV_KIND_SPECIALF: return make_syxv_bool(true);
     case SYXV_KIND_BUILTIN: return make_syxv_bool(true);
     case SYXV_KIND_CLOSURE: return make_syxv_bool(true);
@@ -531,8 +562,45 @@ SyxV *syx_convert_to_number(Syx_Eval_Ctx *ctx, SyxV *value) {
       if (!parse_number(&sv, &result)) RUNTIME_ERROR(ctx, "illegal conversion of string to number");
       return make_syxv_number(result);
     }
-    case SYXV_KIND_BOXED: RUNTIME_ERROR(ctx, "illegal conversion of boxed value to number"); // TODO: boxed conversion mechanisms
-    case SYXV_KIND_QUOTE: return syx_convert_to_number(ctx, value->quote);
+    case SYXV_KIND_BOXED: {
+      switch (value->boxed->typeinfo->kind) {
+        case SYX_TYPE_INFO_KIND_PTR: break;
+        case SYX_TYPE_INFO_KIND_FUNCTION_PTR: break;
+        case SYX_TYPE_INFO_KIND_STRUCTURE: break;
+        case SYX_TYPE_INFO_KIND_VOID: break;
+        case SYX_TYPE_INFO_KIND_I8: return make_syxv_number_integer(*(SYX_TYPE_I8 *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_I16: return make_syxv_number_integer(*(SYX_TYPE_I16 *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_I32: return make_syxv_number_integer(*(SYX_TYPE_I32 *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_I64: return make_syxv_number_integer(*(SYX_TYPE_I64 *)value->boxed->data);
+#ifdef SYX_TYPE_I128_SUPPORTED
+        case SYX_TYPE_INFO_KIND_I128: return make_syxv_number_integer(*(SYX_TYPE_I128 *)value->boxed->data);
+#endif
+        case SYX_TYPE_INFO_KIND_U8: return make_syxv_number_integer(*(SYX_TYPE_U8 *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_U16: return make_syxv_number_integer(*(SYX_TYPE_U16 *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_U32: return make_syxv_number_integer(*(SYX_TYPE_U32 *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_U64: return make_syxv_number_integer(*(SYX_TYPE_U64 *)value->boxed->data);
+#ifdef SYX_TYPE_I128_SUPPORTED
+        case SYX_TYPE_INFO_KIND_U128: return make_syxv_number_integer(*(SYX_TYPE_U128 *)value->boxed->data);
+#endif
+        case SYX_TYPE_INFO_KIND_INT: return make_syxv_number_integer(*(SYX_TYPE_INT *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_INT_LONG: return make_syxv_number_integer(*(SYX_TYPE_INT_LONG *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_INT_LONG_LONG: return make_syxv_number_integer(*(SYX_TYPE_INT_LONG_LONG *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_UINT: return make_syxv_number_integer(*(SYX_TYPE_UINT *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_UINT_LONG: return make_syxv_number_integer(*(SYX_TYPE_UINT_LONG *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: return make_syxv_number_integer(*(SYX_TYPE_UINT_LONG_LONG *)value->boxed->data);
+#ifdef SYX_TYPE_SIZED_FLOAT_SUPPORTED
+        case SYX_TYPE_INFO_KIND_F16: return make_syxv_number_fractional(*(SYX_TYPE_F16 *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_F32: return make_syxv_number_fractional(*(SYX_TYPE_F32 *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_F64: return make_syxv_number_fractional(*(SYX_TYPE_F64 *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_F128: return make_syxv_number_fractional(*(SYX_TYPE_F128 *)value->boxed->data);
+#endif
+        case SYX_TYPE_INFO_KIND_FLOAT: return make_syxv_number_fractional(*(SYX_TYPE_FLOAT *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_DOUBLE: return make_syxv_number_fractional(*(SYX_TYPE_DOUBLE *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_DOUBLE_LONG: return make_syxv_number_fractional(*(SYX_TYPE_DOUBLE_LONG *)value->boxed->data);
+        case SYX_TYPE_INFO_KIND_SIZE: return make_syxv_number_integer(*(SYX_TYPE_SIZE *)value->boxed->data);
+        default: RUNTIME_ERROR(ctx, temp_sprintf("illegal conversion of boxed value to number of kind: %u '%s'", value->boxed->typeinfo->kind, syx_type_info_kind_name(value->boxed->typeinfo->kind)));
+      }
+    }
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to number");
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to number");
     case SYXV_KIND_CLOSURE: RUNTIME_ERROR(ctx, "illegal conversion of closure to number");

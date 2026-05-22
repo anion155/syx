@@ -46,6 +46,7 @@ struct SyxVs_Iterator *parser__syxvs_for_each_iterator(SyxV ***syxvs);
 #define SYXV_TOKEN_BOXED_START '['
 #define SYXV_TOKEN_BOXED_END ']'
 #define SYXV_TOKEN_QUOTES '\''
+#define SYXV_TOKEN_COMMA ','
 #define SYXV_TOKEN_DQUOTES '"'
 #define SYXV_TOKEN_ESCAPE '\\'
 #define SYXV_TOKEN_HASH '#'
@@ -130,6 +131,12 @@ SyxV *parse__syxv_quote(SyxV_Parser_Context *ctx) {
   return make_syxv_list(make_syxv_symbol_cstr("quote"), parse__syxv(ctx), NULL);
 }
 
+SyxV *parse__syxv_unquote(SyxV_Parser_Context *ctx) {
+  if (ctx->it->data[0] != SYXV_TOKEN_COMMA) PARSER_ERROR("expected , symbol here", ctx);
+  sv_chop_left(ctx->it, 1);
+  return make_syxv_list(make_syxv_symbol_cstr("unquote"), parse__syxv(ctx), NULL);
+}
+
 SyxV *parse__syxv_string(SyxV_Parser_Context *ctx) {
   if (ctx->it->data[0] != SYXV_TOKEN_DQUOTES) PARSER_ERROR("expected string literal start here", ctx);
   sv_chop_left(ctx->it, 1);
@@ -193,22 +200,27 @@ SyxV *parse__syxv_dispatch(SyxV_Parser_Context *ctx) {
   return (*dispatcher)(ctx);
 }
 
+SyxV *parse__syxv_nullable(SyxV_Parser_Context *ctx);
+
+SyxV *parse__syxv_comment(SyxV_Parser_Context *ctx) {
+  size_t i = 0;
+  while (i < ctx->it->count && !islineend(ctx->it->data[i])) i += 1;
+  ctx->it->count -= i;
+  ctx->it->data += i;
+  if (!ctx->it->count) return NULL;
+  sv_chop_left(ctx->it, 1);
+  if (!ctx->it->count) return NULL;
+  chop_spaces(ctx);
+  if (!ctx->it->count) return NULL;
+  return parse__syxv_nullable(ctx);
+}
+
 SyxV *parse__syxv_nullable(SyxV_Parser_Context *ctx) {
   char current = ctx->it->data[0];
-  if (current == SYXV_TOKEN_COMMENT) {
-    size_t i = 0;
-    while (i < ctx->it->count && !islineend(ctx->it->data[i])) i += 1;
-    ctx->it->count -= i;
-    ctx->it->data += i;
-    if (!ctx->it->count) return NULL;
-    sv_chop_left(ctx->it, 1);
-    if (!ctx->it->count) return NULL;
-    chop_spaces(ctx);
-    if (!ctx->it->count) return NULL;
-    return parse__syxv_nullable(ctx);
-  }
+  if (current == SYXV_TOKEN_COMMENT) return parse__syxv_comment(ctx);
   if (current == SYXV_TOKEN_LIST_START) return parse__syxv_list(ctx, false, SYXV_TOKEN_LIST_START, SYXV_TOKEN_LIST_END);
   if (current == SYXV_TOKEN_QUOTES) return parse__syxv_quote(ctx);
+  if (current == SYXV_TOKEN_COMMA) return parse__syxv_unquote(ctx);
   if (current == SYXV_TOKEN_DQUOTES) return parse__syxv_string(ctx);
   if (current == SYXV_TOKEN_HASH) return parse__syxv_dispatch(ctx);
   if (current == SYXV_TOKEN_HYPHEN) {

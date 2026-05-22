@@ -103,6 +103,11 @@ void syx_env_define_vector(Syx_Env *env) {
         //   }),
         //   .readonly = true,
         // }}},
+        // {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
+        //   .offset = offsetof(SyxV_Vector, count),
+        //   .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
+        //   .readonly = true,
+        // }}},
         {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_ACCESSOR, .accessor = {
           .getter = syxv_vector_count_getter,
           .setter = syxv_vector_count_setter,

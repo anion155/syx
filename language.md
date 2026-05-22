@@ -137,7 +137,6 @@ Applies structural check between each consequence pairs.
 - `number`
 - `string`
 - `pair` - compares both sides recursively
-- `quote` - compares stored values
 - `fn` - compared by reference
 - `symbol` - compared by reference
 
@@ -185,9 +184,12 @@ Examples:
 `(eq? 'a 'a) => true`
 `(define a 1) (define b 1) (eq? a b) => false`
 
-### nil?, symbol?, pair?, list?, bool?, number?, integer?, fractional?, string?, quote?, procedure?, special-form?, builtin?, closure?
+### nil?, symbol?, pair?, list?, bool?, number?, integer?, fractional?, boxed?, string?, procedure?, special-form?, builtin?, closure?
 Type checks first argument.
 `(<type>? <form>) => bool`
+
+`boxed?` check can also test if value instance of some known type
+`(boxed? <typename> <form>)`
 
 ### not
 Returns `false` if argument is truthy, `true` if falsy.
@@ -198,14 +200,16 @@ Returns `false` if argument is truthy, `true` if falsy.
 Boxed values provide a mechanism for custom data types with dedicated constructors, accessors, and memory management:
 `(new <constructor> ...<form>) => <boxed>` - will instantiate boxed value using constructor with arguments
 `#.<constructor>(...<form>) => <boxed>` - will instantiate boxed value using constructor with arguments
-`(<boxed> ...<field-identifier>)` - performs nested property lookup by traversing a series of field identifiers on an object
-`(<boxed> ...<field-identifier> . <form>)` - traverses a series of field identifiers on an object to mutate the terminal field cell in place
+`(<boxed> ...<field-identifier>)` - create nested boxed value by traversing a series of field identifiers on an object
+`(<boxed> ...<field-identifier> <method-name> ...<form>)` - call nested method with arguments `...<form>`
+`(set <boxed> <form>)` - set value to boxed value
+`(set ,(<boxed> ...<field-identifier>) <form>)` - set value to nested boxed value
+`((<boxed> ...<field-identifier>) ...<form>)` - call boxed value with arguments
 
 Where `field-identifier` can be number or symbol:
-`(<boxed> 1 'symbol 2)`
+`(<boxed> 1 symbol 2)`
 
-To call method:
-`((<boxed> 'method) ...<form>)`
+`field-identifier` is not evaluated by default, but it creates quasiquoted environment and evaluates `,<value>`.
 
 ### vector
 

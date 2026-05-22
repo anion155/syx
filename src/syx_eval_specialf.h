@@ -22,6 +22,13 @@ SyxV *syx_special_form_quote(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *ar
   return syxv_list_next(&arguments);
 }
 
+/** Evaluates value in quasiquote environments. */
+SyxV *syx_special_form_unquote(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
+  UNUSED(arguments);
+  RUNTIME_ERROR(ctx, "unquote: completely outside of a quasiquote environment");
+}
+
 /** Evaluates forms in order and returns last result. */
 SyxV *syx_special_form_begin(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
@@ -79,12 +86,25 @@ SyxV *syx_special_form_define(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *a
 /** Mutate an existing binding or creates new one in current environment. */
 SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
-  SyxV *name_s = syxv_list_next(&arguments);
-  if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "Symbol expression expected as name");
+  SyxV *target = syx_eval_unquote(ctx, syxv_list_next(&arguments));
+  syx_eval_early_exit(target);
+  rc_acquire(target);
   SyxV *value = syx_eval(ctx, syxv_list_next(&arguments));
-  syx_eval_early_exit(value);
-  syx_env_set(ctx->env, &name_s->symbol, value);
-  return make_syxv_nil();
+  syx_eval_early_exit(value, target);
+  switch (target->kind) {
+    case SYXV_KIND_SYMBOL: {
+      syx_env_set(ctx->env, &target->symbol, value);
+      rc_release(target);
+      return make_syxv_nil();
+    } break;
+    case SYXV_KIND_BOXED: {
+      SyxV *result = syx_boxed_set(ctx, target->boxed, value);
+      rc_acquire(result);
+      rc_release(target);
+      return rc_move(result);
+    }
+    default: RUNTIME_ERROR(ctx, "unsupported set expression", target);
+  }
 }
 
 /** Checks if environment has binding. */
@@ -302,11 +322,9 @@ SyxV *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
   SyxV *head = syx_eval(ctx, syxv_list_next(&arguments));
   syx_eval_early_exit(head);
   if (head->kind != SYXV_KIND_CONSTRUCTOR) RUNTIME_ERROR(ctx, "constructor expected here");
-  SyxV *evaluated = NULL;
-  syxv_list_map(argument, arguments, &evaluated) {
-    *argument = syx_eval(ctx, *argument);
-    syx_eval_early_exit(*argument, evaluated);
-  }
+  SyxV *evaluated = syx_eval_list(ctx, arguments);
+  syx_eval_early_exit(evaluated, head);
+  rc_acquire(evaluated);
   SyxV *result = rc_acquire(syxv_eval_boxed_construct(ctx, head->constructor.typeinfo, evaluated));
   rc_release(evaluated);
   return rc_move(result);
@@ -315,6 +333,7 @@ SyxV *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
 void syx_env_define_special_forms(Syx_Env *env) {
   /** Special forms */
   syx_env_define_cstr(env, "quote", make_syxv_specialf(NULL, syx_special_form_quote));
+  syx_env_define_cstr(env, "unquote", make_syxv_specialf(NULL, syx_special_form_unquote));
   syx_env_define_cstr(env, "begin", make_syxv_specialf(NULL, syx_special_form_begin));
   syx_env_define_cstr(env, "lambda", make_syxv_specialf(NULL, syx_special_form_lambda));
   syx_env_define_cstr(env, "define", make_syxv_specialf(NULL, syx_special_form_define));
