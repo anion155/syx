@@ -107,11 +107,11 @@ SyxV *syx_special_form_get(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
 }
 
 /** . */
-SyxV *syx_special_form_unset(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+SyxV *syx_special_form_undefine(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(ctx);
   UNUSED(callable);
   UNUSED(arguments);
-  TODO("syx_special_form_unset");
+  TODO("syx_special_form_undefine");
 }
 
 /** Create new variable bindings in parallel on new environment and execute a series of forms in that environment. */
@@ -321,7 +321,7 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define_cstr(env, "set", make_syxv_specialf(NULL, syx_special_form_set));
   syx_env_define_cstr(env, "is-set?", make_syxv_specialf(NULL, syx_special_form_is_set));
   syx_env_define_cstr(env, "get", make_syxv_specialf(NULL, syx_special_form_get));
-  syx_env_define_cstr(env, "unset", make_syxv_specialf(NULL, syx_special_form_unset));
+  syx_env_define_cstr(env, "undefine", make_syxv_specialf(NULL, syx_special_form_undefine));
   syx_env_define_cstr(env, "let", make_syxv_specialf(NULL, syx_special_form_let));
   syx_env_define_cstr(env, "and", make_syxv_specialf(NULL, syx_special_form_and));
   syx_env_define_cstr(env, "or", make_syxv_specialf(NULL, syx_special_form_or));

@@ -171,8 +171,7 @@ bool syx__builtin_equivalent_comparator(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *rig
     case SYXV_KIND_BOOL: return false; // should work on left == right level
     case SYXV_KIND_NUMBER: return right->kind == SYXV_KIND_NUMBER && syx_number_equal(left->number, right->number);
     case SYXV_KIND_STRING: return right->kind == SYXV_KIND_STRING && sv_eq(left->string, right->string);
-    case SYXV_KIND_BOXED: return false; // should work on left == right level TODO: implement equivalent method
-    case SYXV_KIND_QUOTE: return right->kind == SYXV_KIND_QUOTE && syx__builtin_equivalent_comparator(ctx, left->quote, right->quote);
+    case SYXV_KIND_BOXED: return false;       // should work on left == right level TODO: implement equivalent method
     case SYXV_KIND_SPECIALF: return false;    // should work on left == right level
     case SYXV_KIND_BUILTIN: return false;     // should work on left == right level
     case SYXV_KIND_CLOSURE: return false;     // should work on left == right level
@@ -208,12 +207,6 @@ SyxV *syx_builtin_equivalent(Syx_Eval_Ctx *ctx, SyxV *arguments) {
       return (                                                                               \
           self_name(ctx, left->pair.left, right->pair.left) &&                               \
           self_name(ctx, left->pair.right, right->pair.right));                              \
-    }                                                                                        \
-    case SYXV_KIND_QUOTE: {                                                                  \
-      if (right->kind != SYXV_KIND_QUOTE) {                                                  \
-        RUNTIME_ERROR(ctx, "can not compare with " STRINGIFY(operator));                     \
-      }                                                                                      \
-      return self_name(ctx, left->quote, right->quote);                                      \
     }                                                                                        \
     default: RUNTIME_ERROR(ctx, "can not compare with " STRINGIFY(operator));                \
   }
@@ -275,7 +268,6 @@ bool syx__builtin_identity_comparator(Syx_Eval_Ctx *ctx, SyxV *left, SyxV *right
     case SYXV_KIND_NUMBER: return right->kind == SYXV_KIND_NUMBER && syx_number_identity_equal(left->number, right->number);
     case SYXV_KIND_STRING: return false;      // should work on left == right level
     case SYXV_KIND_BOXED: return false;       // should work on left == right level
-    case SYXV_KIND_QUOTE: return false;       // should work on left == right level
     case SYXV_KIND_SPECIALF: return false;    // should work on left == right level
     case SYXV_KIND_BUILTIN: return false;     // should work on left == right level
     case SYXV_KIND_CLOSURE: return false;     // should work on left == right level

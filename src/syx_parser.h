@@ -125,9 +125,9 @@ result:
 }
 
 SyxV *parse__syxv_quote(SyxV_Parser_Context *ctx) {
-  if (ctx->it->data[0] != SYXV_TOKEN_QUOTES) PARSER_ERROR("expected ( symbol here", ctx);
+  if (ctx->it->data[0] != SYXV_TOKEN_QUOTES) PARSER_ERROR("expected ' symbol here", ctx);
   sv_chop_left(ctx->it, 1);
-  return make_syxv_quote(parse__syxv(ctx));
+  return make_syxv_list(make_syxv_symbol_cstr("quote"), parse__syxv(ctx), NULL);
 }
 
 SyxV *parse__syxv_string(SyxV_Parser_Context *ctx) {

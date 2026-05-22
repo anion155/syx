@@ -16,7 +16,6 @@ typedef enum : unsigned int {
   SYXV_KIND_NUMBER,
   SYXV_KIND_STRING,
   SYXV_KIND_BOXED,
-  SYXV_KIND_QUOTE,
   SYXV_KIND_SPECIALF,
   SYXV_KIND_BUILTIN,
   SYXV_KIND_CLOSURE,
@@ -133,7 +132,6 @@ SyxV *make_syxv_string_cstr(const char *value);
       syx_string_view_t: make_syxv_string_sv(value),        \
       const char *: make_syxv_string_cstr(value))
 SyxV *make_syxv_boxed(Syx_Boxed *boxed);
-SyxV *make_syxv_quote(SyxV *quote);
 SyxV *make_syxv_specialf(const char *name, Syx_SpecialF_Evaluator eval);
 SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env);
@@ -235,7 +233,6 @@ void syxv_destructor(void *data) {
     case SYXV_KIND_NUMBER: break;
     case SYXV_KIND_STRING: free((char *)syxv->string.data); break;
     case SYXV_KIND_BOXED: rc_release(syxv->boxed); break;
-    case SYXV_KIND_QUOTE: rc_release(syxv->quote); break;
     case SYXV_KIND_SPECIALF: {
       if (syxv->specialf.name) free(syxv->specialf.name);
     } break;
@@ -353,12 +350,6 @@ SyxV *make_syxv_boxed(Syx_Boxed *boxed) {
   SyxV *value = make_syxv(SYXV_KIND_BOXED);
   if (boxed) value->boxed = rc_acquire(boxed);
   return value;
-}
-
-SyxV *make_syxv_quote(SyxV *quote) {
-  SyxV *syxv = make_syxv(SYXV_KIND_QUOTE);
-  syxv->quote = quote ? rc_acquire(quote) : NULL;
-  return syxv;
 }
 
 SyxV *make_syxv_specialf(const char *name, Syx_SpecialF_Evaluator eval) {
@@ -541,10 +532,6 @@ size_t stringify__syxv_n(char *string, SyxV *value, SyxV_Stringify_Cache *cache)
     } break;
     case SYXV_KIND_BOXED: {
       __str_convert(stringify_syx_boxed_n, value->boxed);
-    } break;
-    case SYXV_KIND_QUOTE: {
-      __str_push('\'');
-      __str_convert(stringify__cached_syxv, value->quote, cache);
     } break;
     case SYXV_KIND_SPECIALF: {
       __str_push('?');

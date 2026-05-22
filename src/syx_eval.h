@@ -425,7 +425,6 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments)
 
 SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
   if (input->kind == SYXV_KIND_THROWN) return input;
-  if (input->kind == SYXV_KIND_QUOTE) return input->quote;
   if (input->kind == SYXV_KIND_SYMBOL) {
     SyxV *item = syx_env_lookup_get(ctx->env, &input->symbol);
     if (item == NULL) RUNTIME_ERROR(ctx, temp_sprintf("unbound symbol '%s'", input->symbol.name));
@@ -446,7 +445,6 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
     case SYXV_KIND_NUMBER: RUNTIME_ERROR(ctx, "number is not a procedure");
     case SYXV_KIND_STRING: RUNTIME_ERROR(ctx, "string is not a procedure");
     case SYXV_KIND_BOXED: result = syxv_eval_boxed(ctx, head->boxed, arguments); break;
-    case SYXV_KIND_QUOTE: RUNTIME_ERROR(ctx, "quote is not a procedure");
     case SYXV_KIND_SPECIALF: result = syx_eval_specialf(ctx, &head->specialf, arguments); break;
     case SYXV_KIND_BUILTIN: result = syx_eval_builtin(ctx, &head->builtin, arguments); break;
     case SYXV_KIND_CLOSURE: result = syx_eval_closure(ctx, &head->closure, arguments); break;
@@ -511,7 +509,6 @@ SyxV *syx_convert_to_bool(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_NUMBER: return make_syxv_bool((syx_bool_t)syx_number_value(value->number));
     case SYXV_KIND_STRING: return make_syxv_bool((bool)value->string.count);
     case SYXV_KIND_BOXED: return make_syxv_bool(true); // TODO: boxed conversion mechanisms
-    case SYXV_KIND_QUOTE: return syx_convert_to_bool(ctx, value->quote);
     case SYXV_KIND_SPECIALF: return make_syxv_bool(true);
     case SYXV_KIND_BUILTIN: return make_syxv_bool(true);
     case SYXV_KIND_CLOSURE: return make_syxv_bool(true);
@@ -554,7 +551,6 @@ SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value) {
     case SYXV_KIND_NUMBER: return make_syxv_string_managed_cstr(stringify_number(value->number));
     case SYXV_KIND_STRING: return value;
     case SYXV_KIND_BOXED: RUNTIME_ERROR(ctx, "illegal conversion of boxed to string"); // TODO: boxed conversion mechanisms
-    case SYXV_KIND_QUOTE: return syx_convert_to_string(ctx, value->quote);
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to string");
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to string");
     case SYXV_KIND_CLOSURE: RUNTIME_ERROR(ctx, "illegal conversion of closure to string");
@@ -573,7 +569,6 @@ SyxV *sb_append_converted_syxv(String_Builder *sb, Syx_Eval_Ctx *ctx, SyxV *valu
     case SYXV_KIND_NUMBER: sb_append_number(sb, value->number); break;
     case SYXV_KIND_STRING: sb_append_buf(sb, value->string.data, value->string.count); break;
     case SYXV_KIND_BOXED: RUNTIME_ERROR(ctx, "illegal conversion of boxed value to string"); // TODO: boxed conversion mechanisms
-    case SYXV_KIND_QUOTE: sb_append_converted_syxv(sb, ctx, value->quote); break;
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to string");
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to string");
     case SYXV_KIND_CLOSURE: RUNTIME_ERROR(ctx, "illegal conversion of closure to string");

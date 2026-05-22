@@ -164,7 +164,6 @@ Applies operators between each consequence pairs.
 - `number`
 - `string`
 - `pair` - compares both sides recursively
-- `quote` - compares stored values
 
 ### eq?
 Applies identity check between each consequence pairs.
