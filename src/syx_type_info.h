@@ -142,6 +142,7 @@ struct Syx_Type_Info_Function {
 
 struct Syx_Type_Info {
   size_t size;
+  size_t align;
   SyxV_Symbol *symbol;
   Syx_Type_Info_Kind kind;
 
@@ -284,10 +285,12 @@ Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt) {
   switch (typeinfo->kind) {
     case SYX_TYPE_INFO_KIND_PTR: {
       if (typeinfo->size == 0) typeinfo->size = __SIZEOF_POINTER__;
+      if (typeinfo->align == 0) typeinfo->align = _Alignof(void *);
       if (typeinfo->ptr) rc_acquire(typeinfo->ptr);
     } break;
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: {
       if (typeinfo->size == 0) typeinfo->size = sizeof(void (*)());
+      if (typeinfo->align == 0) typeinfo->align = _Alignof(void (*)());
       if (typeinfo->function.return_type) rc_acquire(typeinfo->function.return_type);
       for (size_t index = 0; index < typeinfo->function.argc; index += 1) {
         Syx_Type_Info *arg = typeinfo->function.argv[index];
@@ -296,47 +299,54 @@ Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt) {
     } break;
     case SYX_TYPE_INFO_KIND_STRUCTURE: {
       if (typeinfo->size == 0) UNREACHABLE("typeinfo.size expected");
+      size_t max_align = 0;
       ht_foreach(field, &typeinfo->structure.fields) {
         switch (field->kind) {
           case SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA: {
             if (field->data.typeinfo) rc_acquire(field->data.typeinfo);
+            if (field->data.typeinfo->align > max_align) max_align = field->data.typeinfo->align;
           } break;
           case SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_ACCESSOR: break;
           case SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_METHOD: break;
         }
       }
+      if (typeinfo->align == 0) typeinfo->align = max_align;
     } break;
     case SYX_TYPE_INFO_KIND_VOID: break;
-    case SYX_TYPE_INFO_KIND_I8: typeinfo->size = sizeof(SYX_TYPE_I8); break;
-    case SYX_TYPE_INFO_KIND_I16: typeinfo->size = sizeof(SYX_TYPE_I16); break;
-    case SYX_TYPE_INFO_KIND_I32: typeinfo->size = sizeof(SYX_TYPE_I32); break;
-    case SYX_TYPE_INFO_KIND_I64: typeinfo->size = sizeof(SYX_TYPE_I64); break;
+#define __init_typeinfo(type)    \
+  typeinfo->size = sizeof(type); \
+  typeinfo->align = _Alignof(type)
+    case SYX_TYPE_INFO_KIND_I8: __init_typeinfo(SYX_TYPE_I8); break;
+    case SYX_TYPE_INFO_KIND_I16: __init_typeinfo(SYX_TYPE_I16); break;
+    case SYX_TYPE_INFO_KIND_I32: __init_typeinfo(SYX_TYPE_I32); break;
+    case SYX_TYPE_INFO_KIND_I64: __init_typeinfo(SYX_TYPE_I64); break;
 #ifdef SYX_TYPE_I128_SUPPORTED
-    case SYX_TYPE_INFO_KIND_I128: typeinfo->size = sizeof(SYX_TYPE_I128); break;
+    case SYX_TYPE_INFO_KIND_I128: __init_typeinfo(SYX_TYPE_I128); break;
 #endif
-    case SYX_TYPE_INFO_KIND_U8: typeinfo->size = sizeof(SYX_TYPE_U8); break;
-    case SYX_TYPE_INFO_KIND_U16: typeinfo->size = sizeof(SYX_TYPE_U16); break;
-    case SYX_TYPE_INFO_KIND_U32: typeinfo->size = sizeof(SYX_TYPE_U32); break;
-    case SYX_TYPE_INFO_KIND_U64: typeinfo->size = sizeof(SYX_TYPE_U64); break;
+    case SYX_TYPE_INFO_KIND_U8: __init_typeinfo(SYX_TYPE_U8); break;
+    case SYX_TYPE_INFO_KIND_U16: __init_typeinfo(SYX_TYPE_U16); break;
+    case SYX_TYPE_INFO_KIND_U32: __init_typeinfo(SYX_TYPE_U32); break;
+    case SYX_TYPE_INFO_KIND_U64: __init_typeinfo(SYX_TYPE_U64); break;
 #ifdef SYX_TYPE_I128_SUPPORTED
-    case SYX_TYPE_INFO_KIND_U128: typeinfo->size = sizeof(SYX_TYPE_U128); break;
+    case SYX_TYPE_INFO_KIND_U128: __init_typeinfo(SYX_TYPE_U128); break;
 #endif
-    case SYX_TYPE_INFO_KIND_INT: typeinfo->size = sizeof(SYX_TYPE_INT); break;
-    case SYX_TYPE_INFO_KIND_INT_LONG: typeinfo->size = sizeof(SYX_TYPE_INT_LONG); break;
-    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: typeinfo->size = sizeof(SYX_TYPE_INT_LONG_LONG); break;
-    case SYX_TYPE_INFO_KIND_UINT: typeinfo->size = sizeof(SYX_TYPE_UINT); break;
-    case SYX_TYPE_INFO_KIND_UINT_LONG: typeinfo->size = sizeof(SYX_TYPE_UINT_LONG); break;
-    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: typeinfo->size = sizeof(SYX_TYPE_UINT_LONG_LONG); break;
+    case SYX_TYPE_INFO_KIND_INT: __init_typeinfo(SYX_TYPE_INT); break;
+    case SYX_TYPE_INFO_KIND_INT_LONG: __init_typeinfo(SYX_TYPE_INT_LONG); break;
+    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: __init_typeinfo(SYX_TYPE_INT_LONG_LONG); break;
+    case SYX_TYPE_INFO_KIND_UINT: __init_typeinfo(SYX_TYPE_UINT); break;
+    case SYX_TYPE_INFO_KIND_UINT_LONG: __init_typeinfo(SYX_TYPE_UINT_LONG); break;
+    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: __init_typeinfo(SYX_TYPE_UINT_LONG_LONG); break;
 #ifdef SYX_TYPE_SIZED_FLOAT_SUPPORTED
-    case SYX_TYPE_INFO_KIND_F16: typeinfo->size = sizeof(SYX_TYPE_F16); break;
-    case SYX_TYPE_INFO_KIND_F32: typeinfo->size = sizeof(SYX_TYPE_F32); break;
-    case SYX_TYPE_INFO_KIND_F64: typeinfo->size = sizeof(SYX_TYPE_F64); break;
-    case SYX_TYPE_INFO_KIND_F128: typeinfo->size = sizeof(SYX_TYPE_F128); break;
+    case SYX_TYPE_INFO_KIND_F16: __init_typeinfo(SYX_TYPE_F16); break;
+    case SYX_TYPE_INFO_KIND_F32: __init_typeinfo(SYX_TYPE_F32); break;
+    case SYX_TYPE_INFO_KIND_F64: __init_typeinfo(SYX_TYPE_F64); break;
+    case SYX_TYPE_INFO_KIND_F128: __init_typeinfo(SYX_TYPE_F128); break;
 #endif
-    case SYX_TYPE_INFO_KIND_FLOAT: typeinfo->size = sizeof(SYX_TYPE_FLOAT); break;
-    case SYX_TYPE_INFO_KIND_DOUBLE: typeinfo->size = sizeof(SYX_TYPE_DOUBLE); break;
-    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: typeinfo->size = sizeof(SYX_TYPE_DOUBLE_LONG); break;
-    case SYX_TYPE_INFO_KIND_SIZE: typeinfo->size = sizeof(SYX_TYPE_SIZE); break;
+    case SYX_TYPE_INFO_KIND_FLOAT: __init_typeinfo(SYX_TYPE_FLOAT); break;
+    case SYX_TYPE_INFO_KIND_DOUBLE: __init_typeinfo(SYX_TYPE_DOUBLE); break;
+    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: __init_typeinfo(SYX_TYPE_DOUBLE_LONG); break;
+    case SYX_TYPE_INFO_KIND_SIZE: __init_typeinfo(SYX_TYPE_SIZE); break;
+#undef __init_typeinfo
     default: UNREACHABLE(temp_sprintf("kind is not supported: %u '%s'", typeinfo->kind, syx_type_info_kind_name(typeinfo->kind)));
   }
   return typeinfo;
@@ -348,10 +358,18 @@ Syx_Type_Info_Structure_Fields make_syx_type_info_structure_fields_opt(Syx_Field
   size_t offset = 0;
   for (size_t index = 0; index < count; index += 1) {
     Syx_Type_Info_Structure_Field field = pairs[index].field;
-    if (field.kind == SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA && !field.data.offset) field.data.offset = offset;
+    if (field.kind == SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA) {
+      if (!field.data.offset) {
+        size_t align = field.data.typeinfo->align - 1;
+        offset = (offset + align) & ~(align);
+        field.data.offset = offset;
+      }
+      if (field.data.typeinfo) {
+        offset = field.data.offset + field.data.typeinfo->size;
+      }
+    }
     char *key = strdup(pairs[index].key);
     *ht_put(&fields, key) = field;
-    if (field.kind == SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA && field.data.typeinfo) offset = field.data.offset + field.data.typeinfo->size;
   }
   return fields;
 }

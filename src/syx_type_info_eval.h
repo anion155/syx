@@ -32,6 +32,7 @@ void sb_append_syx_type_info_instance(String_Builder *sb, Syx_Boxed *boxed);
 void syxv_eval_boxed_deconstruct(void *data) {
   Syx_Boxed *boxed = data;
   if (boxed->parent) {
+    if (boxed->typeinfo) rc_release(boxed->typeinfo);
     rc_release(boxed->parent);
     return;
   }
@@ -64,6 +65,8 @@ Syx_Boxed *make_syx_boxed_opt(Syx_Boxed opt) {
 }
 
 SyxV *syx_boxed_set(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *argument) {
+  // TODO: check if readonly
+  // TODO: accessor set
   switch (boxed->typeinfo->kind) {
     case SYX_TYPE_INFO_KIND_PTR: {
       if (argument->kind != SYXV_KIND_BOXED) RUNTIME_ERROR(ctx, "boxed pointer expected");

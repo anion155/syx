@@ -92,29 +92,20 @@ void syx_env_define_vector(Syx_Env *env) {
       .index_getter = syxv_vector_getter,
       .index_setter = syxv_vector_setter,
       .fields = make_syx_type_info_structure_fields(
-        // {"items", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
-        //   .typeinfo = make_syx_type_info_opt((Syx_Type_Info){
-        //     .kind = SYX_TYPE_INFO_KIND_PTR,
-        //     .ptr = make_syx_type_info_opt((Syx_Type_Info){
-        //       .symbol = (&make_syxv_symbol_cstr("vector")->symbol),
-        //       .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
-        //       .structure = {},
-        //     }),
-        //   }),
-        //   .readonly = true,
-        // }}},
-        // {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
-        //   .offset = offsetof(SyxV_Vector, count),
-        //   .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
-        //   .readonly = true,
-        // }}},
-        {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_ACCESSOR, .accessor = {
-          .getter = syxv_vector_count_getter,
-          .setter = syxv_vector_count_setter,
+        {"items", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
+          .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_PTR, .ptr = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_VOID)),
+          .readonly = true,
         }}},
-        {"capacity", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
-          .offset = offsetof(SyxV_Vector, capacity),
+        {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
           .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
+          .readonly = true,
+        }}},
+        // {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_ACCESSOR, .accessor = {
+        //   .getter = syxv_vector_count_getter,
+        //   .setter = syxv_vector_count_setter,
+        // }}},
+        {"capacity", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
+          .typeinfo = make_syx_type_info_opt((Syx_Type_Info){.kind = SYX_TYPE_INFO_KIND_SIZE}),
           .readonly = true,
         }}},
         {"append", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_METHOD, .method = syxv_vector_append}},

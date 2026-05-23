@@ -4,9 +4,9 @@
 (define v #(1))
 (v count)
 (v capacity)
-;; (v append 2 3)
-;; (v count)
-;; (v capacity)
+(v append 2 3 4 5)
+(v count)
+(v capacity)
 
 ;; ;; Syx Vector Behavior Tests
 
