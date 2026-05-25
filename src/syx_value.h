@@ -95,12 +95,6 @@ struct SyxV {
   };
 };
 
-typedef struct SyxV_Vector {
-  SyxV **items;
-  size_t count;
-  size_t capacity;
-} SyxV_Vector;
-
 void syxv_destructor(void *data);
 SyxV *get_syxv_from_symbol(SyxV_Symbol *symbol);
 SyxV *make_syxv_nil();
@@ -118,7 +112,7 @@ SyxV *make_syxv_number(Syx_Number value);
 #define make_syxv_number_integer(value) make_syxv_number(make_syx_number_integer(value))
 #define make_syxv_number_fractional(value) make_syxv_number(make_syx_number_fractional(value))
 SyxV *make_syxv_string(syx_string_t value);
-SyxV *make_syxv_string_managed_cstr(syx_string_t value);
+SyxV *make_syxv_string_copy(syx_string_t value);
 SyxV *make_syxv_string_sv(syx_string_view_t value);
 SyxV *make_syxv_string_n(const char *value, size_t size);
 SyxV *make_syxv_string_cstr(const char *value);
@@ -128,7 +122,7 @@ SyxV *make_syxv_string_cstr(const char *value);
       Syx_Number: make_syxv_number(value),                  \
       syx_integer_t: make_syxv_number_integer(value),       \
       syx_fractional_t: make_syxv_number_fractional(value), \
-      syx_string_t: make_syxv_string(value),                \
+      syx_string_t: make_syxv_string_copy(value),           \
       syx_string_view_t: make_syxv_string_sv(value),        \
       const char *: make_syxv_string_cstr(value))
 SyxV *make_syxv_boxed(Syx_Boxed *boxed);
@@ -316,14 +310,14 @@ SyxV *make_syxv_number(Syx_Number value) {
 
 SyxV *make_syxv_string(syx_string_t value) {
   SyxV *syxv = make_syxv(SYXV_KIND_STRING);
-  syxv->string.data = strndup(value.items, value.count);
+  syxv->string.data = value.items;
   syxv->string.count = value.count;
   return syxv;
 }
 
-SyxV *make_syxv_string_managed_cstr(syx_string_t value) {
+SyxV *make_syxv_string_copy(syx_string_t value) {
   SyxV *syxv = make_syxv(SYXV_KIND_STRING);
-  syxv->string.data = value.items;
+  syxv->string.data = strndup(value.items, value.count);
   syxv->string.count = value.count;
   return syxv;
 }

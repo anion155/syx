@@ -10,8 +10,8 @@ void syx_env_define_special_forms(Syx_Env *env);
 #if defined(SYX_EVAL_SPECIALF_IMPL) && !defined(SYX_EVAL_SPECIALF_IMPL_C)
 #define SYX_EVAL_SPECIALF_IMPL_C
 
-#define SYX_TYPE_INFO_EVAL_IMPL
-#include "syx_type_info_eval.h"
+#define SYX_BOXED_IMPL
+#include "syx_boxed.h"
 
 /** Special forms */
 

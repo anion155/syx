@@ -3,6 +3,12 @@
 
 #include "syx_value.h"
 
+typedef struct SyxV_Vector {
+  SyxV **items;
+  size_t count;
+  size_t capacity;
+} SyxV_Vector;
+
 void syx_env_define_vector(Syx_Env *env);
 
 #endif // SYX_VECTOR_H
@@ -96,14 +102,14 @@ void syx_env_define_vector(Syx_Env *env) {
           .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_PTR, .ptr = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_VOID)),
           .readonly = true,
         }}},
-        {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
-          .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
-          .readonly = true,
-        }}},
-        // {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_ACCESSOR, .accessor = {
-        //   .getter = syxv_vector_count_getter,
-        //   .setter = syxv_vector_count_setter,
+        // {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
+        //   .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
+        //   .readonly = true,
         // }}},
+        {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_ACCESSOR, .accessor = {
+          .getter = syxv_vector_count_getter,
+          .setter = syxv_vector_count_setter,
+        }}},
         {"capacity", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
           .typeinfo = make_syx_type_info_opt((Syx_Type_Info){.kind = SYX_TYPE_INFO_KIND_SIZE}),
           .readonly = true,

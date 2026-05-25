@@ -13,6 +13,7 @@ typedef enum Syx_Type_Info_Kind {
   SYX_TYPE_INFO_KIND_FUNCTION_PTR,
   SYX_TYPE_INFO_KIND_STRUCTURE,
   SYX_TYPE_INFO_KIND_VOID, // void
+  SYX_TYPE_INFO_KIND_CHAR, // char
   // stdint
   SYX_TYPE_INFO_KIND_I8,   // int8_t
   SYX_TYPE_INFO_KIND_I16,  // int16_t
@@ -51,6 +52,7 @@ typedef enum Syx_Type_Info_Kind {
 #endif
 
 #define SYX_TYPE_VOID void
+#define SYX_TYPE_CHAR char
 #define SYX_TYPE_I8 int8_t
 #define SYX_TYPE_I16 int16_t
 #define SYX_TYPE_I32 int32_t
@@ -187,6 +189,7 @@ const char *syx_type_info_kind_name(Syx_Type_Info_Kind kind) {
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: return "fn()";
     case SYX_TYPE_INFO_KIND_STRUCTURE: return "struct {}";
     case SYX_TYPE_INFO_KIND_VOID: return STRINGIFY2(SYX_TYPE_VOID);
+    case SYX_TYPE_INFO_KIND_CHAR: return STRINGIFY2(SYX_TYPE_CHAR);
     case SYX_TYPE_INFO_KIND_I8: return STRINGIFY2(SYX_TYPE_I8);
     case SYX_TYPE_INFO_KIND_I16: return STRINGIFY2(SYX_TYPE_I16);
     case SYX_TYPE_INFO_KIND_I32: return STRINGIFY2(SYX_TYPE_I32);
@@ -316,6 +319,7 @@ Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt) {
 #define __init_typeinfo(type)    \
   typeinfo->size = sizeof(type); \
   typeinfo->align = _Alignof(type)
+    case SYX_TYPE_INFO_KIND_CHAR: __init_typeinfo(SYX_TYPE_CHAR); break;
     case SYX_TYPE_INFO_KIND_I8: __init_typeinfo(SYX_TYPE_I8); break;
     case SYX_TYPE_INFO_KIND_I16: __init_typeinfo(SYX_TYPE_I16); break;
     case SYX_TYPE_INFO_KIND_I32: __init_typeinfo(SYX_TYPE_I32); break;
@@ -407,6 +411,7 @@ size_t stringify_syx_type_info_n(char *string, Syx_Type_Info *typeinfo) {
       __str_push(')');
     } break;
     case SYX_TYPE_INFO_KIND_VOID: __str_push_cstr("#.c_void"); break;
+    case SYX_TYPE_INFO_KIND_CHAR: __str_push_cstr("#.c_char"); break;
     case SYX_TYPE_INFO_KIND_I8: __str_push_cstr("#.c_i8"); break;
     case SYX_TYPE_INFO_KIND_I16: __str_push_cstr("#.c_i16"); break;
     case SYX_TYPE_INFO_KIND_I32: __str_push_cstr("#.c_i32"); break;

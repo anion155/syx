@@ -201,7 +201,6 @@ Boxed values provide a mechanism for custom data types with dedicated constructo
 `(new <constructor> ...<form>) => <boxed>` - will instantiate boxed value using constructor with arguments
 `#.<constructor>(...<form>) => <boxed>` - will instantiate boxed value using constructor with arguments
 `(<boxed> ...<field-identifier>)` - create nested boxed value by traversing a series of field identifiers on an object
-`(<boxed> ...<field-identifier> <method-name> ...<form>)` - call nested method with arguments `...<form>`
 `(set <boxed> <form>)` - set value to boxed value
 `(set ,(<boxed> ...<field-identifier>) <form>)` - set value to nested boxed value
 `((<boxed> ...<field-identifier>) ...<form>)` - call boxed value with arguments

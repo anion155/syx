@@ -1,6 +1,7 @@
 - check memory cleanup
 
-- boxed
+- boxed lvalue support
+- boxed ffi
 - syx_eval_should_early_exit should expect acquired value
 - syxv_list_map should not acquire result
 - struct methods

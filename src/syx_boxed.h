@@ -1,5 +1,5 @@
-#ifndef SYX_TYPE_INFO_EVAL_H
-#define SYX_TYPE_INFO_EVAL_H
+#ifndef SYX_BOXED_H
+#define SYX_BOXED_H
 
 #include "syx_type_info.h"
 
@@ -16,17 +16,21 @@ SyxV *syxv_eval_boxed_construct(Syx_Eval_Ctx *ctx, Syx_Type_Info *typeinfo, SyxV
 SyxV *syxv_eval_boxed(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments);
 
 size_t stringify_syx_boxed_n(char *string, Syx_Boxed *boxed);
-String_Builder stringify_syx_type_info_instance(Syx_Boxed *boxed);
-void sb_append_syx_type_info_instance(String_Builder *sb, Syx_Boxed *boxed);
+String_Builder stringify_syx_boxed(Syx_Boxed *boxed);
+void sb_append_syx_boxed(String_Builder *sb, Syx_Boxed *boxed);
 
-#endif // SYX_TYPE_INFO_EVAL_H
+SyxV *syx_convert_boxed_to_bool(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed);
+SyxV *syx_convert_boxed_to_number(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed);
+SyxV *syx_convert_boxed_to_string(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed);
 
-#if defined(SYX_TYPE_INFO_EVAL_IMPL) && !defined(SYX_TYPE_INFO_EVAL_IMPL_C)
-#define SYX_TYPE_INFO_EVAL_IMPL_C
+#endif // SYX_BOXED_H
+
+#if defined(SYX_BOXED_IMPL) && !defined(SYX_BOXED_IMPL_C)
+#define SYX_BOXED_IMPL_C
 
 #define SYX_EVAL_IMPL
 #include "syx_eval.h"
-#define SYX_TYPE_INFO_EVAL_IMPL
+#define SYX_BOXED_IMPL
 #include "syx_type_info.h"
 
 void syxv_eval_boxed_deconstruct(void *data) {
@@ -92,6 +96,7 @@ SyxV *syx_boxed_set(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *argument) {
       rc_acquire(value);
       if (value->kind != SYXV_KIND_NUMBER) RUNTIME_ERROR(ctx, "number expected");
       switch (boxed->typeinfo->kind) {
+        case SYX_TYPE_INFO_KIND_CHAR: (*((SYX_TYPE_CHAR *)boxed->data)) = syx_number_integer_value(value->number); break;
         case SYX_TYPE_INFO_KIND_I8: (*((SYX_TYPE_I8 *)boxed->data)) = syx_number_integer_value(value->number); break;
         case SYX_TYPE_INFO_KIND_I16: (*((SYX_TYPE_I16 *)boxed->data)) = syx_number_integer_value(value->number); break;
         case SYX_TYPE_INFO_KIND_I32: (*((SYX_TYPE_I32 *)boxed->data)) = syx_number_integer_value(value->number); break;
@@ -279,40 +284,6 @@ SyxV *syxv_eval_boxed(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments) {
   return rc_move(result);
 }
 
-// unbox
-// switch (current->typeinfo->kind) {
-//           case SYX_TYPE_INFO_KIND_I8: result = make_syxv_number_integer(*(SYX_TYPE_I8 *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_I16: result = make_syxv_number_integer(*(SYX_TYPE_I16 *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_I32: result = make_syxv_number_integer(*(SYX_TYPE_I32 *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_I64: result = make_syxv_number_integer(*(SYX_TYPE_I64 *)current->data); break;
-// #ifdef SYX_TYPE_I128_SUPPORTED
-//           case SYX_TYPE_INFO_KIND_I128: result = make_syxv_number_integer(*(SYX_TYPE_I128 *)current->data); break;
-// #endif
-//           case SYX_TYPE_INFO_KIND_U8: result = make_syxv_number_integer(*(SYX_TYPE_U8 *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_U16: result = make_syxv_number_integer(*(SYX_TYPE_U16 *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_U32: result = make_syxv_number_integer(*(SYX_TYPE_U32 *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_U64: result = make_syxv_number_integer(*(SYX_TYPE_U64 *)current->data); break;
-// #ifdef SYX_TYPE_I128_SUPPORTED
-//           case SYX_TYPE_INFO_KIND_U128: result = make_syxv_number_integer(*(SYX_TYPE_U128 *)current->data); break;
-// #endif
-//           case SYX_TYPE_INFO_KIND_INT: result = make_syxv_number_integer(*(SYX_TYPE_INT *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_INT_LONG: result = make_syxv_number_integer(*(SYX_TYPE_INT_LONG *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_INT_LONG_LONG: result = make_syxv_number_integer(*(SYX_TYPE_INT_LONG_LONG *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_UINT: result = make_syxv_number_integer(*(SYX_TYPE_UINT *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_UINT_LONG: result = make_syxv_number_integer(*(SYX_TYPE_UINT_LONG *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: result = make_syxv_number_integer(*(SYX_TYPE_UINT_LONG_LONG *)current->data); break;
-// #ifdef SYX_TYPE_SIZED_FLOAT_SUPPORTED
-//           case SYX_TYPE_INFO_KIND_F16: result = make_syxv_number_fractional(*(SYX_TYPE_F16 *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_F32: result = make_syxv_number_fractional(*(SYX_TYPE_F32 *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_F64: result = make_syxv_number_fractional(*(SYX_TYPE_F64 *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_F128: result = make_syxv_number_fractional(*(SYX_TYPE_F128 *)current->data); break;
-// #endif
-//           case SYX_TYPE_INFO_KIND_FLOAT: result = make_syxv_number_fractional(*(SYX_TYPE_FLOAT *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_DOUBLE: result = make_syxv_number_fractional(*(SYX_TYPE_DOUBLE *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_DOUBLE_LONG: result = make_syxv_number_fractional(*(SYX_TYPE_DOUBLE_LONG *)current->data); break;
-//           case SYX_TYPE_INFO_KIND_SIZE: result = make_syxv_number_integer(*(SYX_TYPE_SIZE *)current->data); break;
-//         }
-
 size_t stringify_syx_boxed_n(char *string, Syx_Boxed *boxed) {
   __str_it();
   __str_convert(stringify_syx_type_info_n, boxed->typeinfo);
@@ -322,6 +293,7 @@ size_t stringify_syx_boxed_n(char *string, Syx_Boxed *boxed) {
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: TODO("implement boxed function pointer stringify");
     case SYX_TYPE_INFO_KIND_STRUCTURE: TODO("implement boxed structure pointer stringify");
     case SYX_TYPE_INFO_KIND_VOID: break;
+    case SYX_TYPE_INFO_KIND_CHAR: __str_push(*(SYX_TYPE_CHAR *)boxed->data); break;
     case SYX_TYPE_INFO_KIND_I8: __str_convert(stringify_integer_n, *(SYX_TYPE_I8 *)boxed->data); break;
     case SYX_TYPE_INFO_KIND_I16: __str_convert(stringify_integer_n, *(SYX_TYPE_I16 *)boxed->data); break;
     case SYX_TYPE_INFO_KIND_I32: __str_convert(stringify_integer_n, *(SYX_TYPE_I32 *)boxed->data); break;
@@ -358,12 +330,141 @@ size_t stringify_syx_boxed_n(char *string, Syx_Boxed *boxed) {
   return __str_width();
 }
 
-String_Builder stringify_syx_type_info_instance(Syx_Boxed *boxed) {
+String_Builder stringify_syx_boxed(Syx_Boxed *boxed) {
   __stringify_body(stringify_syx_boxed_n, 256, boxed);
 }
 
-void sb_append_syx_type_info_instance(String_Builder *sb, Syx_Boxed *boxed) {
+void sb_append_syx_boxed(String_Builder *sb, Syx_Boxed *boxed) {
   __sb_append_body(stringify_syx_boxed_n, 256, boxed);
 }
 
-#endif // SYX_TYPE_INFO_EVAL_IMPL
+SyxV *syx_convert_boxed_to_bool(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed) {
+  if (!boxed->data) return make_syxv_bool(false);
+  switch (boxed->typeinfo->kind) {
+    case SYX_TYPE_INFO_KIND_PTR: return make_syxv_bool(*(void **)boxed->data != NULL);
+    case SYX_TYPE_INFO_KIND_FUNCTION_PTR: return make_syxv_bool(true); // false handled by !boxed->data
+    case SYX_TYPE_INFO_KIND_STRUCTURE: TODO("Implement structure conversion to bool");
+    case SYX_TYPE_INFO_KIND_VOID: return make_syxv_bool(false);
+    case SYX_TYPE_INFO_KIND_CHAR: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_CHAR *)boxed->data);
+    case SYX_TYPE_INFO_KIND_I8: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_I8 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_I16: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_I16 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_I32: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_I32 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_I64: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_I64 *)boxed->data);
+#ifdef SYX_TYPE_I128_SUPPORTED
+    case SYX_TYPE_INFO_KIND_I128: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_I128 *)boxed->data);
+#endif
+    case SYX_TYPE_INFO_KIND_U8: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_U8 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_U16: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_U16 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_U32: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_U32 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_U64: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_U64 *)boxed->data);
+#ifdef SYX_TYPE_I128_SUPPORTED
+    case SYX_TYPE_INFO_KIND_U128: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_U128 *)boxed->data);
+#endif
+    case SYX_TYPE_INFO_KIND_INT: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_INT *)boxed->data);
+    case SYX_TYPE_INFO_KIND_INT_LONG: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_INT_LONG *)boxed->data);
+    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_INT_LONG_LONG *)boxed->data);
+    case SYX_TYPE_INFO_KIND_UINT: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_UINT *)boxed->data);
+    case SYX_TYPE_INFO_KIND_UINT_LONG: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_UINT_LONG *)boxed->data);
+    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_UINT_LONG_LONG *)boxed->data);
+#ifdef SYX_TYPE_SIZED_FLOAT_SUPPORTED
+    case SYX_TYPE_INFO_KIND_F16: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_F16 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_F32: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_F32 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_F64: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_F64 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_F128: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_F128 *)boxed->data);
+#endif
+    case SYX_TYPE_INFO_KIND_FLOAT: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_FLOAT *)boxed->data);
+    case SYX_TYPE_INFO_KIND_DOUBLE: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_DOUBLE *)boxed->data);
+    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_DOUBLE_LONG *)boxed->data);
+    case SYX_TYPE_INFO_KIND_SIZE: return make_syxv_bool((syx_bool_t) * (SYX_TYPE_SIZE *)boxed->data);
+    default: RUNTIME_ERROR(ctx, temp_sprintf("illegal conversion of boxed value (of kind: '%s') to bool", syx_type_info_kind_name(boxed->typeinfo->kind)));
+  }
+}
+
+SyxV *syx_convert_boxed_to_number(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed) {
+  if (!boxed->data) RUNTIME_ERROR(ctx, "illegal conversion of null boxed value to number");
+  switch (boxed->typeinfo->kind) {
+    // case SYX_TYPE_INFO_KIND_PTR: break;
+    // case SYX_TYPE_INFO_KIND_FUNCTION_PTR: break;
+    case SYX_TYPE_INFO_KIND_STRUCTURE: TODO("Implement structure conversion to number");
+    // case SYX_TYPE_INFO_KIND_VOID: break;
+    case SYX_TYPE_INFO_KIND_CHAR: return make_syxv_number_integer(*(SYX_TYPE_CHAR *)boxed->data);
+    case SYX_TYPE_INFO_KIND_I8: return make_syxv_number_integer(*(SYX_TYPE_I8 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_I16: return make_syxv_number_integer(*(SYX_TYPE_I16 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_I32: return make_syxv_number_integer(*(SYX_TYPE_I32 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_I64: return make_syxv_number_integer(*(SYX_TYPE_I64 *)boxed->data);
+#ifdef SYX_TYPE_I128_SUPPORTED
+    case SYX_TYPE_INFO_KIND_I128: return make_syxv_number_integer(*(SYX_TYPE_I128 *)boxed->data);
+#endif
+    case SYX_TYPE_INFO_KIND_U8: return make_syxv_number_integer(*(SYX_TYPE_U8 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_U16: return make_syxv_number_integer(*(SYX_TYPE_U16 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_U32: return make_syxv_number_integer(*(SYX_TYPE_U32 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_U64: return make_syxv_number_integer(*(SYX_TYPE_U64 *)boxed->data);
+#ifdef SYX_TYPE_I128_SUPPORTED
+    case SYX_TYPE_INFO_KIND_U128: return make_syxv_number_integer(*(SYX_TYPE_U128 *)boxed->data);
+#endif
+    case SYX_TYPE_INFO_KIND_INT: return make_syxv_number_integer(*(SYX_TYPE_INT *)boxed->data);
+    case SYX_TYPE_INFO_KIND_INT_LONG: return make_syxv_number_integer(*(SYX_TYPE_INT_LONG *)boxed->data);
+    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: return make_syxv_number_integer(*(SYX_TYPE_INT_LONG_LONG *)boxed->data);
+    case SYX_TYPE_INFO_KIND_UINT: return make_syxv_number_integer(*(SYX_TYPE_UINT *)boxed->data);
+    case SYX_TYPE_INFO_KIND_UINT_LONG: return make_syxv_number_integer(*(SYX_TYPE_UINT_LONG *)boxed->data);
+    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: return make_syxv_number_integer(*(SYX_TYPE_UINT_LONG_LONG *)boxed->data);
+#ifdef SYX_TYPE_SIZED_FLOAT_SUPPORTED
+    case SYX_TYPE_INFO_KIND_F16: return make_syxv_number_fractional(*(SYX_TYPE_F16 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_F32: return make_syxv_number_fractional(*(SYX_TYPE_F32 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_F64: return make_syxv_number_fractional(*(SYX_TYPE_F64 *)boxed->data);
+    case SYX_TYPE_INFO_KIND_F128: return make_syxv_number_fractional(*(SYX_TYPE_F128 *)boxed->data);
+#endif
+    case SYX_TYPE_INFO_KIND_FLOAT: return make_syxv_number_fractional(*(SYX_TYPE_FLOAT *)boxed->data);
+    case SYX_TYPE_INFO_KIND_DOUBLE: return make_syxv_number_fractional(*(SYX_TYPE_DOUBLE *)boxed->data);
+    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: return make_syxv_number_fractional(*(SYX_TYPE_DOUBLE_LONG *)boxed->data);
+    case SYX_TYPE_INFO_KIND_SIZE: return make_syxv_number_integer(*(SYX_TYPE_SIZE *)boxed->data);
+    default: RUNTIME_ERROR(ctx, temp_sprintf("illegal conversion of boxed value (of kind: '%s') to number", syx_type_info_kind_name(boxed->typeinfo->kind)));
+  }
+}
+
+SyxV *syx_convert_boxed_to_string(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed) {
+  if (!boxed->data) RUNTIME_ERROR(ctx, "illegal conversion of null boxed value to string");
+  switch (boxed->typeinfo->kind) {
+    case SYX_TYPE_INFO_KIND_PTR: {
+      if (boxed->typeinfo->ptr->kind == SYX_TYPE_INFO_KIND_CHAR) TODO("implement boxed string to syxv string");
+      RUNTIME_ERROR(ctx, "illegal conversion of pointer boxed value to string");
+    } break;
+    // case SYX_TYPE_INFO_KIND_FUNCTION_PTR: break;
+    case SYX_TYPE_INFO_KIND_STRUCTURE: TODO("Implement structure conversion to string");
+    // case SYX_TYPE_INFO_KIND_VOID: break;
+    case SYX_TYPE_INFO_KIND_CHAR: return make_syxv_string_n((SYX_TYPE_CHAR *)boxed->data, 1);
+    case SYX_TYPE_INFO_KIND_I8: return make_syxv_string(stringify_integer(*(SYX_TYPE_I8 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_I16: return make_syxv_string(stringify_integer(*(SYX_TYPE_I16 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_I32: return make_syxv_string(stringify_integer(*(SYX_TYPE_I32 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_I64: return make_syxv_string(stringify_integer(*(SYX_TYPE_I64 *)boxed->data));
+#ifdef SYX_TYPE_I128_SUPPORTED
+    case SYX_TYPE_INFO_KIND_I128: return make_syxv_string(stringify_integer(*(SYX_TYPE_I128 *)boxed->data));
+#endif
+    case SYX_TYPE_INFO_KIND_U8: return make_syxv_string(stringify_integer(*(SYX_TYPE_U8 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_U16: return make_syxv_string(stringify_integer(*(SYX_TYPE_U16 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_U32: return make_syxv_string(stringify_integer(*(SYX_TYPE_U32 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_U64: return make_syxv_string(stringify_integer(*(SYX_TYPE_U64 *)boxed->data));
+#ifdef SYX_TYPE_I128_SUPPORTED
+    case SYX_TYPE_INFO_KIND_U128: return make_syxv_string(stringify_integer(*(SYX_TYPE_U128 *)boxed->data));
+#endif
+    case SYX_TYPE_INFO_KIND_INT: return make_syxv_string(stringify_integer(*(SYX_TYPE_INT *)boxed->data));
+    case SYX_TYPE_INFO_KIND_INT_LONG: return make_syxv_string(stringify_integer(*(SYX_TYPE_INT_LONG *)boxed->data));
+    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: return make_syxv_string(stringify_integer(*(SYX_TYPE_INT_LONG_LONG *)boxed->data));
+    case SYX_TYPE_INFO_KIND_UINT: return make_syxv_string(stringify_integer(*(SYX_TYPE_UINT *)boxed->data));
+    case SYX_TYPE_INFO_KIND_UINT_LONG: return make_syxv_string(stringify_integer(*(SYX_TYPE_UINT_LONG *)boxed->data));
+    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: return make_syxv_string(stringify_integer(*(SYX_TYPE_UINT_LONG_LONG *)boxed->data));
+#ifdef SYX_TYPE_SIZED_FLOAT_SUPPORTED
+    case SYX_TYPE_INFO_KIND_F16: return make_syxv_string(stringify_fractional(*(SYX_TYPE_F16 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_F32: return make_syxv_string(stringify_fractional(*(SYX_TYPE_F32 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_F64: return make_syxv_string(stringify_fractional(*(SYX_TYPE_F64 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_F128: return make_syxv_string(stringify_fractional(*(SYX_TYPE_F128 *)boxed->data));
+#endif
+    case SYX_TYPE_INFO_KIND_FLOAT: return make_syxv_string(stringify_fractional(*(SYX_TYPE_FLOAT *)boxed->data));
+    case SYX_TYPE_INFO_KIND_DOUBLE: return make_syxv_string(stringify_fractional(*(SYX_TYPE_DOUBLE *)boxed->data));
+    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: return make_syxv_string(stringify_fractional(*(SYX_TYPE_DOUBLE_LONG *)boxed->data));
+    case SYX_TYPE_INFO_KIND_SIZE: return make_syxv_string(stringify_integer(*(SYX_TYPE_SIZE *)boxed->data));
+    default: RUNTIME_ERROR(ctx, temp_sprintf("illegal conversion of boxed value (of kind: '%s') to string", syx_type_info_kind_name(boxed->typeinfo->kind)));
+  }
+}
+
+#endif // SYX_BOXED_IMPL
