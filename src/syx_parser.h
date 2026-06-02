@@ -189,7 +189,7 @@ define_constant(Ht(char, SyxV_Dispatcher), DISPATCH_TABLE) {
   *ht_put(DISPATCH_TABLE, 't') = parser__dispatch_syxv_true;
   *ht_put(DISPATCH_TABLE, 'f') = parser__dispatch_syxv_false;
   *ht_put(DISPATCH_TABLE, '(') = parser__dispatch_syxv_vector;
-  *ht_put(DISPATCH_TABLE, '[') = parser__dispatch_syxv_boxed;
+  *ht_put(DISPATCH_TABLE, '.') = parser__dispatch_syxv_boxed;
 }
 
 SyxV *parse__syxv_dispatch(SyxV_Parser_Context *ctx) {
