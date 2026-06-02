@@ -91,20 +91,28 @@ SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
   rc_acquire(target);
   SyxV *value = syx_eval(ctx, syxv_list_next(&arguments));
   syx_eval_early_exit(value, target);
-  switch (target->kind) {
-    case SYXV_KIND_SYMBOL: {
-      syx_env_set(ctx->env, &target->symbol, value);
-      rc_release(target);
-      return make_syxv_nil();
-    } break;
-    case SYXV_KIND_BOXED: {
-      SyxV *result = syx_boxed_set(ctx, target->boxed, value);
-      rc_acquire(result);
-      rc_release(target);
-      return rc_move(result);
-    }
-    default: RUNTIME_ERROR(ctx, "unsupported set expression", target);
+  if (target->lvalue) {
+    rc_acquire(value);
+    SyxV *result = target->lvalue->callback(ctx, target, target->lvalue->data, value);
+    if (!result) result = make_syxv_nil();
+    rc_acquire(result);
+    rc_release(target);
+    rc_release(value);
+    return rc_move(result);
+  } else if (target->kind == SYXV_KIND_SYMBOL) {
+    syx_env_set(ctx->env, &target->symbol, value);
+    rc_release(target);
+    return make_syxv_nil();
+  } else if (target->kind == SYXV_KIND_BOXED) {
+    rc_acquire(value);
+    SyxV *result = syx_boxed_set(ctx, target->boxed, value);
+    if (!result) result = make_syxv_nil();
+    rc_acquire(result);
+    rc_release(target);
+    rc_release(value);
+    return rc_move(result);
   }
+  RUNTIME_ERROR(ctx, "unsupported set expression", target);
 }
 
 /** Checks if environment has binding. */
@@ -325,7 +333,7 @@ SyxV *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
   SyxV *evaluated = syx_eval_list(ctx, arguments);
   syx_eval_early_exit(evaluated, head);
   rc_acquire(evaluated);
-  SyxV *result = rc_acquire(syxv_eval_boxed_construct(ctx, head->constructor.typeinfo, evaluated));
+  SyxV *result = rc_acquire(syx_eval_boxed_construct(ctx, head->constructor.typeinfo, evaluated));
   rc_release(evaluated);
   return rc_move(result);
 }

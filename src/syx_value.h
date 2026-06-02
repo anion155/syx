@@ -16,6 +16,7 @@ typedef enum : unsigned int {
   SYXV_KIND_NUMBER,
   SYXV_KIND_STRING,
   SYXV_KIND_BOXED,
+  SYXV_KIND_BOXED_METHOD,
   SYXV_KIND_SPECIALF,
   SYXV_KIND_BUILTIN,
   SYXV_KIND_CLOSURE,
@@ -69,14 +70,25 @@ typedef struct Syx_Constructor {
 } Syx_Constructor;
 
 typedef struct Syx_Boxed Syx_Boxed;
+typedef struct Syx_Boxed_Method Syx_Boxed_Method;
 
 typedef struct SyxV_Thrown {
   SyxV *reason;
   Syx_Frame *stack_frame;
 } SyxV_Thrown;
 
+typedef SyxV *(*Syx_LValue)(Syx_Eval_Ctx *ctx, SyxV *target, void *data, SyxV *value);
+
+typedef struct Syx_LValue_Closure {
+  Syx_LValue callback;
+  void *data;
+} Syx_LValue_Closure;
+
+Syx_LValue_Closure *make_syx_lvalue_closure(Syx_LValue callback, void *data);
+
 struct SyxV {
   SyxV_Kind kind;
+  Syx_LValue_Closure *lvalue;
 
   union {
     SyxV_Symbol symbol;
@@ -85,6 +97,7 @@ struct SyxV {
     Syx_Number number;
     syx_string_view_t string;
     Syx_Boxed *boxed;
+    Syx_Boxed_Method *boxed_method;
     SyxV *quote;
     Syx_SpecialF specialf;
     Syx_Builtin builtin;
@@ -126,6 +139,7 @@ SyxV *make_syxv_string_cstr(const char *value);
       syx_string_view_t: make_syxv_string_sv(value),        \
       const char *: make_syxv_string_cstr(value))
 SyxV *make_syxv_boxed(Syx_Boxed *boxed);
+SyxV *make_syxv_boxed_method(Syx_Boxed_Method *method);
 SyxV *make_syxv_specialf(const char *name, Syx_SpecialF_Evaluator eval);
 SyxV *make_syxv_builtin(const char *name, Syx_Evaluator eval);
 SyxV *make_syxv_closure(const char *name, SyxV *defines, SyxV *body, Syx_Env *env);
@@ -188,6 +202,18 @@ void fprint_syxv(FILE *f, SyxV *value);
 #define SYX_TYPE_INFO_IMPL
 #include "syx_type_info.h"
 
+void syx_lvalue_closure_destructor(void *data) {
+  Syx_LValue_Closure *lvalue = data;
+  free(lvalue->data);
+}
+
+Syx_LValue_Closure *make_syx_lvalue_closure(Syx_LValue callback, void *data) {
+  Syx_LValue_Closure *lvalue = rc_malloc(sizeof(Syx_LValue_Closure), .destructor = syx_lvalue_closure_destructor);
+  lvalue->callback = callback;
+  lvalue->data = data;
+  return lvalue;
+}
+
 SyxV *make_syxv(SyxV_Kind kind) {
   SyxV *value = rc_malloc(sizeof(SyxV), .destructor = syxv_destructor);
   assert(value);
@@ -212,6 +238,7 @@ define_constant(Ht(const char *, SyxV *), SYXV_SYMBOLS) {
 
 void syxv_destructor(void *data) {
   SyxV *syxv = data;
+  if (syxv->lvalue) rc_release(syxv->lvalue);
   switch (syxv->kind) {
     case SYXV_KIND_NIL: break;
     case SYXV_KIND_SYMBOL: {
@@ -227,6 +254,7 @@ void syxv_destructor(void *data) {
     case SYXV_KIND_NUMBER: break;
     case SYXV_KIND_STRING: free((char *)syxv->string.data); break;
     case SYXV_KIND_BOXED: rc_release(syxv->boxed); break;
+    case SYXV_KIND_BOXED_METHOD: rc_release(syxv->boxed_method); break;
     case SYXV_KIND_SPECIALF: {
       if (syxv->specialf.name) free(syxv->specialf.name);
     } break;
@@ -343,6 +371,12 @@ SyxV *make_syxv_string_cstr(const char *value) {
 SyxV *make_syxv_boxed(Syx_Boxed *boxed) {
   SyxV *value = make_syxv(SYXV_KIND_BOXED);
   if (boxed) value->boxed = rc_acquire(boxed);
+  return value;
+}
+
+SyxV *make_syxv_boxed_method(Syx_Boxed_Method *method) {
+  SyxV *value = make_syxv(SYXV_KIND_BOXED_METHOD);
+  if (method) value->boxed_method = rc_acquire(method);
   return value;
 }
 
@@ -526,6 +560,16 @@ size_t stringify__syxv_n(char *string, SyxV *value, SyxV_Stringify_Cache *cache)
     } break;
     case SYXV_KIND_BOXED: {
       __str_convert(stringify_syx_boxed_n, value->boxed);
+    } break;
+    case SYXV_KIND_BOXED_METHOD: {
+      __str_push('(');
+      __str_convert(stringify_syx_boxed_n, value->boxed_method->boxed);
+      __str_push(' ');
+      __str_push('<');
+      syx_string_t name = value->boxed_method->method_field->name;
+      __str_convert(stringify_string_n, name.items, name.count);
+      __str_push('>');
+      __str_push(')');
     } break;
     case SYXV_KIND_SPECIALF: {
       __str_push('?');

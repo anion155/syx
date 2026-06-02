@@ -87,6 +87,26 @@ SyxV *syxv_vector_append(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments) {
   return make_syxv_number_integer(vector->count);
 }
 
+SyxV *syxv_vector_virtual_getter(Syx_Eval_Ctx *ctx, void *data, const char *field_name) {
+  UNUSED(ctx);
+  UNUSED(data);
+  if (strcmp(field_name, "test") == 0) {
+    return make_syxv_string_cstr("gg test");
+  }
+  return NULL;
+}
+
+SyxV *syxv_vector_virtual_setter(Syx_Eval_Ctx *ctx, void *data, const char *field_name, SyxV *argument) {
+  UNUSED(ctx);
+  UNUSED(data);
+  if (strcmp(field_name, "test") == 0) {
+    syx_string_t str = stringify_syxv(argument);
+    printf("test value set: %s\n", str.items);
+    sb_free(str);
+  }
+  return NULL;
+}
+
 void syx_env_define_vector(Syx_Env *env) {
   // clang-format off
   syx_env_define_cstr(env, "vector", make_syxv_constructor(make_syx_type_info_opt((Syx_Type_Info){
@@ -116,6 +136,8 @@ void syx_env_define_vector(Syx_Env *env) {
         }}},
         {"append", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_METHOD, .method = syxv_vector_append}},
       ),
+      .field_getter = syxv_vector_virtual_getter,
+      .field_setter = syxv_vector_virtual_setter,
       .destructor = da_destructor
     },
   })));

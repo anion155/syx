@@ -113,6 +113,7 @@ typedef struct Syx_Type_Info_Structure_Accessor_Field {
 typedef SyxV *(*Syx_Type_Info_Structure_Method)(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments);
 
 typedef struct Syx_Type_Info_Structure_Field {
+  syx_string_t name;
   Syx_Type_Info_Structure_Field_Kind kind;
 
   union {
@@ -372,7 +373,9 @@ Syx_Type_Info_Structure_Fields make_syx_type_info_structure_fields_opt(Syx_Field
         offset = field.data.offset + field.data.typeinfo->size;
       }
     }
-    char *key = strdup(pairs[index].key);
+    size_t length = strlen(pairs[index].key);
+    char *key = strndup(pairs[index].key, length);
+    field.name = (syx_string_t){.items = key, .count = length + 1, .capacity = length + 1};
     *ht_put(&fields, key) = field;
   }
   return fields;

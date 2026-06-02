@@ -9,6 +9,8 @@
 - `(a . b)` - pair of `a` and `b`
 - `(a b)` - list of `a`, `b` and `nil`
 - `(a b . c)` - list of `a`, `b` and `c`
+- `'(a b . c)` - evaluates to whatever comes after `'`
+<!-- - `,(a b . c)` -  -->
 
 ### Functions
 Functions can be:
