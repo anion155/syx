@@ -119,7 +119,6 @@ SyxV *eval_import(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   if (!nob_read_entire_file(name->string.data, &module_sb)) UNREACHABLE("Failed to read file");
   sb_append(&module_sb, 0);
   module_sb.items = rc_acquire(rc_manage(module_sb.items, module_sb.count));
-  sb_free(module_sb);
   syx_ctx_push_frame(ctx, callable->name);
   Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = syx_env_global(ctx->env)));
   SyxV *result = syx_parse_and_eval(import_ctx, module_sb.items);

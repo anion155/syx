@@ -1,12 +1,9 @@
 - check memory cleanup
 
-- boxed lvalue support
 - boxed ffi
 - syx_eval_should_early_exit should expect acquired value
 - syxv_list_map should not acquire result
-- struct methods
-- struct convert to basic types using predefined methods
-- struct methods as callables on stack
+- stringify_<>_n, stringify_<>, sb_append_<> redo to be based on sb_append_<>
 - attach stack frame to error object on throw
 - catch parser errors
 - compiler test runner

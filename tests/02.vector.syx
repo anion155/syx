@@ -1,82 +1,60 @@
 (setopt x #true)
 (setopt e #false)
 
-(define v #(1))
-(v count)
-(v capacity)
-(v append 2 3 4 5)
-(v count)
-(v capacity)
-
-;; ;; Syx Vector Behavior Tests
+;; Syx Vector Behavior Tests
 
 ;; ;; Test: Literal Vector Instantiation
 ;; ;; Expected: #true (Instance is truthy)
 ;; (let ((vec #(1 2 3)))
 ;;   (if vec #true #false))
 
-;; ;; Test: Vector count field access
-;; ;; Expected: 3
-;; (#(10 20 30) 'count)
+;; Test: Vector count field access
+;; Expected: 3
+(#(10 20 30) count)
 
-;; ;; Test: Empty vector count
-;; ;; Expected: 0
-;; (#() 'count)
+;; Test: Empty vector count
+;; Expected: 0
+(#() count)
 
-;; ;; Test: First element access (positive index)
-;; ;; Expected: 10
-;; (#(10 20 30) 0)
+;; Test: First element access (positive index)
+;; Expected: 10
+(#(10 20 30) 0)
 
-;; ;; Test: Last element access via signed wrap-around
-;; ;; Expected: 30
-;; (#(10 20 30) -1)
+;; Test: Last element access via signed wrap-around
+;; Expected: 30
+(#(10 20 30) -1)
 
-;; ;; Test: Negative index offset wrapping
-;; ;; Expected: 20
-;; (#(10 20 30) -2)
+;; Test: Negative index offset wrapping
+;; Expected: 20
+(#(10 20 30) -2)
 
-;; ;; Test: Out of bounds positive index
-;; ;; Expected: <throw: out of bound>
-;; (#(1 2 3) 4)
+;; Test: Out of bounds positive index
+;; Expected: <throw: out of bound>
+(#(1 2 3) 4)
 
-;; ;; Test: Out of bounds negative index
-;; ;; Expected: <throw: out of bound>
-;; (#(1 2 3) -4)
+;; Test: Out of bounds negative index
+;; Expected: <throw: out of bound>
+(#(1 2 3) -4)
 
-;; ;; Test: Functional Mutation (Indexed Setter)
-;; ;; Expected: 999
-;; (let ((vec #(10 20 30)))
-;;   (vec 1 999)
-;;   (vec 1))
+;; Test: Functional Mutation (Indexed Setter)
+;; Expected: 999
+(let ((vec #(10 20 30)))
+  (vec 1 999)
+  (vec 1))
 
-;; ;; Test: Functional Mutation via negative index
-;; ;; Expected: 777
-;; (let ((vec #(10 20 30)))
-;;   (vec -1 777)
-;;   (vec 2))
+;; Test: Functional Mutation via negative index
+;; Expected: 777
+(let ((vec #(10 20 30)))
+  (vec -1 777)
+  (vec 2))
 
-;; ;; Test: Set field value
-;; (define vec #(10 20 30))
-;; ;; (println vec)
-;; (vec capacity)
-;; (vec count)
-;; (vec 2)
-;; (vec count 2)
-;; (vec 2)
-;; (vec capacity)
-;; ;; (println vec)
-;; (vec count)
-;; (vec count 3)
-;; (vec 2)
-;; ;; (println vec)
-;; (vec count)
-
-;; ;; Test: Call method
-;; (define vec #(10 20 30))
-;; ;; (println vec)
-;; (vec append 40 50 60)
-;; (vec count)
-;; (vec capacity)
-;; (vec 3)
-;; (vec 4)
-;; (vec 5)
+;; Test: Call method
+(let (
+    (v #(1))
+  )
+  (v count)
+  (v capacity)
+  ((v append) 2 3 4 5)
+  (v count)
+  (v capacity)
+)

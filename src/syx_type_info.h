@@ -11,6 +11,7 @@
 typedef enum Syx_Type_Info_Kind {
   SYX_TYPE_INFO_KIND_PTR,
   SYX_TYPE_INFO_KIND_FUNCTION_PTR,
+  SYX_TYPE_INFO_KIND_VALUE_PTR,
   SYX_TYPE_INFO_KIND_STRUCTURE,
   SYX_TYPE_INFO_KIND_VOID, // void
   SYX_TYPE_INFO_KIND_CHAR, // char
@@ -171,7 +172,7 @@ Syx_Type_Info_Structure_Fields make_syx_type_info_structure_fields_opt(Syx_Field
       sizeof((Syx_Field_Pair[]){__VA_ARGS__}) / sizeof(Syx_Field_Pair))
 
 size_t stringify_syx_type_info_n(char *string, Syx_Type_Info *typeinfo);
-String_Builder stringify_syx_type_info(Syx_Type_Info *typeinfo);
+syx_string_t stringify_syx_type_info(Syx_Type_Info *typeinfo);
 void sb_append_syx_type_info(String_Builder *sb, Syx_Type_Info *typeinfo);
 
 #endif // SYX_TYPE_INFO_H
@@ -188,6 +189,7 @@ const char *syx_type_info_kind_name(Syx_Type_Info_Kind kind) {
   switch (kind) {
     case SYX_TYPE_INFO_KIND_PTR: return "*";
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: return "fn()";
+    case SYX_TYPE_INFO_KIND_VALUE_PTR: return "SyxV*";
     case SYX_TYPE_INFO_KIND_STRUCTURE: return "struct {}";
     case SYX_TYPE_INFO_KIND_VOID: return STRINGIFY2(SYX_TYPE_VOID);
     case SYX_TYPE_INFO_KIND_CHAR: return STRINGIFY2(SYX_TYPE_CHAR);
@@ -226,10 +228,10 @@ void syx_type_info_destructor(void *data) {
       if (typeinfo->ptr) rc_release(typeinfo->ptr);
     } break;
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: {
-      if (typeinfo->function.return_type) rc_acquire(typeinfo->function.return_type);
+      if (typeinfo->function.return_type) rc_release(typeinfo->function.return_type);
       for (size_t index = 0; index < typeinfo->function.argc; index += 1) {
         Syx_Type_Info *arg = typeinfo->function.argv[index];
-        if (arg) rc_acquire(arg);
+        if (arg) rc_release(arg);
       }
     } break;
     case SYX_TYPE_INFO_KIND_STRUCTURE: {
@@ -301,8 +303,8 @@ Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt) {
         if (arg) rc_acquire(arg);
       }
     } break;
+    case SYX_TYPE_INFO_KIND_VALUE_PTR: typeinfo->size = __SIZEOF_POINTER__; break;
     case SYX_TYPE_INFO_KIND_STRUCTURE: {
-      if (typeinfo->size == 0) UNREACHABLE("typeinfo.size expected");
       size_t max_align = 0;
       ht_foreach(field, &typeinfo->structure.fields) {
         switch (field->kind) {
@@ -316,7 +318,7 @@ Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt) {
       }
       if (typeinfo->align == 0) typeinfo->align = max_align;
     } break;
-    case SYX_TYPE_INFO_KIND_VOID: break;
+    case SYX_TYPE_INFO_KIND_VOID: return typeinfo;
 #define __init_typeinfo(type)    \
   typeinfo->size = sizeof(type); \
   typeinfo->align = _Alignof(type)
@@ -354,6 +356,7 @@ Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt) {
 #undef __init_typeinfo
     default: UNREACHABLE(temp_sprintf("kind is not supported: %u '%s'", typeinfo->kind, syx_type_info_kind_name(typeinfo->kind)));
   }
+  if (typeinfo->size == 0) UNREACHABLE("typeinfo.size expected");
   return typeinfo;
 }
 
@@ -390,11 +393,6 @@ size_t stringify_syx_type_info_n(char *string, Syx_Type_Info *typeinfo) {
       else __str_convert(stringify_syx_type_info_n, typeinfo->ptr);
       __str_push(')');
     } break;
-    case SYX_TYPE_INFO_KIND_STRUCTURE: {
-      __str_push_cstr("#.");
-      if (typeinfo->symbol) __str_convert(stringify_syxv_symbol_n, typeinfo->symbol);
-      else __str_push_cstr("<anonim>");
-    } break;
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: {
       __str_push_cstr("#.fn(");
       if (typeinfo->symbol) {
@@ -412,6 +410,14 @@ size_t stringify_syx_type_info_n(char *string, Syx_Type_Info *typeinfo) {
         __str_push(')');
       };
       __str_push(')');
+    } break;
+    case SYX_TYPE_INFO_KIND_VALUE_PTR: {
+      __str_push_cstr("#.syxv");
+    } break;
+    case SYX_TYPE_INFO_KIND_STRUCTURE: {
+      __str_push_cstr("#.");
+      if (typeinfo->symbol) __str_convert(stringify_syxv_symbol_n, typeinfo->symbol);
+      else __str_push_cstr("<anonim>");
     } break;
     case SYX_TYPE_INFO_KIND_VOID: __str_push_cstr("#.c_void"); break;
     case SYX_TYPE_INFO_KIND_CHAR: __str_push_cstr("#.c_char"); break;
@@ -450,7 +456,7 @@ size_t stringify_syx_type_info_n(char *string, Syx_Type_Info *typeinfo) {
   return __str_width();
 }
 
-String_Builder stringify_syx_type_info(Syx_Type_Info *typeinfo) {
+syx_string_t stringify_syx_type_info(Syx_Type_Info *typeinfo) {
   __stringify_body(stringify_syx_type_info_n, 256, typeinfo);
 }
 

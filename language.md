@@ -211,6 +211,8 @@ Where `field-identifier` can be number or symbol:
 `(<boxed> 1 symbol 2)`
 
 `field-identifier` is not evaluated by default, but it creates quasiquoted environment and evaluates `,<value>`.
+`(<boxed> unref)` - try to unref referrence boxed value
+`(<boxed> unbox)` - try to unbox boxed value to native data type
 
 ### vector
 

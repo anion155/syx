@@ -21,12 +21,15 @@ Syx_Env *make_global_syx_env();
 #include "syx_eval_builtins.h"
 #define SYX_VECTOR_IMPL
 #include "syx_vector.h"
+#define SYX_TEST_VECTOR_IMPL
+#include "syx_test_vector.h"
 
 Syx_Env *make_global_syx_env() {
   Syx_Env *env = make_syx_env(NULL, "<global>");
   syx_env_define_special_forms(env);
   syx_env_define_builtins(env);
   syx_env_define_vector(env);
+  syx_env_define_test_vector(env);
   //   syx_env_define_arithmetic(env);
   //   syx_env_define_comparison(env);
   //   syx_env_define_equality(env);

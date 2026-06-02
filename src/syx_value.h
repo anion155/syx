@@ -171,12 +171,12 @@ bool syxv__list_map_next(SyxV **source_it, SyxV ***target_it, SyxV ***value, Syx
            WITH_DEFAULT(NULL, __VA_ARGS__));)
 
 size_t stringify_syxv_symbol_n(char *string, SyxV_Symbol *symbol);
-// String_Builder stringify_syxv_symbol(SyxV_Symbol *symbol);
+// syx_string_t stringify_syxv_symbol(SyxV_Symbol *symbol);
 // void sb_append_syxv_symbol(String_Builder *sb, SyxV_Symbol *symbol);
 
 typedef Ht(SyxV *, String_Builder, SyxV_Stringify_Cache) SyxV_Stringify_Cache;
 size_t stringify__syxv_n(char *string, SyxV *value, SyxV_Stringify_Cache *cache);
-#define stringify_syxv_n(value, length, string, ...) stringify__syxv_n((value), (length), (string), WITH_DEFAULT(NULL, __VA_ARGS__))
+#define stringify_syxv_n(string, value, ...) stringify__syxv_n((string), (value), WITH_DEFAULT(NULL, __VA_ARGS__))
 syx_string_t stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache);
 #define stringify_syxv(value, ...) stringify__syxv((value), WITH_DEFAULT(NULL, __VA_ARGS__))
 void sb_append__syxv(String_Builder *sb, SyxV *value, SyxV_Stringify_Cache *cache);
@@ -562,14 +562,7 @@ size_t stringify__syxv_n(char *string, SyxV *value, SyxV_Stringify_Cache *cache)
       __str_convert(stringify_syx_boxed_n, value->boxed);
     } break;
     case SYXV_KIND_BOXED_METHOD: {
-      __str_push('(');
-      __str_convert(stringify_syx_boxed_n, value->boxed_method->boxed);
-      __str_push(' ');
-      __str_push('<');
-      syx_string_t name = value->boxed_method->method_field->name;
-      __str_convert(stringify_string_n, name.items, name.count);
-      __str_push('>');
-      __str_push(')');
+      __str_convert(stringify_syx_boxed_method_n, value->boxed_method);
     } break;
     case SYXV_KIND_SPECIALF: {
       __str_push('?');

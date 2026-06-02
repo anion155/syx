@@ -53,30 +53,6 @@ SyxV *syxv_vector_setter(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index, Syx
   return NULL;
 }
 
-SyxV *syxv_vector_count_getter(Syx_Eval_Ctx *ctx, void *data) {
-  UNUSED(ctx);
-  SyxV_Vector *vector = data;
-  return make_syxv_number_integer(vector->count);
-}
-
-SyxV *syxv_vector_count_setter(Syx_Eval_Ctx *ctx, void *data, SyxV *argument) {
-  SyxV_Vector *vector = data;
-  Syx_Number number = {0};
-  syx_convert_to(ctx, argument, &number);
-  size_t new_count = syx_number_integer_value(number);
-  if (new_count > vector->count) {
-    da_realloc_capacity(vector, new_count);
-    syxv_vector_zero_init_rest(vector);
-    vector->count = new_count;
-  } else if (new_count < vector->count) {
-    for (size_t index = new_count; index < vector->count; index += 1) {
-      if (vector->items[index]) rc_release(vector->items[index]);
-    }
-    vector->count = new_count;
-  }
-  return NULL;
-}
-
 SyxV *syxv_vector_append(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments) {
   SyxV_Vector *vector = data;
   SyxV *last_argument = NULL;
@@ -85,26 +61,6 @@ SyxV *syxv_vector_append(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments) {
   }
   if (last_argument->kind != SYXV_KIND_NIL) RUNTIME_ERROR(ctx, "list expected as arguments");
   return make_syxv_number_integer(vector->count);
-}
-
-SyxV *syxv_vector_virtual_getter(Syx_Eval_Ctx *ctx, void *data, const char *field_name) {
-  UNUSED(ctx);
-  UNUSED(data);
-  if (strcmp(field_name, "test") == 0) {
-    return make_syxv_string_cstr("gg test");
-  }
-  return NULL;
-}
-
-SyxV *syxv_vector_virtual_setter(Syx_Eval_Ctx *ctx, void *data, const char *field_name, SyxV *argument) {
-  UNUSED(ctx);
-  UNUSED(data);
-  if (strcmp(field_name, "test") == 0) {
-    syx_string_t str = stringify_syxv(argument);
-    printf("test value set: %s\n", str.items);
-    sb_free(str);
-  }
-  return NULL;
 }
 
 void syx_env_define_vector(Syx_Env *env) {
@@ -122,22 +78,16 @@ void syx_env_define_vector(Syx_Env *env) {
           .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_PTR, .ptr = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_VOID)),
           .readonly = true,
         }}},
-        // {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
-        //   .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
-        //   .readonly = true,
-        // }}},
-        {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_ACCESSOR, .accessor = {
-          .getter = syxv_vector_count_getter,
-          .setter = syxv_vector_count_setter,
+        {"count", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
+          .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
+          .readonly = true,
         }}},
         {"capacity", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
-          .typeinfo = make_syx_type_info_opt((Syx_Type_Info){.kind = SYX_TYPE_INFO_KIND_SIZE}),
+          .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
           .readonly = true,
         }}},
         {"append", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_METHOD, .method = syxv_vector_append}},
       ),
-      .field_getter = syxv_vector_virtual_getter,
-      .field_setter = syxv_vector_virtual_setter,
       .destructor = da_destructor
     },
   })));
