@@ -61,6 +61,7 @@ bool nonob__process_run(Nob_Cmd *cmd, Nob_String_Builder *stdout_sb, Nob_String_
 #define nonob_process_run(cmd, ...) nonob__process_run((cmd), WITH_TWO_DEFAULTS(NULL, NULL, __VA_ARGS__))
 
 bool nonob_cc_append_pkgconfig(Nob_Cmd *cmd, const char *libname);
+bool nonob_cc_append_sysroot(Nob_Cmd *cmd);
 
 #endif // NONOB_H
 
@@ -235,10 +236,17 @@ void nonob_append_cmd_to_ccjson() {
    * There can be multiple command objects for the same file, for example
    * if the same source file is compiled with different configurations. */
   if (strcmp(ctx.cmd.items[0], "cc") == 0 || strcmp(ctx.cmd.items[0], "clang") == 0 || strcmp(ctx.cmd.items[0], "gcc") == 0) {
-    da_foreach(const char *, arg, &ctx.cmd) {
-      if (strcmp(*arg, "-o") != 0) continue;
+    for (size_t index = 1; index < ctx.cmd.count; index += 1) {
+      const char *arg = ctx.cmd.items[index];
+      if (arg[0] == '-') {
+        if (arg[1] == 'o') index += 1;
+#ifdef __APPLE__
+        else if (strcmp(arg, "-sysroot") == 0) index += 1;
+#endif
+        continue;
+      }
       jim_member_key(&ctx.ccjson, "file");
-      jim_string(&ctx.ccjson, *(arg + 1));
+      jim_string(&ctx.ccjson, arg);
       break;
     }
   }
@@ -250,14 +258,17 @@ void nonob_append_cmd_to_ccjson() {
   jim_member_key(&ctx.ccjson, "arguments");
   jim_array_begin(&ctx.ccjson);
   {
-    bool output = false;
-    da_foreach(const char *, arg, &ctx.cmd) {
-      if (strcmp(*arg, "-o") == 0 || output) {
-        output = true;
+    for (size_t index = 0; index < ctx.cmd.count; index += 1) {
+      const char *arg = ctx.cmd.items[index];
+      if (arg[0] == '-' && arg[1] == 'o') {
+        index += 1;
+#ifdef __APPLE__
+      } else if (strcmp(arg, "-sysroot") == 0) {
+        index += 1;
+#endif
       } else {
-        jim_string(&ctx.ccjson, *arg);
+        jim_string(&ctx.ccjson, arg);
       }
-      output = false;
     }
   }
   jim_array_end(&ctx.ccjson);
@@ -316,6 +327,17 @@ bool nonob_cc_append_pkgconfig(Nob_Cmd *cmd, const char *libname) {
     if (arg.count) nob_cmd_append(cmd, nob_temp_sv_to_cstr(arg));
     arg = (Nob_String_View){.data = it.data + 1, .count = 0};
   }
+  return status;
+}
+
+bool nonob_cc_append_sysroot(Nob_Cmd *cmd) {
+  Nob_Cmd inner_cmd = {0};
+  nob_cmd_append(&inner_cmd, "xcrun", "--show-sdk-path");
+  Nob_String_Builder stdout_sb = {0};
+  bool status = nonob_process_run(&inner_cmd, &stdout_sb);
+  if (stdout_sb.items[stdout_sb.count - 2] == '\n') stdout_sb.items[stdout_sb.count - 2] = 0;
+  Nob_String_View stdout_sv = sb_to_sv(stdout_sb);
+  nob_cmd_append(cmd, "-isysroot", nob_temp_sv_to_cstr(stdout_sv));
   return status;
 }
 

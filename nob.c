@@ -31,17 +31,21 @@ bool command_build_run() {
   nob_cc_flags(&ctx.cmd);
   nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->src_path));
   nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->vendor_path));
+#ifdef __APPLE__
+  nonob_cc_append_sysroot(&ctx.cmd);
+#else
+  nonob_cc_append_pkgconfig(&ctx.cmd, "readline");
+  nonob_cc_append_pkgconfig(&ctx.cmd, "libffi");
+#endif
   if (ctx.s->build_sanitizer) nob_cmd_append(&ctx.cmd, "-ggdb", "-fsanitize=address");
   else if (ctx.s->build_debug) nob_cmd_append(&ctx.cmd, "-ggdb");
   nob_cc_inputs(&ctx.cmd, "-std=c23");
   nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/main.c", ctx.s->src_path));
   nob_cc_output(&ctx.cmd, ctx.s->syx_path);
 #ifdef __APPLE__
-  nonob_cc_append_pkgconfig(&ctx.cmd, "libedit");
-#else
-  nonob_cc_append_pkgconfig(&ctx.cmd, "readline");
+  nob_cmd_append(&ctx.cmd, "-ledit");
+  nob_cmd_append(&ctx.cmd, "-lffi");
 #endif
-  nonob_cc_append_pkgconfig(&ctx.cmd, "libffi");
   nonob_append_cmd_to_ccjson();
   if (!nob_cmd_run(&ctx.cmd)) return false;
 
