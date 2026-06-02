@@ -11,9 +11,9 @@ char *nanoid(const char *prefix, size_t size);
 #if defined(NANOID_IMPL) && !defined(NANOID_IMPL_C)
 #define NANOID_IMPL_C
 
-#include <magic.h>
-#include <nob.h>
-#include <stdlib.h>
+#include "./magic.h"
+#include "./nob.h"
+#include "./stdlib.h"
 
 char *nanoid_alph(Nob_String_View alphabet, const char *prefix, size_t size) {
   size_t prefix_size = prefix ? strlen(prefix) : 0;

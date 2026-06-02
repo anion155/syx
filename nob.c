@@ -37,11 +37,11 @@ bool command_build_run() {
   nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/main.c", ctx.s->src_path));
   nob_cc_output(&ctx.cmd, ctx.s->syx_path);
 #ifdef __APPLE__
-  nob_cmd_append(&ctx.cmd, "-ledit");
+  nonob_cc_append_pkgconfig(&ctx.cmd, "libedit");
 #else
-  nob_cmd_append(&ctx.cmd, "-lreadline");
+  nonob_cc_append_pkgconfig(&ctx.cmd, "readline");
 #endif
-  nob_cmd_append(&ctx.cmd, "-lffi");
+  nonob_cc_append_pkgconfig(&ctx.cmd, "libffi");
   nonob_append_cmd_to_ccjson();
   if (!nob_cmd_run(&ctx.cmd)) return false;
 

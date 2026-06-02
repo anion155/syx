@@ -57,6 +57,11 @@ bool nonob__run_command(const char *default_command);
 #define nonob_run_command(...) nonob__run_command(WITH_DEFAULT(NULL, __VA_ARGS__))
 void nonob_append_cmd_to_ccjson();
 
+bool nonob__process_run(Nob_Cmd *cmd, Nob_String_Builder *stdout_sb, Nob_String_Builder *stderr_sb);
+#define nonob_process_run(cmd, ...) nonob__process_run((cmd), WITH_TWO_DEFAULTS(NULL, NULL, __VA_ARGS__))
+
+bool nonob_cc_append_pkgconfig(Nob_Cmd *cmd, const char *libname);
+
 #endif // NONOB_H
 
 #if defined(NONOB_IMPL) && !defined(NONOB_IMPL_C)
@@ -76,6 +81,8 @@ void nonob_append_cmd_to_ccjson();
 #include "./flag.h"
 #define HT_IMPL
 #include "./ht.h"
+#define NANOID_IMPL
+#include "./nanoid.h"
 
 char *get_exe_path() {
   char exe_path[PATH_MAX + 1];
@@ -271,6 +278,45 @@ void nonob_append_cmd_to_ccjson() {
   // jim_string(&ctx.ccjson, ROOT_PATH);
 
   jim_object_end(&ctx.ccjson);
+}
+
+bool nonob__process_run(Nob_Cmd *cmd, Nob_String_Builder *stdout_sb, Nob_String_Builder *stderr_sb) {
+  const char *cwd = nob_get_current_dir_temp();
+  char *base = nanoid(cmd->items[0], 10);
+  Nob_Cmd_Opt opt = {0};
+  if (stdout_sb) opt.stdout_path = nob_temp_sprintf("%s/%s.stdout", cwd, base);
+  if (stderr_sb) opt.stderr_path = nob_temp_sprintf("%s/%s.stderr", cwd, base);
+  free(base);
+  bool status = nob_cmd_run_opt(cmd, opt);
+  if (stdout_sb) {
+    nob_read_entire_file(opt.stdout_path, stdout_sb);
+    nob_sb_append_null(stdout_sb);
+    nob_delete_file(opt.stdout_path);
+  }
+  if (stderr_sb) {
+    nob_read_entire_file(opt.stderr_path, stderr_sb);
+    nob_sb_append_null(stderr_sb);
+    nob_delete_file(opt.stderr_path);
+  }
+  return status;
+}
+
+bool nonob_cc_append_pkgconfig(Nob_Cmd *cmd, const char *libname) {
+  Nob_Cmd inner_cmd = {0};
+  nob_cmd_append(&inner_cmd, "pkg-config", "--cflags", "--libs", libname);
+  Nob_String_Builder stdout_sb = {0};
+  bool status = nonob_process_run(&inner_cmd, &stdout_sb);
+  Nob_String_View stdout_sv = sb_to_sv(stdout_sb);
+  Nob_String_View arg = {.data = stdout_sv.data, .count = 0};
+  for (Nob_String_View it = stdout_sv; it.count; nob_sv_chop_left(&it, 1)) {
+    if (!isspace(*it.data)) {
+      arg.count += 1;
+      continue;
+    }
+    if (arg.count) nob_cmd_append(cmd, nob_temp_sv_to_cstr(arg));
+    arg = (Nob_String_View){.data = it.data + 1, .count = 0};
+  }
+  return status;
 }
 
 #endif // NONOB_IMPL
