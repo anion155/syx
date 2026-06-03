@@ -241,7 +241,7 @@ void nonob_append_cmd_to_ccjson() {
       if (arg[0] == '-') {
         if (arg[1] == 'o') index += 1;
 #ifdef __APPLE__
-        else if (strcmp(arg, "-sysroot") == 0) index += 1;
+        else if (strcmp(arg, "-isysroot") == 0) index += 1;
 #endif
         continue;
       }
@@ -262,10 +262,6 @@ void nonob_append_cmd_to_ccjson() {
       const char *arg = ctx.cmd.items[index];
       if (arg[0] == '-' && arg[1] == 'o') {
         index += 1;
-#ifdef __APPLE__
-      } else if (strcmp(arg, "-sysroot") == 0) {
-        index += 1;
-#endif
       } else {
         jim_string(&ctx.ccjson, arg);
       }
