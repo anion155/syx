@@ -67,7 +67,6 @@ void syx_env_define_vector(Syx_Env *env) {
   // clang-format off
   syx_env_define_cstr(env, "vector", make_syxv_constructor(make_syx_type_info_opt((Syx_Type_Info){
     .size = sizeof(SyxV_Vector),
-    .symbol = (&make_syxv_symbol_cstr("vector")->symbol),
     .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
     .structure = {
       .constructor = syxv_vector_constructor,

@@ -1,6 +1,7 @@
 #ifndef SYX_TYPE_INFO_H
 #define SYX_TYPE_INFO_H
 
+#include <ffi/ffi.h>
 #include <ht.h>
 #include <limits.h>
 #include <stddef.h>
@@ -137,11 +138,13 @@ struct Syx_Type_Info_Structure {
 };
 
 struct Syx_Type_Info_Function {
-  size_t size;
   Syx_Type_Info *return_type;
   size_t argc;
-  Syx_Type_Info **argv;
+  Syx_Type_Info **argv_types;
   bool vaargs;
+  ffi_cif cif;
+  ffi_type *cif_return_type;
+  ffi_type **cif_argv_types;
 };
 
 struct Syx_Type_Info {
@@ -171,9 +174,19 @@ Syx_Type_Info_Structure_Fields make_syx_type_info_structure_fields_opt(Syx_Field
       (Syx_Field_Pair[]){__VA_ARGS__},           \
       sizeof((Syx_Field_Pair[]){__VA_ARGS__}) / sizeof(Syx_Field_Pair))
 
+Syx_Type_Info_Function make_syx_type_info__function(Syx_Type_Info_Function function, size_t argc, Syx_Type_Info **argv_types);
+#define make_syx_type_info_function(function, ...) make_syx_type_info__function( \
+    (function),                                                                  \
+    sizeof((Syx_Type_Info *[]){__VA_ARGS__}) / sizeof(Syx_Type_Info *),          \
+    (Syx_Type_Info *[]){__VA_ARGS__})
+
 size_t stringify_syx_type_info_n(char *string, Syx_Type_Info *typeinfo);
 syx_string_t stringify_syx_type_info(Syx_Type_Info *typeinfo);
 void sb_append_syx_type_info(String_Builder *sb, Syx_Type_Info *typeinfo);
+
+ffi_type *syx_type_info_to_ffi(Syx_Type_Info *typeinfo);
+
+void syx_env_define_boxed(Syx_Env *env);
 
 #endif // SYX_TYPE_INFO_H
 
@@ -229,10 +242,15 @@ void syx_type_info_destructor(void *data) {
     } break;
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: {
       if (typeinfo->function.return_type) rc_release(typeinfo->function.return_type);
+      if (typeinfo->function.cif_return_type) free(typeinfo->function.cif_return_type);
       for (size_t index = 0; index < typeinfo->function.argc; index += 1) {
-        Syx_Type_Info *arg = typeinfo->function.argv[index];
+        Syx_Type_Info *arg = typeinfo->function.argv_types[index];
         if (arg) rc_release(arg);
+        ffi_type *cif_arg = typeinfo->function.cif_argv_types[index];
+        if (cif_arg) free(cif_arg);
       }
+      free(typeinfo->function.argv_types);
+      free(typeinfo->function.cif_argv_types);
     } break;
     case SYX_TYPE_INFO_KIND_STRUCTURE: {
       ht_foreach(field, &typeinfo->structure.fields) {
@@ -260,8 +278,8 @@ void syx_type_info_graph_visitor(Rc_Circulars *circulars, const void *data, cons
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: {
       if (typeinfo->function.return_type) rc_graph_visitor(circulars, (void **)&typeinfo->function.return_type, source);
       for (size_t index = 0; index < typeinfo->function.argc; index += 1) {
-        if (typeinfo->function.argv[index]) {
-          rc_graph_visitor(circulars, (void **)&typeinfo->function.argv[index], source);
+        if (typeinfo->function.argv_types[index]) {
+          rc_graph_visitor(circulars, (void **)&typeinfo->function.argv_types[index], source);
         }
       }
     }; break;
@@ -297,14 +315,22 @@ Syx_Type_Info *make_syx_type_info_opt(Syx_Type_Info opt) {
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: {
       if (typeinfo->size == 0) typeinfo->size = sizeof(void (*)());
       if (typeinfo->align == 0) typeinfo->align = _Alignof(void (*)());
-      if (typeinfo->function.return_type) rc_acquire(typeinfo->function.return_type);
-      for (size_t index = 0; index < typeinfo->function.argc; index += 1) {
-        Syx_Type_Info *arg = typeinfo->function.argv[index];
-        if (arg) rc_acquire(arg);
+      Syx_Type_Info_Function *function = &typeinfo->function;
+      if (function->return_type) {
+        rc_acquire(function->return_type);
+        function->cif_return_type = syx_type_info_to_ffi(function->return_type);
+      }
+      function->cif_argv_types = malloc(sizeof(ffi_type *) * function->argc);
+      for (size_t index = 0; index < function->argc; index += 1) {
+        Syx_Type_Info *arg = function->argv_types[index];
+        if (!arg) continue;
+        rc_acquire(arg);
+        function->cif_argv_types[index] = syx_type_info_to_ffi(arg);
       }
     } break;
     case SYX_TYPE_INFO_KIND_VALUE_PTR: typeinfo->size = __SIZEOF_POINTER__; break;
     case SYX_TYPE_INFO_KIND_STRUCTURE: {
+      if (!typeinfo->size) TODO("implement structure size autocalculation");
       size_t max_align = 0;
       ht_foreach(field, &typeinfo->structure.fields) {
         switch (field->kind) {
@@ -384,6 +410,15 @@ Syx_Type_Info_Structure_Fields make_syx_type_info_structure_fields_opt(Syx_Field
   return fields;
 }
 
+Syx_Type_Info_Function make_syx_type_info__function(Syx_Type_Info_Function function, size_t argc, Syx_Type_Info **argv_types) {
+  function.argc = argc;
+  function.argv_types = malloc(sizeof(Syx_Type_Info *) * function.argc);
+  for (size_t index = 0; index < function.argc; index += 1) {
+    function.argv_types[index] = argv_types[index];
+  }
+  return function;
+}
+
 size_t stringify_syx_type_info_n(char *string, Syx_Type_Info *typeinfo) {
   __str_it();
   switch (typeinfo->kind) {
@@ -403,7 +438,7 @@ size_t stringify_syx_type_info_n(char *string, Syx_Type_Info *typeinfo) {
         __str_push('(');
         for (size_t index = 0; index < typeinfo->function.argc; index += 1) {
           if (index != 0) __str_push_cstr(", ");
-          Syx_Type_Info *arg = typeinfo->function.argv[index];
+          Syx_Type_Info *arg = typeinfo->function.argv_types[index];
           if (arg) __str_convert(stringify_syx_type_info_n, arg);
           else __str_push_cstr("<unknown>");
         }
@@ -462,6 +497,99 @@ syx_string_t stringify_syx_type_info(Syx_Type_Info *typeinfo) {
 
 void sb_append_syx_type_info(String_Builder *sb, Syx_Type_Info *typeinfo) {
   __sb_append_body(stringify_syx_type_info_n, 256, typeinfo);
+}
+
+ffi_type *syx_type_info_to_ffi(Syx_Type_Info *typeinfo) {
+  switch (typeinfo->kind) {
+    // case SYX_TYPE_INFO_KIND_PTR: break;
+    // case SYX_TYPE_INFO_KIND_FUNCTION_PTR: break;
+    // case SYX_TYPE_INFO_KIND_VALUE_PTR: break;
+    // case SYX_TYPE_INFO_KIND_STRUCTURE: break;
+    // case SYX_TYPE_INFO_KIND_VOID: break;
+    // case SYX_TYPE_INFO_KIND_CHAR: break;
+    // case SYX_TYPE_INFO_KIND_I8: break;
+    // case SYX_TYPE_INFO_KIND_I16: break;
+    // case SYX_TYPE_INFO_KIND_I32: break;
+    // case SYX_TYPE_INFO_KIND_I64: break;
+#ifdef SYX_TYPE_I128_SUPPORTED
+    // case SYX_TYPE_INFO_KIND_I128: break;
+#endif
+    // case SYX_TYPE_INFO_KIND_U8: break;
+    // case SYX_TYPE_INFO_KIND_U16: break;
+    // case SYX_TYPE_INFO_KIND_U32: break;
+    // case SYX_TYPE_INFO_KIND_U64: break;
+#ifdef SYX_TYPE_I128_SUPPORTED
+    // case SYX_TYPE_INFO_KIND_U128: break;
+#endif
+    case SYX_TYPE_INFO_KIND_INT: {
+#ifndef __SIZEOF_INT__
+      return (sizeof(int) == 8) ? &ffi_type_uint64 : &ffi_type_uint32;
+#elif __SIZEOF_INT__ == 8
+      return &ffi_type_uint64;
+#else
+      return &ffi_type_uint32;
+#endif
+    }
+    // case SYX_TYPE_INFO_KIND_INT_LONG: break;
+    // case SYX_TYPE_INFO_KIND_INT_LONG_LONG: break;
+    // case SYX_TYPE_INFO_KIND_UINT: break;
+    // case SYX_TYPE_INFO_KIND_UINT_LONG: break;
+    // case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: break;
+#ifdef SYX_TYPE_SIZED_FLOAT_SUPPORTED
+    // case SYX_TYPE_INFO_KIND_F16: break;
+    // case SYX_TYPE_INFO_KIND_F32: break;
+    // case SYX_TYPE_INFO_KIND_F64: break;
+    // case SYX_TYPE_INFO_KIND_F128: break;
+#endif
+    // case SYX_TYPE_INFO_KIND_FLOAT: break;
+    case SYX_TYPE_INFO_KIND_DOUBLE: return &ffi_type_double;
+    // case SYX_TYPE_INFO_KIND_DOUBLE_LONG: break;
+    case SYX_TYPE_INFO_KIND_SIZE: {
+#ifndef __SIZEOF_SIZE_T__
+      return (sizeof(size_t) == 8) ? &ffi_type_uint64 : &ffi_type_uint32;
+#elif __SIZEOF_SIZE_T__ == 8
+      return &ffi_type_uint64;
+#else
+      return &ffi_type_uint32;
+#endif
+    }
+    default: UNREACHABLE(temp_sprintf("kind is not supported: %u '%s'", typeinfo->kind, syx_type_info_kind_name(typeinfo->kind)));
+  }
+}
+
+void syx_env_define_boxed(Syx_Env *env) {
+  syx_env_define_cstr(env, "c_void", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_VOID)));
+  syx_env_define_cstr(env, "c_char", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_CHAR)));
+  syx_env_define_cstr(env, "c_i8", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_I8)));
+  syx_env_define_cstr(env, "c_i16", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_I16)));
+  syx_env_define_cstr(env, "c_i32", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_I32)));
+  syx_env_define_cstr(env, "c_i64", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_I64)));
+#ifdef SYX_TYPE_I128_SUPPORTED
+  syx_env_define_cstr(env, "c_i128", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_I128)));
+#endif
+  syx_env_define_cstr(env, "c_u8", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_U8)));
+  syx_env_define_cstr(env, "c_u16", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_U16)));
+  syx_env_define_cstr(env, "c_u32", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_U32)));
+  syx_env_define_cstr(env, "c_u64", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_U64)));
+#ifdef SYX_TYPE_I128_SUPPORTED
+  syx_env_define_cstr(env, "c_u128", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_U128)));
+#endif
+  syx_env_define_cstr(env, "c_int", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_INT)));
+  syx_env_define_cstr(env, "c_int_long", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_INT_LONG)));
+  syx_env_define_cstr(env, "c_int_long_long", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_INT_LONG_LONG)));
+  syx_env_define_cstr(env, "c_uint", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_UINT)));
+  syx_env_define_cstr(env, "c_uint_long", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_UINT_LONG)));
+  syx_env_define_cstr(env, "c_uint_long_long", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_UINT_LONG_LONG)));
+#ifdef SYX_TYPE_SIZED_FLOAT_SUPPORTED
+  syx_env_define_cstr(env, "c_f16", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_F16)));
+  syx_env_define_cstr(env, "c_f32", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_F32)));
+  syx_env_define_cstr(env, "c_f64", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_F64)));
+  syx_env_define_cstr(env, "c_f128", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_F128)));
+#endif
+  syx_env_define_cstr(env, "c_float", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_FLOAT)));
+  syx_env_define_cstr(env, "c_double", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_DOUBLE)));
+  syx_env_define_cstr(env, "c_double_long", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_DOUBLE_LONG)));
+  syx_env_define_cstr(env, "c_size", make_syxv_constructor(make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE)));
 }
 
 #endif // SYX_TYPE_INFO_IMPL

@@ -179,7 +179,7 @@ int issymbol_special(int c) {
 }
 
 int issymbol(int c) {
-  return c == '-' || issymbol_special(c) || isalnum(c);
+  return c == '-' || c == '_' || issymbol_special(c) || isalnum(c);
 }
 
 int isoctal(int c) {

@@ -28,6 +28,7 @@ Syx_Env *make_global_syx_env() {
   Syx_Env *env = make_syx_env(NULL, "<global>");
   syx_env_define_special_forms(env);
   syx_env_define_builtins(env);
+  syx_env_define_boxed(env);
   syx_env_define_vector(env);
   syx_env_define_test_vector(env);
   //   syx_env_define_arithmetic(env);

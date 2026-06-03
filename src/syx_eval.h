@@ -335,6 +335,9 @@ void syx_env_define(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value) {
       if (!value->closure.name) value->closure.name = strndup(symbol->name, symbol->length);
       if (value->closure.env != env) rc_acquire(value->closure.env);
     } break;
+    case SYXV_KIND_CONSTRUCTOR: {
+      if (!value->constructor.typeinfo->symbol) value->constructor.typeinfo->symbol = symbol;
+    } break;
     default: break;
   }
 }

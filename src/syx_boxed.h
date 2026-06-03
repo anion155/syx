@@ -17,6 +17,7 @@ Syx_Boxed *make_syx_boxed_opt(Syx_Boxed opt);
 SyxV *syx_boxed_set(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *argument);
 SyxV *syx_eval_boxed_construct(Syx_Eval_Ctx *ctx, Syx_Type_Info *typeinfo, SyxV *arguments);
 SyxV *syx_eval_boxed(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments);
+SyxV *syx_eval_boxed_function(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments);
 
 size_t stringify_syx_boxed_n(char *string, Syx_Boxed *boxed);
 syx_string_t stringify_syx_boxed(Syx_Boxed *boxed);
@@ -43,6 +44,8 @@ void sb_append_syx_boxed_method(String_Builder *sb, Syx_Boxed_Method *method);
 
 #if defined(SYX_BOXED_IMPL) && !defined(SYX_BOXED_IMPL_C)
 #define SYX_BOXED_IMPL_C
+
+#include <ffi/ffi.h>
 
 #define SYX_EVAL_IMPL
 #include "syx_eval.h"
@@ -88,8 +91,6 @@ Syx_Boxed *make_syx_boxed_opt(Syx_Boxed opt) {
 }
 
 SyxV *syx_boxed_set(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *argument) {
-  // TODO: check if readonly
-  // TODO: accessor set
   switch (boxed->typeinfo->kind) {
     case SYX_TYPE_INFO_KIND_PTR: {
       if (argument->kind != SYXV_KIND_BOXED) RUNTIME_ERROR(ctx, "boxed pointer expected");
@@ -328,6 +329,15 @@ SyxV *syx_eval_boxed_structure_getter(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, const
 }
 
 SyxV *syx_eval_boxed(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments) {
+  if (boxed->typeinfo->kind == SYX_TYPE_INFO_KIND_FUNCTION_PTR) {
+    SyxV *evaluated = syx_eval_list(ctx, arguments);
+    syx_eval_early_exit(evaluated);
+    rc_acquire(evaluated);
+    SyxV *result = rc_acquire(syx_eval_boxed_function(ctx, boxed, evaluated));
+    rc_release(evaluated);
+    return rc_move(result);
+  }
+
   Syx_Boxed *current = rc_acquire(boxed);
   SyxV *result = NULL;
   SyxV *unbox_symbol = rc_acquire(make_syxv_symbol_cstr("unbox"));
@@ -381,6 +391,30 @@ SyxV *syx_eval_boxed(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments) {
   rc_release(unref_symbol);
   if (current) rc_release(current);
   return rc_move(result);
+}
+
+SyxV *syx_eval_boxed_function(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments) {
+  if (boxed->typeinfo->kind != SYX_TYPE_INFO_KIND_FUNCTION_PTR) RUNTIME_ERROR(ctx, "boxed function pointer expected");
+  Syx_Type_Info_Function *function = &boxed->typeinfo->function;
+  size_t argc = function->argc ? function->argc : 1;
+  if (function->cif.arg_types == NULL) {
+    if (ffi_prep_cif(&function->cif, FFI_DEFAULT_ABI, function->argc, function->cif_return_type, function->cif_argv_types) != FFI_OK) {
+      RUNTIME_ERROR(ctx, "invalid c function descriptor");
+    }
+  }
+  void *arg_values[argc];
+  for (size_t index = 0; index < function->argc; index += 1) {
+    SyxV *argument = syxv_list_next(&arguments);
+    Syx_Type_Info *argument_type = function->argv_types[index];
+    if (argument->kind != SYXV_KIND_BOXED) TODO("implement values conversion to boxed values");
+    if (argument_type->kind != argument->boxed->typeinfo->kind) TODO("implement values conversion to boxed values");
+    arg_values[index] = &argument->boxed->data;
+  }
+  if (arguments && arguments->kind == SYXV_KIND_PAIR) TODO("implement vaargs support");
+  void **return_buffer = malloc(function->return_type->size);
+  memset(return_buffer, 0, function->return_type->size);
+  ffi_call(&function->cif, FFI_FN(*(void **)boxed->data), return_buffer, arg_values);
+  return make_syxv_boxed(make_syx_boxed(.typeinfo = function->return_type, .data = return_buffer, .parent = NULL));
 }
 
 size_t stringify_syx_boxed_n(char *string, Syx_Boxed *boxed) {

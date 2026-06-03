@@ -3,6 +3,13 @@
 
 #include "syx_value.h"
 
+typedef struct SyxV_Test_Vector {
+  SyxV **items;
+  size_t count;
+  size_t capacity;
+  int (*ffi_method)(size_t a, double b);
+} SyxV_Test_Vector;
+
 void syx_env_define_test_vector(Syx_Env *env);
 
 #endif // SYX_TEST_VECTOR_H
@@ -10,16 +17,21 @@ void syx_env_define_test_vector(Syx_Env *env);
 #if defined(SYX_TEST_VECTOR_IMPL) && !defined(SYX_TEST_VECTOR_IMPL_C)
 #define SYX_TEST_VECTOR_IMPL_C
 
-void syxv_test_vector_zero_init_rest(SyxV_Vector *vector) {
+void syxv_test_vector_zero_init_rest(SyxV_Test_Vector *vector) {
   if (vector->capacity > vector->count) {
     memset(vector->items + vector->count, 0, sizeof(vector->items[0]) * (vector->capacity - vector->count));
   }
 }
 
+int syxv_test_vector_ffi_method(size_t a, double b) {
+  return (int)((double)69 + (double)a * b);
+}
+
 SyxV *syxv_test_vector_constructor(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments) {
-  SyxV_Vector *vector = data;
+  SyxV_Test_Vector *vector = data;
   size_t size = 0;
   SyxV *last_item;
+  vector->ffi_method = syxv_test_vector_ffi_method;
   syxv_list_for_each(item, arguments, &last_item) size += 1;
   if (last_item->kind != SYXV_KIND_NIL) RUNTIME_ERROR(ctx, "vector expects list as arguments");
   da_realloc_capacity(vector, size);
@@ -29,7 +41,7 @@ SyxV *syxv_test_vector_constructor(Syx_Eval_Ctx *ctx, void *data, SyxV *argument
 }
 
 SyxV *syxv_test_vector_getter(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index) {
-  SyxV_Vector *vector = data;
+  SyxV_Test_Vector *vector = data;
   if ((syx_integer_t)vector->count <= index) RUNTIME_ERROR(ctx, "index out of bounds");
   if (-(syx_integer_t)vector->count > index) RUNTIME_ERROR(ctx, "index out of bounds");
   if (index < 0) index = vector->count + index;
@@ -37,7 +49,7 @@ SyxV *syxv_test_vector_getter(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index
 }
 
 SyxV *syxv_test_vector_setter(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index, SyxV *argument) {
-  SyxV_Vector *vector = data;
+  SyxV_Test_Vector *vector = data;
   if ((syx_integer_t)vector->count <= index) RUNTIME_ERROR(ctx, "index out of bounds");
   if (-(syx_integer_t)vector->count > index) RUNTIME_ERROR(ctx, "index out of bounds");
   if (index < 0) index = vector->count + index;
@@ -49,12 +61,12 @@ SyxV *syxv_test_vector_setter(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index
 
 SyxV *syxv_test_vector_count_getter(Syx_Eval_Ctx *ctx, void *data) {
   UNUSED(ctx);
-  SyxV_Vector *vector = data;
+  SyxV_Test_Vector *vector = data;
   return make_syxv_number_integer(vector->count);
 }
 
 SyxV *syxv_test_vector_count_setter(Syx_Eval_Ctx *ctx, void *data, SyxV *argument) {
-  SyxV_Vector *vector = data;
+  SyxV_Test_Vector *vector = data;
   Syx_Number number = {0};
   syx_convert_to(ctx, argument, &number);
   size_t new_count = syx_number_integer_value(number);
@@ -72,7 +84,7 @@ SyxV *syxv_test_vector_count_setter(Syx_Eval_Ctx *ctx, void *data, SyxV *argumen
 }
 
 SyxV *syxv_test_vector_append(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments) {
-  SyxV_Vector *vector = data;
+  SyxV_Test_Vector *vector = data;
   SyxV *last_argument = NULL;
   syxv_list_for_each(argument, arguments, &last_argument) {
     da_append(vector, rc_acquire(argument));
@@ -104,7 +116,7 @@ SyxV *syxv_test_vector_virtual_setter(Syx_Eval_Ctx *ctx, void *data, const char 
 void syx_env_define_test_vector(Syx_Env *env) {
   // clang-format off
   syx_env_define_cstr(env, "test-vector", make_syxv_constructor(make_syx_type_info_opt((Syx_Type_Info){
-    .size = sizeof(SyxV_Vector),
+    .size = sizeof(SyxV_Test_Vector),
     .symbol = (&make_syxv_symbol_cstr("test-vector")->symbol),
     .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
     .structure = {
@@ -128,11 +140,20 @@ void syx_env_define_test_vector(Syx_Env *env) {
           .typeinfo = make_syx_type_info_opt((Syx_Type_Info){.kind = SYX_TYPE_INFO_KIND_SIZE}),
           .readonly = true,
         }}},
+        {"ffi_method", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_DATA, .data = {
+          .offset = offsetof(SyxV_Test_Vector, ffi_method), // FIXME: offset should have been counted automatically
+          .typeinfo = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_FUNCTION_PTR, .function = make_syx_type_info_function(
+            (Syx_Type_Info_Function){.return_type = make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_INT)},
+            make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_SIZE),
+            make_syx_type_info(.kind = SYX_TYPE_INFO_KIND_DOUBLE)
+          )),
+          .readonly = true,
+        }}},
         {"append", {.kind = SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_METHOD, .method = syxv_test_vector_append}},
       ),
       .field_getter = syxv_test_vector_virtual_getter,
       .field_setter = syxv_test_vector_virtual_setter,
-      .destructor = da_destructor
+      .destructor = da_destructor,
     },
   })));
   // clang-format on
