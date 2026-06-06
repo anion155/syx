@@ -75,7 +75,6 @@ bool syx_eval_should_early_exit(SyxV *value);
     SyxV *_value = (value);                     \
     if (_value) {                               \
       if (syx_eval_should_early_exit(_value)) { \
-        rc_acquire(_value);                     \
         rc_release_all(__VA_ARGS__);            \
         return rc_move(_value);                 \
       }                                         \
@@ -86,11 +85,9 @@ bool syx_eval_should_early_exit(SyxV *value);
     SyxV *_value = (value);                       \
     if (_value) {                                 \
       if (syx_eval_should_early_exit(_value)) {   \
-        rc_acquire(_value);                       \
         rc_release_all(__VA_ARGS__);              \
         return rc_move(_value);                   \
       }                                           \
-      rc_acquire(_value);                         \
       rc_release(_value);                         \
     }                                             \
   } while (0)
@@ -117,9 +114,8 @@ SyxV *syx__eval_forms_list_opt(Syx_Eval_Ctx *ctx, SyxV *forms_list, Syx_Eval_For
 
 #define syx_convert_to(ctx, value, storage, ...)                            \
   do {                                                                      \
-    SyxV *__value = (value);                                                \
+    SyxV *__value = rc_acquire((value));                                    \
     syx_eval_early_exit(__value __VA_OPT__(, ) __VA_ARGS__);                \
-    rc_acquire(__value);                                                    \
     SyxV *converted = _Generic(storage,                                     \
         bool *: syx_convert_to_bool,                                        \
         Syx_Number *: syx_convert_to_number,                                \
@@ -127,8 +123,8 @@ SyxV *syx__eval_forms_list_opt(Syx_Eval_Ctx *ctx, SyxV *forms_list, Syx_Eval_For
         syx_fractional_t *: syx_convert_to_number,                          \
         syx_string_view_t *: syx_convert_to_string,                         \
         syx_string_t *: syx_convert_to_string)((ctx), __value);             \
-    syx_eval_early_exit(converted, __value __VA_OPT__(, ) __VA_ARGS__);     \
     rc_acquire(converted);                                                  \
+    syx_eval_early_exit(converted, __value __VA_OPT__(, ) __VA_ARGS__);     \
     rc_release(__value);                                                    \
     *(storage) = _Generic(storage,                                          \
         bool *: converted->boolean,                                         \
@@ -232,11 +228,13 @@ void syx_ctx_frame_rename(Syx_Eval_Ctx *ctx, const char *function_name) {
 void syx__ctx_pop_frame(Syx_Eval_Ctx *ctx, SyxV **to_save, size_t count) {
   Syx_Frame *current = ctx->frame_stack->latest;
   ctx->frame_stack->latest = current->prev ? rc_acquire(current->prev) : NULL;
-  for (size_t index = 0; index < count; index += 1)
+  for (size_t index = 0; index < count; index += 1) {
     if (to_save[index]) rc_acquire(to_save[index]);
+  }
   rc_release(current);
-  for (size_t index = 0; index < count; index += 1)
+  for (size_t index = 0; index < count; index += 1) {
     if (to_save[index]) rc_move(to_save[index]);
+  }
 }
 
 syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame) {
@@ -358,9 +356,8 @@ SyxV *syx_eval_specialf(Syx_Eval_Ctx *ctx, Syx_SpecialF *specialf, SyxV *argumen
 }
 
 SyxV *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Builtin *builtin, SyxV *arguments) {
-  SyxV *evaluated = syx_eval_list(ctx, arguments);
+  SyxV *evaluated = rc_acquire(syx_eval_list(ctx, arguments));
   syx_eval_early_exit(evaluated);
-  rc_acquire(evaluated);
   syx_ctx_push_frame(ctx, builtin->name);
   SyxV *result = builtin->eval(ctx, evaluated);
   if (!result) result = make_syxv_nil();
@@ -397,9 +394,9 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments)
       // it = it->pair.right;
       // goto continue_same_param;
     }
-    SyxV *value = syx_eval(ctx, it->pair.left);
+    SyxV *value = rc_acquire(syx_eval(ctx, it->pair.left));
     syx_eval_early_exit(value, call_ctx);
-    syx_env_define(call_ctx->env, symbol, value);
+    syx_env_define(call_ctx->env, symbol, rc_move(value));
     it = it->pair.right;
   }
   if (last_name->kind != SYXV_KIND_NIL) {
@@ -409,7 +406,7 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments)
     // SyxV *evaluated = NULL;
     // SyxV **last_argument = NULL;
     // syxv_list_map(argument, rest, &evaluated, &last_argument) {
-    //   *argument = syx_eval(ctx, *argument);
+    //   *argument =rc_acquire( syx_eval(ctx, *argument));
     //   syx_eval_early_exit(*argument, call_ctx, evaluated);
     // }
     // if ((*last_argument)->kind != SYXV_KIND_NIL) {
@@ -423,9 +420,8 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments)
     if (name_v->kind != SYXV_KIND_PAIR) continue;
     SyxV **value = ht_find(&call_ctx->env->symbols, &name_v->pair.left->symbol);
     if (value != NULL) continue;
-    (*value) = syx_eval(ctx, name_v->pair.right);
+    (*value) = rc_acquire(syx_eval(ctx, name_v->pair.right));
     syx_eval_early_exit(*value, call_ctx);
-    rc_acquire(*value);
   }
   syx_ctx_push_frame(ctx, closure->name);
   SyxV *result = rc_acquire(syx_eval_forms_list(call_ctx, closure->forms));
@@ -448,9 +444,8 @@ SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
   }
   if (input->kind != SYXV_KIND_PAIR) return input;
   if (!input->pair.left) return input;
-  SyxV *head = syx_eval(ctx, input->pair.left);
+  SyxV *head = rc_acquire(syx_eval(ctx, input->pair.left));
   syx_eval_early_exit(head);
-  rc_acquire(head);
   SyxV *arguments = input->pair.right;
   SyxV *result;
   switch (head->kind) {
@@ -487,7 +482,7 @@ SyxV *syx_eval_list(Syx_Eval_Ctx *ctx, SyxV *list) {
   syxv_list_map(item, list, &evaluated) {
     *item = syx_eval(ctx, *item);
     if (!*item) *item = make_syxv_nil();
-    syx_eval_early_exit(*item, evaluated);
+    syx_eval_early_exit(rc_acquire(*item), evaluated);
   }
   return rc_move(evaluated);
 }
@@ -522,9 +517,8 @@ SyxV *syx__eval_forms_list_opt(Syx_Eval_Ctx *ctx, SyxV *forms_list, Syx_Eval_For
   if (opt.default_result) result = rc_acquire(opt.default_result);
   syxv_list_for_each(form, forms_list) {
     if (result) rc_release(result);
-    result = syx_eval(ctx, form);
+    result = rc_acquire(syx_eval(ctx, form));
     syx_eval_early_exit(result);
-    rc_acquire(result);
     if (opt.should_stop != NULL) {
       bool should_stop = {0};
       syx_convert_to(ctx, opt.should_stop(ctx, result), &should_stop, result);

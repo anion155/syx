@@ -453,7 +453,6 @@ bool syxv__list_for_each_next(SyxV **current, SyxV **next, SyxV **value, SyxV **
 }
 
 bool syxv__list_map_next(SyxV **source_it, SyxV ***target_it, SyxV ***value, SyxV ***cdr) {
-  if (*value) rc_acquire(**value);
   if ((*source_it)->kind != SYXV_KIND_PAIR) {
     if (cdr != NULL) (*cdr) = (*target_it);
     else if ((*source_it)->kind != SYXV_KIND_NIL) UNREACHABLE("list expected");

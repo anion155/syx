@@ -9,7 +9,6 @@
 #include "syx_vector.h"
 
 SyxV *parse_syxv(String_View *source);
-SyxV_Vector *parse_syxvs(String_View *source);
 
 typedef struct SyxV_Parser_Context {
   String_View source;
@@ -115,16 +114,16 @@ SyxV *parse__syxv_list(SyxV_Parser_Context *ctx, bool list_expected, char openin
       if (list_expected) PARSER_ERROR(ctx, "unexpected pair syntax", syxvs);
       sv_chop_left(ctx->it, 1);
       chop_spaces(ctx);
-      SyxV *value = parse__syxv(ctx);
+      SyxV *value = rc_acquire(parse__syxv(ctx));
       syx_eval_early_exit(value, syxvs);
-      da_append(syxvs, rc_acquire(value));
+      da_append(syxvs, value);
       chop_spaces(ctx);
       if (ctx->it->data[0] != closing_parenthesis) PARSER_ERROR(ctx, "expected list end here", syxvs);
       goto result;
     }
-    SyxV *value = parse__syxv(ctx);
+    SyxV *value = rc_acquire(parse__syxv(ctx));
     syx_eval_early_exit(value, syxvs);
-    da_append(syxvs, rc_acquire(value));
+    da_append(syxvs, (value));
   }
   da_append(syxvs, NULL);
 result:
@@ -137,17 +136,17 @@ result:
 SyxV *parse__syxv_quote(SyxV_Parser_Context *ctx) {
   if (ctx->it->data[0] != SYXV_TOKEN_QUOTES) PARSER_ERROR(ctx, "expected ' symbol here");
   sv_chop_left(ctx->it, 1);
-  SyxV *value = parse__syxv(ctx);
+  SyxV *value = rc_acquire(parse__syxv(ctx));
   syx_eval_early_exit(value);
-  return make_syxv_list(make_syxv_symbol_cstr("quote"), value, NULL);
+  return make_syxv_list(make_syxv_symbol_cstr("quote"), rc_move(value), NULL);
 }
 
 SyxV *parse__syxv_unquote(SyxV_Parser_Context *ctx) {
   if (ctx->it->data[0] != SYXV_TOKEN_COMMA) PARSER_ERROR(ctx, "expected , symbol here");
   sv_chop_left(ctx->it, 1);
-  SyxV *value = parse__syxv(ctx);
+  SyxV *value = rc_acquire(parse__syxv(ctx));
   syx_eval_early_exit(value);
-  return make_syxv_list(make_syxv_symbol_cstr("unquote"), value, NULL);
+  return make_syxv_list(make_syxv_symbol_cstr("unquote"), rc_move(value), NULL);
 }
 
 SyxV *parse__syxv_string(SyxV_Parser_Context *ctx) {
@@ -258,23 +257,6 @@ SyxV *parse_syxv(String_View *source) {
   return parse__syxv_nullable(&ctx);
 }
 
-SyxV_Vector *parse_syxvs(String_View *source) {
-  SyxV_Parser_Context ctx = {.source = *source, .it = source, .line = *source, .linenumber = 0};
-  SyxV_Vector *syxvs = rc_malloc(sizeof(SyxV_Vector), .destructor = da_destructor);
-  assert(syxvs);
-  syxvs->count = 0;
-  syxvs->capacity = 0;
-  syxvs->items = NULL;
-  while (ctx.it->count) {
-    chop_spaces(&ctx);
-    if (!ctx.it->count) break;
-    SyxV *expr = parse__syxv_nullable(&ctx);
-    syx_eval_early_exit(expr, syxvs);
-    if (expr) da_append(syxvs, rc_acquire(expr));
-  }
-  return syxvs;
-}
-
 void parse__syxvs_for_each_iterator_destructor(void *data) {
   struct SyxVs_Iterator *it = data;
   da_destructor(&it->syxvs);
@@ -334,20 +316,19 @@ SyxV *parse__dispatch_syxv_false(SyxV_Parser_Context *ctx) {
 }
 
 SyxV *parse__dispatch_syxv_vector(SyxV_Parser_Context *ctx) {
-  SyxV *arguments = parse__syxv_list(ctx, true, SYXV_TOKEN_LIST_START, SYXV_TOKEN_LIST_END);
+  SyxV *arguments = rc_acquire(parse__syxv_list(ctx, true, SYXV_TOKEN_LIST_START, SYXV_TOKEN_LIST_END));
   syx_eval_early_exit(arguments);
-  return make_syxv_pair(make_syxv_symbol_cstr("new"), make_syxv_pair(make_syxv_symbol_cstr("vector"), arguments));
+  return make_syxv_pair(make_syxv_symbol_cstr("new"), make_syxv_pair(make_syxv_symbol_cstr("vector"), rc_move(arguments)));
 }
 
 SyxV *parse__dispatch_syxv_boxed(SyxV_Parser_Context *ctx) {
   if (ctx->it->data[0] != SYXV_TOKEN_DOT) PARSER_ERROR(ctx, "expected . symbol here");
   sv_chop_left(ctx->it, 1);
-  SyxV *constructor_symbol = parse__syxv_symbol(ctx);
+  SyxV *constructor_symbol = rc_acquire(parse__syxv_symbol(ctx));
   syx_eval_early_exit(constructor_symbol);
-  rc_acquire(constructor_symbol);
-  SyxV *arguments = parse__syxv_list(ctx, true, SYXV_TOKEN_LIST_START, SYXV_TOKEN_LIST_END);
+  SyxV *arguments = rc_acquire(parse__syxv_list(ctx, true, SYXV_TOKEN_LIST_START, SYXV_TOKEN_LIST_END));
   syx_eval_early_exit(arguments, constructor_symbol);
-  return make_syxv_pair(make_syxv_symbol_cstr("new"), make_syxv_pair(rc_move(constructor_symbol), arguments));
+  return make_syxv_pair(make_syxv_symbol_cstr("new"), make_syxv_pair(rc_move(constructor_symbol), rc_move(arguments)));
 }
 
 #endif // SYX_PARSER_IMPL

@@ -85,12 +85,14 @@ void *rc__manage(void *(*alloc)(size_t size), void (*free)(void *data), void *da
 }
 
 void *rc__acquire(void *data) {
+  if (!data) return data;
   Rc *rc = (Rc *)data - 1;
   rc->header->strong += 1;
   return data;
 }
 
 void *rc__move(void *data) {
+  if (!data) return data;
   Rc *rc = (Rc *)data - 1;
   if (!rc->header->strong) UNREACHABLE("trying to move floating memory");
   rc->header->strong -= 1;
@@ -98,6 +100,7 @@ void *rc__move(void *data) {
 }
 
 void rc_release(void *data) {
+  if (!data) return;
   Rc *rc = (Rc *)data - 1;
   Rc_Header *header = rc->header;
   if (!header->strong) UNREACHABLE("trying to either double free memory or release floating memory");

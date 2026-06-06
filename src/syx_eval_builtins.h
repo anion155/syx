@@ -65,9 +65,9 @@ SyxV *syx_builtin_apply(Syx_Eval_Ctx *ctx, SyxV *arguments) {
     it = &(*it)->pair.right;
   }
   (*it) = rc_acquire(make_syxv_nil());
-  SyxV *result = syx_eval(ctx, call);
+  SyxV *result = rc_acquire(syx_eval(ctx, call));
   syx_eval_early_exit(result);
-  return result;
+  return rc_move(result);
 }
 
 /** Applies a function to each element of a list and returns a new list of results. */
@@ -78,9 +78,8 @@ SyxV *syx_builtin_map(Syx_Eval_Ctx *ctx, SyxV *arguments) {
   SyxV *results = NULL;
   syxv_list_map(item, list, &results) {
     SyxV *call = rc_acquire(make_syxv_pair(fn, make_syxv_pair(*item, make_syxv_nil())));
-    *item = syx_eval(ctx, call);
+    *item = rc_acquire(syx_eval(ctx, call));
     syx_eval_early_exit(*item, results, call);
-    rc_acquire(*item);
     rc_release(call);
     rc_move(*item);
   }

@@ -1,7 +1,5 @@
 - check memory cleanup
 
-- syx_eval_should_early_exit should expect acquired value
-- syxv_list_map should not acquire result
 - stringify_<>_n, stringify_<>, sb_append_<> redo to be based on sb_append_<>
 - attach stack frame to error object on throw
 - catch parser errors

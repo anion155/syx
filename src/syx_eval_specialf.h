@@ -72,27 +72,25 @@ SyxV *syx_special_form_define(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *a
     SyxV *defines = name_s->pair.right;
     name_s = name_s->pair.left;
     if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "Symbol expression expected as name");
-    value = syx__special_form_make_lambda(ctx, name_s->symbol.name, defines, arguments);
+    value = rc_acquire(syx__special_form_make_lambda(ctx, name_s->symbol.name, defines, arguments));
   } else if (name_s->kind != SYXV_KIND_SYMBOL) {
     RUNTIME_ERROR(ctx, "Symbol expression expected as name");
   } else {
-    value = syx_eval(ctx, syxv_list_next(&arguments));
+    value = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
     syx_eval_early_exit(value);
   }
-  syx_env_define(ctx->env, &name_s->symbol, value);
+  syx_env_define(ctx->env, &name_s->symbol, rc_move(value));
   return make_syxv_nil();
 }
 
 /** Mutate an existing binding or creates new one in current environment. */
 SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
-  SyxV *target = syx_eval_unquote(ctx, syxv_list_next(&arguments));
+  SyxV *target = rc_acquire(syx_eval_unquote(ctx, syxv_list_next(&arguments)));
   syx_eval_early_exit(target);
-  rc_acquire(target);
-  SyxV *value = syx_eval(ctx, syxv_list_next(&arguments));
+  SyxV *value = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
   syx_eval_early_exit(value, target);
   if (target->lvalue) {
-    rc_acquire(value);
     SyxV *result = target->lvalue->callback(ctx, target, target->lvalue->data, value);
     if (!result) result = make_syxv_nil();
     rc_acquire(result);
@@ -100,11 +98,10 @@ SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
     rc_release(value);
     return rc_move(result);
   } else if (target->kind == SYXV_KIND_SYMBOL) {
-    syx_env_set(ctx->env, &target->symbol, value);
+    syx_env_set(ctx->env, &target->symbol, rc_move(value));
     rc_release(target);
     return make_syxv_nil();
   } else if (target->kind == SYXV_KIND_BOXED) {
-    rc_acquire(value);
     SyxV *result = syx_boxed_set(ctx, target->boxed, value);
     if (!result) result = make_syxv_nil();
     rc_acquire(result);
@@ -158,9 +155,9 @@ SyxV *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
       }
     }
     SyxV *name = binding->pair.left;
-    SyxV *value = syx_eval(ctx, binding->pair.right->pair.left);
+    SyxV *value = rc_acquire(syx_eval(ctx, binding->pair.right->pair.left));
     syx_eval_early_exit(value, body_ctx);
-    syx_env_define(body_ctx->env, &name->symbol, value);
+    syx_env_define(body_ctx->env, &name->symbol, rc_move(value));
   }
   SyxV *result = rc_acquire(syx_eval_forms_list(body_ctx, arguments));
   rc_release(body_ctx);
@@ -232,9 +229,8 @@ SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arg
       SyxV *apply_right = right->pair.right;
       if (apply_right->kind == SYXV_KIND_PAIR && apply_right->pair.right->kind == SYXV_KIND_NIL) {
         SyxV *call = rc_acquire(make_syxv_list(apply_right->pair.left, result, NULL));
-        SyxV *call_result = syx_eval(ctx, call);
+        SyxV *call_result = rc_acquire(syx_eval(ctx, call));
         syx_eval_early_exit(call_result, call, result, else_symbol, apply_symbol);
-        rc_acquire(call_result);
         rc_release(call);
         rc_release(result);
         rc_release(else_symbol);
@@ -256,9 +252,9 @@ SyxV *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arg
 /** Create thrown value. */
 SyxV *syx_special_form_throw(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
-  SyxV *reason = syx_eval(ctx, syxv_list_next(&arguments));
+  SyxV *reason = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
   syx_eval_early_exit(reason);
-  return make_syxv_thrown(ctx->frame_stack->latest, reason);
+  return make_syxv_thrown(ctx->frame_stack->latest, rc_move(reason));
 }
 
 /** Special form for intercepting thrown values and ensuring cleanup logic is executed. */
@@ -281,9 +277,8 @@ SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
       if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "malformed try's catch handler, list expected");
       if (list->pair.left->kind != SYXV_KIND_SYMBOL) {
         if (result) rc_release(result);
-        result = syx_eval_forms_list(ctx, list, .default_result = make_syxv_nil());
+        result = rc_acquire(syx_eval_forms_list(ctx, list, .default_result = make_syxv_nil()));
         syx_eval_early_exit(result, catch_symbol, finally_symbol, body);
-        rc_acquire(result);
         continue;
       }
       SyxV *error_name = list->pair.left;
@@ -292,16 +287,15 @@ SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
       handler_ctx->env->description = strdup(temp_sprintf("try-catch<%p>", handler_ctx->env));
       syx_env_define(handler_ctx->env, &error_name->symbol, body->thrown.reason);
       if (result) rc_release(result);
-      result = syx_eval_forms_list(handler_ctx, handler, .default_result = make_syxv_nil());
+      result = rc_acquire(syx_eval_forms_list(handler_ctx, handler, .default_result = make_syxv_nil()));
       syx_eval_early_exit(result, body, handler_ctx, catch_symbol, finally_symbol);
-      rc_acquire(result);
       rc_release(handler_ctx);
       continue;
     }
     if (branch->pair.left == finally_symbol) {
       SyxV *list = branch->pair.right;
       if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "malformed try's finally handler, list expected");
-      SyxV *finally_result = syx_eval_forms_list(ctx, list);
+      SyxV *finally_result = rc_acquire(syx_eval_forms_list(ctx, list));
       syx_eval_early_exit_temporary(finally_result, catch_symbol, finally_symbol, body, result);
       continue;
     }
@@ -317,21 +311,22 @@ SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
 /** Special form to trigger an immediate exit from the current function, carrying a value. */
 SyxV *syx_special_form_return(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
-  SyxV *value = syx_eval(ctx, syxv_list_next(&arguments));
+  SyxV *value = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
   syx_eval_early_exit(value);
-  return make_syxv_return_value(value);
+  return make_syxv_return_value(rc_move(value));
 }
 
 /** Instantiates a user-defined boxed types, allocates its dedicated block of native heap memory, and executes its associated constructor behavior. */
 SyxV *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
-  SyxV *head = syx_eval(ctx, syxv_list_next(&arguments));
+  SyxV *head = rc_acquire(syx_eval(ctx, syxv_list_next(&arguments)));
   syx_eval_early_exit(head);
   if (head->kind != SYXV_KIND_CONSTRUCTOR) RUNTIME_ERROR(ctx, "constructor expected here");
   SyxV *evaluated = syx_eval_list(ctx, arguments);
   syx_eval_early_exit(evaluated, head);
   rc_acquire(evaluated);
   SyxV *result = rc_acquire(syx_eval_boxed_construct(ctx, head->constructor.typeinfo, evaluated));
+  rc_release(head);
   rc_release(evaluated);
   return rc_move(result);
 }
