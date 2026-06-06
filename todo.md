@@ -1,6 +1,6 @@
 - check memory cleanup
 
-- stringify_<>_n, stringify_<>, sb_append_<> redo to be based on sb_append_<>
+- builtin, special forms and default types should in separate readonly env
 - attach stack frame to error object on throw
 - catch parser errors
 - compiler test runner

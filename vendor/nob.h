@@ -372,6 +372,21 @@ NOBDEF void nob_dir_entry_close(Nob_Dir_Entry dir);
         }                                                                                  \
     } while (0)
 
+// Trim array's capacity to it's count
+#define nob_da_realloc_trim(da)                                                       \
+    do {                                                                              \
+      if ((da)->capacity != (da)->count) {                                            \
+        if ((da)->count == 0) {                                                       \
+          NOB_FREE((da)->items);                                                      \
+          (da)->items = NULL;                                                         \
+          (da)->capacity = 0;                                                         \
+        } else {                                                                      \
+          (da)->items = NOB_REALLOC((da)->items, (da)->count * sizeof(*(da)->items)); \
+          (da)->capacity = (da)->count;                                               \
+        }                                                                             \
+      }                                                                               \
+    } while (0)
+
 // Append an item to a dynamic array
 #define nob_da_append(da, item)                \
     do {                                       \
@@ -2931,6 +2946,7 @@ NOBDEF char *nob_temp_running_executable_path(void)
         #define da_resize nob_da_resize
         #define da_reserve nob_da_reserve
         #define da_realloc_capacity nob_da_realloc_capacity
+        #define da_realloc_trim nob_da_realloc_trim
         #define da_last nob_da_last
         #define da_first nob_da_first
         #define da_pop nob_da_pop

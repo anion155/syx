@@ -77,39 +77,55 @@ bool parse_number(String_View *sv, Syx_Number *result);
 
 void string_reverse(char *string, size_t width);
 
-#define __str_it() uintptr_t string_it = string ? (uintptr_t)string : 0
-#define __str_push(ch) ((string != NULL ? *((char *)string_it) = (ch) : (void)0), (string_it += 1))
-#define __str_convert(converter_n, ...) (string_it += converter_n(string ? (char *)string_it : NULL __VA_OPT__(, ) __VA_ARGS__))
-#define __str_push_cstr(cstr) __str_convert(stringify_cstring_n, (cstr))
-#define __str_push_n(str, n) __str_convert(stringify_string_n, (str), (n))
-#define __str_width() (string_it - (uintptr_t)string)
-#define __stringify_body(converter_n, buffer_size, ...)                                                 \
-  do {                                                                                                  \
-    char *string = malloc(buffer_size);                                                                 \
-    assert(string);                                                                                     \
-    size_t width = converter_n(string, __VA_ARGS__);                                                    \
-    syx_string_t result = {.items = realloc(string, width + 1), .count = width, .capacity = width + 1}; \
-    assert(result.items);                                                                               \
-    result.items[width] = 0;                                                                            \
-    return result;                                                                                      \
+#define __str_init(capacity)                                       \
+  size_t __count = 0, __start = 0;                                 \
+  NOB_UNUSED(__start);                                             \
+  do {                                                             \
+    if (string != NULL) {                                          \
+      nob_da_realloc_capacity(string, string->count + (capacity)); \
+      __start = string->count;                                     \
+    }                                                              \
   } while (0)
-#define __sb_append_body(converter_n, buffer_size, ...) \
-  do {                                                  \
-    char *string = malloc(buffer_size);                 \
-    assert(string);                                     \
-    size_t width = converter_n(string, __VA_ARGS__);    \
-    da_realloc_capacity(sb, sb->count + width);         \
-    memcpy(sb->items + sb->count, string, width);       \
-    sb->count += width;                                 \
-    free(string);                                       \
-  } while (0)
+#define __str_count() (__count)
+#define __str_start_ptr() (string ? string->items + __start : NULL)
+size_t __str__append(syx_string_t *string, char value);
+#define __str_append(value) (__count += __str__append(string, (value)))
+size_t __str__append_n(syx_string_t *string, const char *value, size_t n);
+#define __str_append_n(value, n) (__count += __str__append_n(string, (value), (n)))
+size_t __str__append_cstr(syx_string_t *string, const char *value);
+#define __str_append_cstr(value) (__count += __str__append_n(string, (value), strlen((value))))
+#define __str_append_sb(value) (__count += __str__append_n(string, (value).items, (value).count))
+#define __str_append_sv(value) (__count += __str__append_n(string, (value).data, (value).count))
+#define __str_append_with(appender, ...) (__count += appender(string __VA_OPT__(, ) __VA_ARGS__))
+#define __str_append_legacy(appender, ...) (__count += appender(string ? __str_start_ptr() + __str_count() : NULL __VA_OPT__(, ) __VA_ARGS__))
 
-size_t stringify_string_n(char *string, const char *source, size_t width);
-size_t stringify_cstring_n(char *string, const char *cstr);
+syx_string_t __stringify_finish(syx_string_t sb);
+#define stringify(appender, ...)              \
+  ({                                          \
+    syx_string_t sb = {0};                    \
+    appender(&sb __VA_OPT__(, ) __VA_ARGS__); \
+    __stringify_finish(sb);                   \
+  })
 
-size_t stringify_integer_n(char *string, syx_integer_t value);
-syx_string_t stringify_integer(syx_integer_t value);
-void sb_append_integer(String_Builder *sb, syx_integer_t value);
+syx_string_view_t __stringify_temp_finish(syx_string_t sb);
+#define stringify_temp(appender, ...)         \
+  ({                                          \
+    syx_string_t sb = {0};                    \
+    appender(&sb __VA_OPT__(, ) __VA_ARGS__); \
+    __stringify_temp_finish(sb);              \
+  })
+
+void __fprintf__with(FILE *f, syx_string_t sb);
+#define fprintf_with(f, appender, ...)        \
+  ({                                          \
+    syx_string_t sb = {0};                    \
+    appender(&sb __VA_OPT__(, ) __VA_ARGS__); \
+    __fprintf__with((f), sb);                 \
+  })
+
+#define printf_with(appender, ...) fprintf_with(stdout, appender __VA_OPT__(, ) __VA_ARGS__)
+
+size_t str_append_integer(syx_string_t *string, syx_integer_t value);
 
 #define FRAC_MINIMAL_DIFFERENCE 1e-9
 #define MAX_FRAC_FRACTIONAL_WIDTH 15
@@ -118,16 +134,10 @@ size_t get_fractions_precision(syx_fractional_t value);
 size_t fractions__precision(syx_fractional_t value, ssize_t precision);
 #define fractions_precision(value, ...) fractions__precision((value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
 
-size_t stringify__fractional_n(char *string, syx_fractional_t value, ssize_t precision);
-#define stringify_fractional_n(string, value, ...) stringify__fractional_n((string), (value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
-syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision);
-#define stringify_fractional(value, ...) stringify__fractional((value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
-void sb_append__fractional(String_Builder *sb, syx_fractional_t value, ssize_t precision);
-#define sb_append_fractional(sb, value, ...) sb_append__fractional((sb), (value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
+size_t str__append_fractional(syx_string_t *string, syx_fractional_t value, ssize_t precision);
+#define str_append_fractional(string, value, ...) str__append_fractional((string), (value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
 
-size_t stringify_number_n(char *string, Syx_Number value);
-syx_string_t stringify_number(Syx_Number value);
-void sb_append_number(String_Builder *sb, Syx_Number value);
+size_t str_append_number(syx_string_t *string, Syx_Number value);
 
 #define define_constant(type, name)                  \
   typedef type name##_t;                             \
@@ -311,35 +321,54 @@ void string_reverse(char *string, size_t width) {
   }
 }
 
-size_t stringify_string_n(char *string, const char *source, size_t width) {
-  if (string) memcpy(string, source, width);
-  return width;
+size_t __str__append(syx_string_t *string, char value) {
+  if (!string) return 1;
+  nob_da_reserve(string, string->count + 1);
+  string->items[string->count++] = value;
+  return 1;
 }
 
-size_t stringify_cstring_n(char *string, const char *cstr) {
-  if (!string) return strlen(cstr);
-  __str_it();
-  for (const char *it = cstr; *it; it += 1) __str_push(*it);
-  return __str_width();
+size_t __str__append_n(syx_string_t *string, const char *value, size_t n) {
+  if (!string) return n;
+  nob_da_reserve(string, string->count + n);
+  for (size_t index = 0; index < n; index += 1) string->items[string->count++] = value[index];
+  return n;
 }
 
-size_t stringify_integer_n(char *string, syx_integer_t value) {
-  __str_it();
-  if (value == 0) return (__str_push('0'), 1);
-  if (value == LLONG_MIN) return stringify_cstring_n(string, STRINGIFY2(LLONG_MIN));
-  if (value < 0) (__str_push('-'), value *= -1);
-  char *rev_start = (char *)string_it;
-  for (syx_integer_t it = value; it != 0; it /= 10) __str_push('0' + it % 10);
-  if (string) string_reverse(rev_start, string_it - (uintptr_t)rev_start);
-  return __str_width();
+size_t __str__append_cstr(syx_string_t *string, const char *value) {
+  if (!string) return strlen(value);
+  return __str__append_n(string, value, strlen(value));
 }
 
-syx_string_t stringify_integer(syx_integer_t value) {
-  __stringify_body(stringify_integer_n, 32, value);
+syx_string_t __stringify_finish(syx_string_t sb) {
+  nob_da_append(&sb, 0);
+  nob_da_realloc_trim(&sb);
+  return sb;
 }
 
-void sb_append_integer(String_Builder *sb, syx_integer_t value) {
-  __sb_append_body(stringify_integer_n, 32, value);
+syx_string_view_t __stringify_temp_finish(syx_string_t sb) {
+  nob_da_append(&sb, 0);
+  syx_string_view_t sv = {.count = sb.count};
+  sv.data = nob_temp_alloc(sb.count * sizeof(char));
+  memcpy((char *)sv.data, sb.items, sb.count);
+  sb_free(sb);
+  return sv;
+}
+
+void __fprintf__with(FILE *f, syx_string_t sb) {
+  fprintf(f, "%.*s", (int)sb.count, sb.items);
+  sb_free(sb);
+}
+
+size_t str_append_integer(syx_string_t *string, syx_integer_t value) {
+  __str_init(32);
+  if (value == 0) return (__str_append('0'), 1);
+  if (value == LLONG_MIN) return __str_append_cstr(STRINGIFY2(LLONG_MIN));
+  if (value < 0) (__str_append('-'), value *= -1);
+  size_t rev_start = __str_count();
+  for (syx_integer_t it = value; it != 0; it /= 10) __str_append('0' + it % 10);
+  if (string) string_reverse(__str_start_ptr() + rev_start, __str_count() - rev_start);
+  return __str_count();
 }
 
 size_t get_fractions_precision(syx_fractional_t value) {
@@ -364,60 +393,30 @@ size_t fractions__precision(syx_fractional_t value, ssize_t precision) {
   return fractional_width > exponenta ? exponenta : fractional_width;
 }
 
-size_t stringify__fractional_n(char *string, syx_fractional_t value, ssize_t precision) {
-  __str_it();
+size_t str__append_fractional(syx_string_t *string, syx_fractional_t value, ssize_t precision) {
   if (precision < 0) precision = fractions__precision(value, precision);
-  if (precision == 0) return stringify_integer_n(string, (syx_integer_t)(value + (value < 0 ? -0.5 : 0.5)));
-  if (value < 0) (__str_push('-'), value *= -1);
+  __str_init(33 + precision);
+  if (precision == 0) return str_append_integer(string, (syx_integer_t)(value + (value < 0 ? -0.5 : 0.5)));
+  if (value < 0) (__str_append('-'), value *= -1);
   syx_integer_t exponent = 1;
   for (size_t index = 0; index < (size_t)precision; index += 1) exponent *= 10;
   value += 0.5 / (syx_fractional_t)exponent;
-  syx_integer_t integer, fractions;
-  {
-    syx_fractional_t integer_part = 0;
-    syx_fractional_t fractional_part = modfl(value, &integer_part);
-    integer = (syx_integer_t)integer_part;
-    fractions = (syx_integer_t)(fractional_part * (syx_fractional_t)exponent);
-  }
-  __str_convert(stringify_integer_n, integer);
-  __str_push('.');
-  if (!string) return __str_width() + precision;
-  char *rev_start = (char *)string_it;
-  for (size_t index = 0; index < (size_t)precision; index += 1, fractions /= 10) {
-    __str_push('0' + (fractions % 10));
-  }
-  string_reverse(rev_start, string_it - (uintptr_t)rev_start);
-  return __str_width();
+  syx_fractional_t integer_part = 0;
+  syx_fractional_t fractional_part = modfl(value, &integer_part);
+  __str_append_with(str_append_integer, (syx_integer_t)integer_part);
+  __str_append('.');
+  if (!string) return __str_count() + precision;
+  size_t rev_start = __str_count();
+  syx_integer_t fractions = (syx_integer_t)(fractional_part * (syx_fractional_t)exponent);
+  for (size_t index = 0; index < (size_t)precision; index += 1, fractions /= 10) __str_append('0' + (fractions % 10));
+  string_reverse(__str_start_ptr() + rev_start, __str_count() - rev_start);
+  return __str_count();
 }
 
-syx_string_t stringify__fractional(syx_fractional_t value, ssize_t precision) {
-  if (precision < 0) precision = fractions__precision(value, precision);
-  __stringify_body(stringify__fractional_n, 33 + precision, value, precision);
-}
-
-void sb_append__fractional(String_Builder *sb, syx_fractional_t value, ssize_t precision) {
-  if (precision < 0) precision = fractions__precision(value, precision);
-  __sb_append_body(stringify__fractional_n, 33 + precision, value, precision);
-}
-
-size_t stringify_number_n(char *string, Syx_Number value) {
+size_t str_append_number(syx_string_t *string, Syx_Number value) {
   switch (value.kind) {
-    case SYX_NUMBER_KIND_INTEGER: return stringify_integer_n(string, value.integer);
-    case SYX_NUMBER_KIND_FRACTIONAL: return stringify_fractional_n(string, value.fractional);
-  }
-}
-
-syx_string_t stringify_number(Syx_Number value) {
-  switch (value.kind) {
-    case SYX_NUMBER_KIND_INTEGER: return stringify_integer(value.integer);
-    case SYX_NUMBER_KIND_FRACTIONAL: return stringify_fractional(value.fractional);
-  }
-}
-
-void sb_append_number(String_Builder *sb, Syx_Number value) {
-  switch (value.kind) {
-    case SYX_NUMBER_KIND_INTEGER: return sb_append_integer(sb, value.integer);
-    case SYX_NUMBER_KIND_FRACTIONAL: return sb_append_fractional(sb, value.fractional);
+    case SYX_NUMBER_KIND_INTEGER: return str_append_integer(string, value.integer);
+    case SYX_NUMBER_KIND_FRACTIONAL: return str_append_fractional(string, value.fractional);
   }
 }
 

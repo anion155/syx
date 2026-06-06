@@ -186,6 +186,14 @@ bool command_playground_run() {
   nob_cc_flags(&ctx.cmd);
   nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->src_path));
   nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->vendor_path));
+#ifdef __APPLE__
+  nonob_cc_append_sysroot(&ctx.cmd);
+  nob_cmd_append(&ctx.cmd, "-ledit");
+  nob_cmd_append(&ctx.cmd, "-lffi");
+#else
+  nonob_cc_append_pkgconfig(&ctx.cmd, "readline");
+  nonob_cc_append_pkgconfig(&ctx.cmd, "libffi");
+#endif
   nob_cmd_append(&ctx.cmd, "-ggdb");
   nob_cc_inputs(&ctx.cmd, "-std=c23");
   nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/playground.c", ctx.s->src_path));

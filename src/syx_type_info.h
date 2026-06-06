@@ -180,9 +180,7 @@ Syx_Type_Info_Function make_syx_type_info__function(Syx_Type_Info_Function funct
     sizeof((Syx_Type_Info *[]){__VA_ARGS__}) / sizeof(Syx_Type_Info *),          \
     (Syx_Type_Info *[]){__VA_ARGS__})
 
-size_t stringify_syx_type_info_n(char *string, Syx_Type_Info *typeinfo);
-syx_string_t stringify_syx_type_info(Syx_Type_Info *typeinfo);
-void sb_append_syx_type_info(String_Builder *sb, Syx_Type_Info *typeinfo);
+size_t str_append_syx_type_info(syx_string_t *string, Syx_Type_Info *typeinfo);
 
 ffi_type *syx_type_info_to_ffi(Syx_Type_Info *typeinfo);
 
@@ -419,84 +417,76 @@ Syx_Type_Info_Function make_syx_type_info__function(Syx_Type_Info_Function funct
   return function;
 }
 
-size_t stringify_syx_type_info_n(char *string, Syx_Type_Info *typeinfo) {
-  __str_it();
+size_t str_append_syx_type_info(syx_string_t *string, Syx_Type_Info *typeinfo) {
+  __str_init(256);
   switch (typeinfo->kind) {
     case SYX_TYPE_INFO_KIND_PTR: {
-      __str_push_cstr("#.ref(");
-      if (typeinfo->symbol) __str_convert(stringify_syxv_symbol_n, typeinfo->symbol);
-      else __str_convert(stringify_syx_type_info_n, typeinfo->ptr);
-      __str_push(')');
+      __str_append_cstr("#.ref(");
+      if (typeinfo->symbol) __str_append_with(str_append_syxv_symbol, typeinfo->symbol);
+      else __str_append_with(str_append_syx_type_info, typeinfo->ptr);
+      __str_append(')');
     } break;
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: {
-      __str_push_cstr("#.fn(");
+      __str_append_cstr("#.fn(");
       if (typeinfo->symbol) {
-        __str_convert(stringify_syxv_symbol_n, typeinfo->symbol);
+        __str_append_with(str_append_syxv_symbol, typeinfo->symbol);
       } else {
-        if (typeinfo->function.return_type) __str_convert(stringify_syx_type_info_n, typeinfo->function.return_type);
-        else __str_push_cstr("<unknown>");
-        __str_push('(');
+        if (typeinfo->function.return_type) __str_append_with(str_append_syx_type_info, typeinfo->function.return_type);
+        else __str_append_cstr("<unknown>");
+        __str_append('(');
         for (size_t index = 0; index < typeinfo->function.argc; index += 1) {
-          if (index != 0) __str_push_cstr(", ");
+          if (index != 0) __str_append_cstr(", ");
           Syx_Type_Info *arg = typeinfo->function.argv_types[index];
-          if (arg) __str_convert(stringify_syx_type_info_n, arg);
-          else __str_push_cstr("<unknown>");
+          if (arg) __str_append_with(str_append_syx_type_info, arg);
+          else __str_append_cstr("<unknown>");
         }
-        __str_push(')');
+        __str_append(')');
       };
-      __str_push(')');
+      __str_append(')');
     } break;
     case SYX_TYPE_INFO_KIND_VALUE_PTR: {
-      __str_push_cstr("#.syxv");
+      __str_append_cstr("#.syxv");
     } break;
     case SYX_TYPE_INFO_KIND_STRUCTURE: {
-      __str_push_cstr("#.");
-      if (typeinfo->symbol) __str_convert(stringify_syxv_symbol_n, typeinfo->symbol);
-      else __str_push_cstr("<anonim>");
+      __str_append_cstr("#.");
+      if (typeinfo->symbol) __str_append_with(str_append_syxv_symbol, typeinfo->symbol);
+      else __str_append_cstr("<anonim>");
     } break;
-    case SYX_TYPE_INFO_KIND_VOID: __str_push_cstr("#.c_void"); break;
-    case SYX_TYPE_INFO_KIND_CHAR: __str_push_cstr("#.c_char"); break;
-    case SYX_TYPE_INFO_KIND_I8: __str_push_cstr("#.c_i8"); break;
-    case SYX_TYPE_INFO_KIND_I16: __str_push_cstr("#.c_i16"); break;
-    case SYX_TYPE_INFO_KIND_I32: __str_push_cstr("#.c_i32"); break;
-    case SYX_TYPE_INFO_KIND_I64: __str_push_cstr("#.c_i64"); break;
+    case SYX_TYPE_INFO_KIND_VOID: __str_append_cstr("#.c_void"); break;
+    case SYX_TYPE_INFO_KIND_CHAR: __str_append_cstr("#.c_char"); break;
+    case SYX_TYPE_INFO_KIND_I8: __str_append_cstr("#.c_i8"); break;
+    case SYX_TYPE_INFO_KIND_I16: __str_append_cstr("#.c_i16"); break;
+    case SYX_TYPE_INFO_KIND_I32: __str_append_cstr("#.c_i32"); break;
+    case SYX_TYPE_INFO_KIND_I64: __str_append_cstr("#.c_i64"); break;
 #ifdef SYX_TYPE_I128_SUPPORTED
-    case SYX_TYPE_INFO_KIND_I128: __str_push_cstr("#.c_i128"); break;
+    case SYX_TYPE_INFO_KIND_I128: __str_append_cstr("#.c_i128"); break;
 #endif
-    case SYX_TYPE_INFO_KIND_U8: __str_push_cstr("#.c_u8"); break;
-    case SYX_TYPE_INFO_KIND_U16: __str_push_cstr("#.c_u16"); break;
-    case SYX_TYPE_INFO_KIND_U32: __str_push_cstr("#.c_u32"); break;
-    case SYX_TYPE_INFO_KIND_U64: __str_push_cstr("#.c_u64"); break;
+    case SYX_TYPE_INFO_KIND_U8: __str_append_cstr("#.c_u8"); break;
+    case SYX_TYPE_INFO_KIND_U16: __str_append_cstr("#.c_u16"); break;
+    case SYX_TYPE_INFO_KIND_U32: __str_append_cstr("#.c_u32"); break;
+    case SYX_TYPE_INFO_KIND_U64: __str_append_cstr("#.c_u64"); break;
 #ifdef SYX_TYPE_I128_SUPPORTED
-    case SYX_TYPE_INFO_KIND_U128: __str_push_cstr("#.c_u128"); break;
+    case SYX_TYPE_INFO_KIND_U128: __str_append_cstr("#.c_u128"); break;
 #endif
-    case SYX_TYPE_INFO_KIND_INT: __str_push_cstr("#.c_int"); break;
-    case SYX_TYPE_INFO_KIND_INT_LONG: __str_push_cstr("#.c_int_long"); break;
-    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: __str_push_cstr("#.c_int_long_long"); break;
-    case SYX_TYPE_INFO_KIND_UINT: __str_push_cstr("#.c_uint"); break;
-    case SYX_TYPE_INFO_KIND_UINT_LONG: __str_push_cstr("#.c_uint_long"); break;
-    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: __str_push_cstr("#.c_uint_long_long"); break;
+    case SYX_TYPE_INFO_KIND_INT: __str_append_cstr("#.c_int"); break;
+    case SYX_TYPE_INFO_KIND_INT_LONG: __str_append_cstr("#.c_int_long"); break;
+    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: __str_append_cstr("#.c_int_long_long"); break;
+    case SYX_TYPE_INFO_KIND_UINT: __str_append_cstr("#.c_uint"); break;
+    case SYX_TYPE_INFO_KIND_UINT_LONG: __str_append_cstr("#.c_uint_long"); break;
+    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: __str_append_cstr("#.c_uint_long_long"); break;
 #ifdef SYX_TYPE_SIZED_FLOAT_SUPPORTED
-    case SYX_TYPE_INFO_KIND_F16: __str_push_cstr("#.c_f16"); break;
-    case SYX_TYPE_INFO_KIND_F32: __str_push_cstr("#.c_f32"); break;
-    case SYX_TYPE_INFO_KIND_F64: __str_push_cstr("#.c_f64"); break;
-    case SYX_TYPE_INFO_KIND_F128: __str_push_cstr("#.c_f128"); break;
+    case SYX_TYPE_INFO_KIND_F16: __str_append_cstr("#.c_f16"); break;
+    case SYX_TYPE_INFO_KIND_F32: __str_append_cstr("#.c_f32"); break;
+    case SYX_TYPE_INFO_KIND_F64: __str_append_cstr("#.c_f64"); break;
+    case SYX_TYPE_INFO_KIND_F128: __str_append_cstr("#.c_f128"); break;
 #endif
-    case SYX_TYPE_INFO_KIND_FLOAT: __str_push_cstr("#.c_float"); break;
-    case SYX_TYPE_INFO_KIND_DOUBLE: __str_push_cstr("#.c_double"); break;
-    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: __str_push_cstr("#.c_double_long"); break;
-    case SYX_TYPE_INFO_KIND_SIZE: __str_push_cstr("#.c_size"); break;
+    case SYX_TYPE_INFO_KIND_FLOAT: __str_append_cstr("#.c_float"); break;
+    case SYX_TYPE_INFO_KIND_DOUBLE: __str_append_cstr("#.c_double"); break;
+    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: __str_append_cstr("#.c_double_long"); break;
+    case SYX_TYPE_INFO_KIND_SIZE: __str_append_cstr("#.c_size"); break;
     default: UNREACHABLE(temp_sprintf("kind is not supported: %u '%s'", typeinfo->kind, syx_type_info_kind_name(typeinfo->kind)));
   }
-  return __str_width();
-}
-
-syx_string_t stringify_syx_type_info(Syx_Type_Info *typeinfo) {
-  __stringify_body(stringify_syx_type_info_n, 256, typeinfo);
-}
-
-void sb_append_syx_type_info(String_Builder *sb, Syx_Type_Info *typeinfo) {
-  __sb_append_body(stringify_syx_type_info_n, 256, typeinfo);
+  return __str_count();
 }
 
 ffi_type *syx_type_info_to_ffi(Syx_Type_Info *typeinfo) {

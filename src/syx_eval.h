@@ -139,7 +139,7 @@ SyxV *syx__eval_forms_list_opt(Syx_Eval_Ctx *ctx, SyxV *forms_list, Syx_Eval_For
 SyxV *syx_convert_to_bool(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *syx_convert_to_number(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value);
-SyxV *sb_append_converted_syxv(String_Builder *sb, Syx_Eval_Ctx *ctx, SyxV *value);
+SyxV *sb_append_converted_syxv(syx_string_t *string, Syx_Eval_Ctx *ctx, SyxV *value);
 
 #define PRINT_SYX_ENV_DEEP_CURRENT_ONLY 1
 #define PRINT_SYX_ENV_DEEP_ALL 0
@@ -576,9 +576,9 @@ SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
     case SYXV_KIND_NIL: return make_syxv_string_cstr("#nil");
     case SYXV_KIND_SYMBOL: RUNTIME_ERROR(ctx, "illegal conversion of symbol to string");
-    case SYXV_KIND_PAIR: return make_syxv_string(stringify_syxv(value));
+    case SYXV_KIND_PAIR: return make_syxv_string(stringify(str_append_syxv, value));
     case SYXV_KIND_BOOL: return make_syxv_string_cstr(value->boolean ? "#true" : "#false");
-    case SYXV_KIND_NUMBER: return make_syxv_string(stringify_number(value->number));
+    case SYXV_KIND_NUMBER: return make_syxv_string(stringify(str_append_number, value->number));
     case SYXV_KIND_STRING: return value;
     case SYXV_KIND_BOXED: return syx_convert_boxed_to_string(ctx, value->boxed);
     case SYXV_KIND_BOXED_METHOD: RUNTIME_ERROR(ctx, "illegal conversion of boxed value method to string");
@@ -591,15 +591,15 @@ SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value) {
   }
 }
 
-SyxV *sb_append_converted_syxv(String_Builder *sb, Syx_Eval_Ctx *ctx, SyxV *value) {
+SyxV *sb_append_converted_syxv(syx_string_t *string, Syx_Eval_Ctx *ctx, SyxV *value) {
   switch (value->kind) {
-    case SYXV_KIND_NIL: sb_append_cstr(sb, "#nil"); break;
+    case SYXV_KIND_NIL: sb_append_cstr(string, "#nil"); break;
     case SYXV_KIND_SYMBOL: RUNTIME_ERROR(ctx, "illegal conversion of symbol to string");
-    case SYXV_KIND_PAIR: sb_append_syxv(sb, value); break;
-    case SYXV_KIND_BOOL: sb_append_cstr(sb, value->boolean ? "#true" : "#false"); break;
-    case SYXV_KIND_NUMBER: sb_append_number(sb, value->number); break;
-    case SYXV_KIND_STRING: sb_append_buf(sb, value->string.data, value->string.count); break;
-    case SYXV_KIND_BOXED: sb_append_syx_boxed(sb, value->boxed); break;
+    case SYXV_KIND_PAIR: str_append_syxv(string, value); break;
+    case SYXV_KIND_BOOL: sb_append_cstr(string, value->boolean ? "#true" : "#false"); break;
+    case SYXV_KIND_NUMBER: str_append_number(string, value->number); break;
+    case SYXV_KIND_STRING: sb_append_buf(string, value->string.data, value->string.count); break;
+    case SYXV_KIND_BOXED: str_append_syx_boxed(string, value->boxed); break;
     case SYXV_KIND_BOXED_METHOD: RUNTIME_ERROR(ctx, "illegal conversion of boxed value method to string");
     case SYXV_KIND_SPECIALF: RUNTIME_ERROR(ctx, "illegal conversion of special form to string");
     case SYXV_KIND_BUILTIN: RUNTIME_ERROR(ctx, "illegal conversion of builtin function to string");
@@ -617,7 +617,7 @@ void fprint_syx_env_opt(FILE *f, Syx_Env *env, Print_Syx_Env_Opt opt) {
   ht_foreach(syxv, &env->symbols) {
     if (opt.indent) fprintf(f, "%*c", opt.indent, ' ');
     fprintf(f, "  \"%s\": ", ht_key(&env->symbols, syxv)->name);
-    fprint_syxv(f, *syxv);
+    fprintf_with(f, str_append_syxv, *syxv);
     fprintf(f, "\n");
   }
   if (env->parent) {

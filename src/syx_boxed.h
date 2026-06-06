@@ -19,9 +19,7 @@ SyxV *syx_eval_boxed_construct(Syx_Eval_Ctx *ctx, Syx_Type_Info *typeinfo, SyxV 
 SyxV *syx_eval_boxed(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments);
 SyxV *syx_eval_boxed_function(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments);
 
-size_t stringify_syx_boxed_n(char *string, Syx_Boxed *boxed);
-syx_string_t stringify_syx_boxed(Syx_Boxed *boxed);
-void sb_append_syx_boxed(String_Builder *sb, Syx_Boxed *boxed);
+size_t str_append_syx_boxed(syx_string_t *string, Syx_Boxed *boxed);
 
 SyxV *syx_unbox(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed);
 SyxV *syx_convert_boxed_to_bool(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed);
@@ -36,9 +34,7 @@ typedef struct Syx_Boxed_Method {
 Syx_Boxed_Method *make_syx_boxed_method(Syx_Boxed *boxed, Syx_Type_Info_Structure_Field *method_field);
 SyxV *syx_eval_boxed_method(Syx_Eval_Ctx *ctx, Syx_Boxed_Method *method, SyxV *arguments);
 
-size_t stringify_syx_boxed_method_n(char *string, Syx_Boxed_Method *method);
-syx_string_t stringify_syx_boxed_method(Syx_Boxed_Method *method);
-void sb_append_syx_boxed_method(String_Builder *sb, Syx_Boxed_Method *method);
+size_t str_append_boxed_method(syx_string_t *string, Syx_Boxed_Method *method);
 
 #endif // SYX_BOXED_H
 
@@ -316,7 +312,7 @@ SyxV *syx_eval_boxed_structure_getter(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, const
       RUNTIME_ERROR(ctx, temp_sprintf("there is no field named '%s'", field_name));
     }
   } else {
-    syx_string_t field_str = stringify_syxv(field_arg);
+    syx_string_t field_str = stringify(str_append_syxv, field_arg);
     syx_ctx_frame_rename(ctx, temp_sprintf("(%s %s)", typeinfo_string, field_str.items));
     char *message = temp_sprintf("unsupported field kind: %s", field_str.items);
     sb_free(field_str);
@@ -361,7 +357,7 @@ SyxV *syx_eval_boxed(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments) {
           }
         } break;
         case SYX_TYPE_INFO_KIND_STRUCTURE: {
-          syx_string_t typeinfo_str = stringify_syx_type_info(boxed->typeinfo);
+          syx_string_t typeinfo_str = stringify(str_append_syx_type_info, boxed->typeinfo);
           result = syx_eval_boxed_structure_getter(ctx, current, typeinfo_str.items, field_arg);
           sb_free(typeinfo_str);
         }; break;
@@ -412,59 +408,51 @@ SyxV *syx_eval_boxed_function(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *argumen
   return make_syxv_boxed(make_syx_boxed(.typeinfo = function->return_type, .data = return_buffer, .parent = NULL));
 }
 
-size_t stringify_syx_boxed_n(char *string, Syx_Boxed *boxed) {
-  __str_it();
-  __str_convert(stringify_syx_type_info_n, boxed->typeinfo);
-  __str_push('(');
+size_t str_append_syx_boxed(syx_string_t *string, Syx_Boxed *boxed) {
+  __str_init(256);
+  __str_append_with(str_append_syx_type_info, boxed->typeinfo);
+  __str_append('(');
   switch (boxed->typeinfo->kind) {
     case SYX_TYPE_INFO_KIND_PTR: TODO("implement boxed pointer stringify");
     case SYX_TYPE_INFO_KIND_FUNCTION_PTR: TODO("implement boxed function pointer stringify");
     case SYX_TYPE_INFO_KIND_STRUCTURE: TODO("implement boxed structure pointer stringify");
-    case SYX_TYPE_INFO_KIND_VALUE_PTR: __str_convert(stringify_syxv_n, (SyxV *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_VALUE_PTR: __str_append_with(str_append_syxv, (SyxV *)boxed->data); break;
     case SYX_TYPE_INFO_KIND_VOID: break;
-    case SYX_TYPE_INFO_KIND_CHAR: __str_push(*(SYX_TYPE_CHAR *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_I8: __str_convert(stringify_integer_n, *(SYX_TYPE_I8 *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_I16: __str_convert(stringify_integer_n, *(SYX_TYPE_I16 *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_I32: __str_convert(stringify_integer_n, *(SYX_TYPE_I32 *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_I64: __str_convert(stringify_integer_n, *(SYX_TYPE_I64 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_CHAR: __str_append(*(SYX_TYPE_CHAR *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_I8: __str_append_with(str_append_integer, *(SYX_TYPE_I8 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_I16: __str_append_with(str_append_integer, *(SYX_TYPE_I16 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_I32: __str_append_with(str_append_integer, *(SYX_TYPE_I32 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_I64: __str_append_with(str_append_integer, *(SYX_TYPE_I64 *)boxed->data); break;
 #ifdef SYX_TYPE_I128_SUPPORTED
-    case SYX_TYPE_INFO_KIND_I128: __str_convert(stringify_integer_n, *(SYX_TYPE_I128 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_I128: __str_append_with(str_append_integer, *(SYX_TYPE_I128 *)boxed->data); break;
 #endif
-    case SYX_TYPE_INFO_KIND_U8: __str_convert(stringify_integer_n, *(SYX_TYPE_U8 *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_U16: __str_convert(stringify_integer_n, *(SYX_TYPE_U16 *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_U32: __str_convert(stringify_integer_n, *(SYX_TYPE_U32 *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_U64: __str_convert(stringify_integer_n, *(SYX_TYPE_U64 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_U8: __str_append_with(str_append_integer, *(SYX_TYPE_U8 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_U16: __str_append_with(str_append_integer, *(SYX_TYPE_U16 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_U32: __str_append_with(str_append_integer, *(SYX_TYPE_U32 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_U64: __str_append_with(str_append_integer, *(SYX_TYPE_U64 *)boxed->data); break;
 #ifdef SYX_TYPE_I128_SUPPORTED
-    case SYX_TYPE_INFO_KIND_U128: __str_convert(stringify_integer_n, *(SYX_TYPE_U128 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_U128: __str_append_with(str_append_integer, *(SYX_TYPE_U128 *)boxed->data); break;
 #endif
-    case SYX_TYPE_INFO_KIND_INT: __str_convert(stringify_integer_n, *(SYX_TYPE_INT *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_INT_LONG: __str_convert(stringify_integer_n, *(SYX_TYPE_INT_LONG *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: __str_convert(stringify_integer_n, *(SYX_TYPE_INT_LONG_LONG *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_UINT: __str_convert(stringify_integer_n, *(SYX_TYPE_UINT *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_UINT_LONG: __str_convert(stringify_integer_n, *(SYX_TYPE_UINT_LONG *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: __str_convert(stringify_integer_n, *(SYX_TYPE_UINT_LONG_LONG *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_INT: __str_append_with(str_append_integer, *(SYX_TYPE_INT *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_INT_LONG: __str_append_with(str_append_integer, *(SYX_TYPE_INT_LONG *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: __str_append_with(str_append_integer, *(SYX_TYPE_INT_LONG_LONG *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_UINT: __str_append_with(str_append_integer, *(SYX_TYPE_UINT *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_UINT_LONG: __str_append_with(str_append_integer, *(SYX_TYPE_UINT_LONG *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: __str_append_with(str_append_integer, *(SYX_TYPE_UINT_LONG_LONG *)boxed->data); break;
 #ifdef SYX_TYPE_SIZED_FLOAT_SUPPORTED
-    case SYX_TYPE_INFO_KIND_F16: __str_convert(stringify_fractional_n, *(SYX_TYPE_F16 *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_F32: __str_convert(stringify_fractional_n, *(SYX_TYPE_F32 *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_F64: __str_convert(stringify_fractional_n, *(SYX_TYPE_F64 *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_F128: __str_convert(stringify_fractional_n, *(SYX_TYPE_F128 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_F16: __str_append_with(str_append_fractional, *(SYX_TYPE_F16 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_F32: __str_append_with(str_append_fractional, *(SYX_TYPE_F32 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_F64: __str_append_with(str_append_fractional, *(SYX_TYPE_F64 *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_F128: __str_append_with(str_append_fractional, *(SYX_TYPE_F128 *)boxed->data); break;
 #endif
-    case SYX_TYPE_INFO_KIND_FLOAT: __str_convert(stringify_fractional_n, *(SYX_TYPE_FLOAT *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_DOUBLE: __str_convert(stringify_fractional_n, *(SYX_TYPE_DOUBLE *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: __str_convert(stringify_fractional_n, *(SYX_TYPE_DOUBLE_LONG *)boxed->data); break;
-    case SYX_TYPE_INFO_KIND_SIZE: __str_convert(stringify_integer_n, *(SYX_TYPE_SIZE *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_FLOAT: __str_append_with(str_append_fractional, *(SYX_TYPE_FLOAT *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_DOUBLE: __str_append_with(str_append_fractional, *(SYX_TYPE_DOUBLE *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: __str_append_with(str_append_fractional, *(SYX_TYPE_DOUBLE_LONG *)boxed->data); break;
+    case SYX_TYPE_INFO_KIND_SIZE: __str_append_with(str_append_integer, *(SYX_TYPE_SIZE *)boxed->data); break;
     default: break;
   }
-  __str_push(')');
-  return __str_width();
-}
-
-syx_string_t stringify_syx_boxed(Syx_Boxed *boxed) {
-  __stringify_body(stringify_syx_boxed_n, 256, boxed);
-}
-
-void sb_append_syx_boxed(String_Builder *sb, Syx_Boxed *boxed) {
-  __sb_append_body(stringify_syx_boxed_n, 256, boxed);
+  __str_append(')');
+  return __str_count();
 }
 
 SyxV *syx_unbox(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed) {
@@ -608,36 +596,36 @@ SyxV *syx_convert_boxed_to_string(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed) {
     case SYX_TYPE_INFO_KIND_STRUCTURE: TODO("Implement structure conversion to string");
     // case SYX_TYPE_INFO_KIND_VOID: break;
     case SYX_TYPE_INFO_KIND_CHAR: return make_syxv_string_n((SYX_TYPE_CHAR *)boxed->data, 1);
-    case SYX_TYPE_INFO_KIND_I8: return make_syxv_string(stringify_integer(*(SYX_TYPE_I8 *)boxed->data));
-    case SYX_TYPE_INFO_KIND_I16: return make_syxv_string(stringify_integer(*(SYX_TYPE_I16 *)boxed->data));
-    case SYX_TYPE_INFO_KIND_I32: return make_syxv_string(stringify_integer(*(SYX_TYPE_I32 *)boxed->data));
-    case SYX_TYPE_INFO_KIND_I64: return make_syxv_string(stringify_integer(*(SYX_TYPE_I64 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_I8: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_I8 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_I16: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_I16 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_I32: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_I32 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_I64: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_I64 *)boxed->data));
 #ifdef SYX_TYPE_I128_SUPPORTED
-    case SYX_TYPE_INFO_KIND_I128: return make_syxv_string(stringify_integer(*(SYX_TYPE_I128 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_I128: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_I128 *)boxed->data));
 #endif
-    case SYX_TYPE_INFO_KIND_U8: return make_syxv_string(stringify_integer(*(SYX_TYPE_U8 *)boxed->data));
-    case SYX_TYPE_INFO_KIND_U16: return make_syxv_string(stringify_integer(*(SYX_TYPE_U16 *)boxed->data));
-    case SYX_TYPE_INFO_KIND_U32: return make_syxv_string(stringify_integer(*(SYX_TYPE_U32 *)boxed->data));
-    case SYX_TYPE_INFO_KIND_U64: return make_syxv_string(stringify_integer(*(SYX_TYPE_U64 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_U8: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_U8 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_U16: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_U16 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_U32: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_U32 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_U64: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_U64 *)boxed->data));
 #ifdef SYX_TYPE_I128_SUPPORTED
-    case SYX_TYPE_INFO_KIND_U128: return make_syxv_string(stringify_integer(*(SYX_TYPE_U128 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_U128: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_U128 *)boxed->data));
 #endif
-    case SYX_TYPE_INFO_KIND_INT: return make_syxv_string(stringify_integer(*(SYX_TYPE_INT *)boxed->data));
-    case SYX_TYPE_INFO_KIND_INT_LONG: return make_syxv_string(stringify_integer(*(SYX_TYPE_INT_LONG *)boxed->data));
-    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: return make_syxv_string(stringify_integer(*(SYX_TYPE_INT_LONG_LONG *)boxed->data));
-    case SYX_TYPE_INFO_KIND_UINT: return make_syxv_string(stringify_integer(*(SYX_TYPE_UINT *)boxed->data));
-    case SYX_TYPE_INFO_KIND_UINT_LONG: return make_syxv_string(stringify_integer(*(SYX_TYPE_UINT_LONG *)boxed->data));
-    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: return make_syxv_string(stringify_integer(*(SYX_TYPE_UINT_LONG_LONG *)boxed->data));
+    case SYX_TYPE_INFO_KIND_INT: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_INT *)boxed->data));
+    case SYX_TYPE_INFO_KIND_INT_LONG: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_INT_LONG *)boxed->data));
+    case SYX_TYPE_INFO_KIND_INT_LONG_LONG: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_INT_LONG_LONG *)boxed->data));
+    case SYX_TYPE_INFO_KIND_UINT: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_UINT *)boxed->data));
+    case SYX_TYPE_INFO_KIND_UINT_LONG: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_UINT_LONG *)boxed->data));
+    case SYX_TYPE_INFO_KIND_UINT_LONG_LONG: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_UINT_LONG_LONG *)boxed->data));
 #ifdef SYX_TYPE_SIZED_FLOAT_SUPPORTED
-    case SYX_TYPE_INFO_KIND_F16: return make_syxv_string(stringify_fractional(*(SYX_TYPE_F16 *)boxed->data));
-    case SYX_TYPE_INFO_KIND_F32: return make_syxv_string(stringify_fractional(*(SYX_TYPE_F32 *)boxed->data));
-    case SYX_TYPE_INFO_KIND_F64: return make_syxv_string(stringify_fractional(*(SYX_TYPE_F64 *)boxed->data));
-    case SYX_TYPE_INFO_KIND_F128: return make_syxv_string(stringify_fractional(*(SYX_TYPE_F128 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_F16: return make_syxv_string(stringify(str_append_fractional, *(SYX_TYPE_F16 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_F32: return make_syxv_string(stringify(str_append_fractional, *(SYX_TYPE_F32 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_F64: return make_syxv_string(stringify(str_append_fractional, *(SYX_TYPE_F64 *)boxed->data));
+    case SYX_TYPE_INFO_KIND_F128: return make_syxv_string(stringify(str_append_fractional, *(SYX_TYPE_F128 *)boxed->data));
 #endif
-    case SYX_TYPE_INFO_KIND_FLOAT: return make_syxv_string(stringify_fractional(*(SYX_TYPE_FLOAT *)boxed->data));
-    case SYX_TYPE_INFO_KIND_DOUBLE: return make_syxv_string(stringify_fractional(*(SYX_TYPE_DOUBLE *)boxed->data));
-    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: return make_syxv_string(stringify_fractional(*(SYX_TYPE_DOUBLE_LONG *)boxed->data));
-    case SYX_TYPE_INFO_KIND_SIZE: return make_syxv_string(stringify_integer(*(SYX_TYPE_SIZE *)boxed->data));
+    case SYX_TYPE_INFO_KIND_FLOAT: return make_syxv_string(stringify(str_append_fractional, *(SYX_TYPE_FLOAT *)boxed->data));
+    case SYX_TYPE_INFO_KIND_DOUBLE: return make_syxv_string(stringify(str_append_fractional, *(SYX_TYPE_DOUBLE *)boxed->data));
+    case SYX_TYPE_INFO_KIND_DOUBLE_LONG: return make_syxv_string(stringify(str_append_fractional, *(SYX_TYPE_DOUBLE_LONG *)boxed->data));
+    case SYX_TYPE_INFO_KIND_SIZE: return make_syxv_string(stringify(str_append_integer, *(SYX_TYPE_SIZE *)boxed->data));
     default: RUNTIME_ERROR(ctx, temp_sprintf("illegal conversion of boxed value (of kind: '%s') to string", syx_type_info_kind_name(boxed->typeinfo->kind)));
   }
 }
@@ -657,7 +645,7 @@ Syx_Boxed_Method *make_syx_boxed_method(Syx_Boxed *boxed, Syx_Type_Info_Structur
 
 SyxV *syx_eval_boxed_method(Syx_Eval_Ctx *ctx, Syx_Boxed_Method *method, SyxV *arguments) {
   if (method->method_field->kind != SYX_TYPE_INFO_STRUCTURE_FIELD_KIND_METHOD) RUNTIME_ERROR(ctx, "method expected");
-  syx_string_t name = stringify_syx_boxed_method(method);
+  syx_string_t name = stringify(str_append_boxed_method, method);
   syx_ctx_push_frame(ctx, name.items);
   sb_free(name);
   SyxV *result = method->method_field->method(ctx, method->boxed->data, arguments);
@@ -667,25 +655,16 @@ SyxV *syx_eval_boxed_method(Syx_Eval_Ctx *ctx, Syx_Boxed_Method *method, SyxV *a
   return rc_move(result);
 }
 
-size_t stringify_syx_boxed_method_n(char *string, Syx_Boxed_Method *method) {
-  __str_it();
-  __str_push('(');
-  __str_convert(stringify_syx_type_info_n, method->boxed->typeinfo);
-  __str_push(' ');
-  __str_push('<');
-  syx_string_t name = method->method_field->name;
-  __str_convert(stringify_string_n, name.items, name.count);
-  __str_push('>');
-  __str_push(')');
-  return __str_width();
-}
-
-syx_string_t stringify_syx_boxed_method(Syx_Boxed_Method *method) {
-  __stringify_body(stringify_syx_boxed_method_n, 256, method);
-}
-
-void sb_append_syx_boxed_method(String_Builder *sb, Syx_Boxed_Method *method) {
-  __sb_append_body(stringify_syx_boxed_method_n, 256, method);
+size_t str_append_boxed_method(syx_string_t *string, Syx_Boxed_Method *method) {
+  __str_init(256);
+  __str_append('(');
+  __str_append_with(str_append_syx_type_info, method->boxed->typeinfo);
+  __str_append(' ');
+  __str_append('<');
+  __str_append_sb(method->method_field->name);
+  __str_append('>');
+  __str_append(')');
+  return __str_count();
 }
 
 #endif // SYX_BOXED_IMPL

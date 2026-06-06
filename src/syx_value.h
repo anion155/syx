@@ -170,20 +170,8 @@ bool syxv__list_map_next(SyxV **source_it, SyxV ***target_it, SyxV ***value, Syx
            &value,                               \
            WITH_DEFAULT(NULL, __VA_ARGS__));)
 
-size_t stringify_syxv_symbol_n(char *string, SyxV_Symbol *symbol);
-// syx_string_t stringify_syxv_symbol(SyxV_Symbol *symbol);
-// void sb_append_syxv_symbol(String_Builder *sb, SyxV_Symbol *symbol);
-
-typedef Ht(SyxV *, String_Builder, SyxV_Stringify_Cache) SyxV_Stringify_Cache;
-size_t stringify__syxv_n(char *string, SyxV *value, SyxV_Stringify_Cache *cache);
-#define stringify_syxv_n(string, value, ...) stringify__syxv_n((string), (value), WITH_DEFAULT(NULL, __VA_ARGS__))
-syx_string_t stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache);
-#define stringify_syxv(value, ...) stringify__syxv((value), WITH_DEFAULT(NULL, __VA_ARGS__))
-void sb_append__syxv(String_Builder *sb, SyxV *value, SyxV_Stringify_Cache *cache);
-#define sb_append_syxv(sb, value, ...) sb_append__syxv((sb), (value), WITH_DEFAULT(NULL, __VA_ARGS__))
-
-void fprint_syxv(FILE *f, SyxV *value);
-#define print_syxv(value) fprint_syxv(stdout, (value))
+size_t str_append_syxv_symbol(syx_string_t *string, SyxV_Symbol *symbol);
+size_t str_append_syxv(syx_string_t *string, SyxV *value);
 
 #endif // SYX_VALUE_H
 
@@ -467,170 +455,103 @@ bool syxv__list_map_next(SyxV **source_it, SyxV ***target_it, SyxV ***value, Syx
   return true;
 }
 
-size_t stringify_syxv_symbol_n(char *string, SyxV_Symbol *symbol) {
+size_t str_append_syxv_symbol(syx_string_t *string, SyxV_Symbol *symbol) {
   if (!symbol->name) return 0;
-  __str_it();
+  __str_init(symbol->length + (symbol->guarded ? 2 : 0));
   if (symbol->guarded) {
-    __str_push('|');
-    __str_convert(stringify_string_n, symbol->name, symbol->length);
-    __str_push('|');
+    __str_append('|');
+    __str_append_n(symbol->name, symbol->length);
+    __str_append('|');
   } else {
-    __str_convert(stringify_string_n, symbol->name, symbol->length);
+    __str_append_n(symbol->name, symbol->length);
   }
-  return __str_width();
+  return __str_count();
 }
 
-void syxv_stringify_cache_destructor(void *data) {
-  SyxV_Stringify_Cache *cache = data;
-  ht_foreach(item, cache) {
-    rc_release(ht_key(cache, item));
-    sb_free(*item);
-  }
-  ht_free(cache);
-}
-
-SyxV_Stringify_Cache *make_syxv_stringify_cache() {
-  SyxV_Stringify_Cache *cache = rc_malloc(sizeof(SyxV_Stringify_Cache), .destructor = syxv_stringify_cache_destructor);
-  assert(cache);
-  memset(cache, 0, sizeof(SyxV_Stringify_Cache));
-  return cache;
-}
-
-size_t stringify__cached_syxv(char *string, SyxV *value, SyxV_Stringify_Cache *cache) {
-  if (!cache) return stringify__syxv_n(string, value, NULL);
-  syx_string_t *cached = ht_find(cache, value);
-  if (cached != NULL) {
-    if (string) memcpy(string, cached->items, cached->count);
-    return cached->count;
-  }
-  syx_string_t sb = stringify__syxv(value, cache);
-  cached = ht_put(cache, rc_acquire(value));
-  *cached = sb;
-  if (string) memcpy(string, cached->items, cached->count);
-  return cached->count;
-}
-
-size_t stringify__syxv_n(char *string, SyxV *value, SyxV_Stringify_Cache *cache) {
-  syx_string_t *cached = cache ? ht_find(cache, value) : NULL;
-  if (cached) {
-    memcpy(string, cached->items, cached->count);
-    return cached->count;
-  }
-  __str_it();
+size_t str_append_syxv(syx_string_t *string, SyxV *value) {
+  __str_init(256);
   switch (value->kind) {
     case SYXV_KIND_NIL: {
-      __str_push_cstr("#nil");
+      __str_append_cstr("#nil");
     } break;
     case SYXV_KIND_SYMBOL: {
-      __str_convert(stringify_syxv_symbol_n, &value->symbol);
+      __str_append_with(str_append_syxv_symbol, &value->symbol);
     } break;
     case SYXV_KIND_PAIR: {
-      __str_push('(');
+      __str_append('(');
       SyxV *it = value;
       SyxV *last_left = it->pair.left;
-      __str_convert(stringify__cached_syxv, last_left, cache);
+      __str_append_with(str_append_syxv, last_left);
       it = it->pair.right;
       while (it->kind == SYXV_KIND_PAIR) {
-        __str_push(' ');
+        __str_append(' ');
         last_left = it->pair.left;
-        __str_convert(stringify__cached_syxv, last_left, cache);
+        __str_append_with(str_append_syxv, last_left);
         it = it->pair.right;
       }
       if (it->kind != SYXV_KIND_NIL) {
-        __str_push(' ');
-        __str_push('.');
-        __str_push(' ');
-        __str_convert(stringify__cached_syxv, it, cache);
+        __str_append(' ');
+        __str_append('.');
+        __str_append(' ');
+        __str_append_with(str_append_syxv, it);
       }
-      __str_push(')');
+      __str_append(')');
     } break;
     case SYXV_KIND_BOOL: {
-      __str_push('#');
-      if (value->boolean) __str_push_cstr("true");
-      else __str_push_cstr("false");
+      __str_append('#');
+      if (value->boolean) __str_append_cstr("true");
+      else __str_append_cstr("false");
     } break;
     case SYXV_KIND_NUMBER: {
-      __str_convert(stringify_number_n, value->number);
+      __str_append_with(str_append_number, value->number);
     } break;
     case SYXV_KIND_STRING: {
-      __str_push('"');
-      __str_convert(stringify_string_n, value->string.data, value->string.count);
-      __str_push('"');
+      __str_append('"');
+      __str_append_sv(value->string);
+      __str_append('"');
     } break;
     case SYXV_KIND_BOXED: {
-      __str_convert(stringify_syx_boxed_n, value->boxed);
+      __str_append_with(str_append_syx_boxed, value->boxed);
     } break;
     case SYXV_KIND_BOXED_METHOD: {
-      __str_convert(stringify_syx_boxed_method_n, value->boxed_method);
+      __str_append_with(str_append_boxed_method, value->boxed_method);
     } break;
     case SYXV_KIND_SPECIALF: {
-      __str_push('?');
-      __str_push('<');
-      if (value->specialf.name) __str_push_cstr(value->specialf.name);
-      __str_push('>');
+      __str_append('?');
+      __str_append('<');
+      if (value->specialf.name) __str_append_cstr(value->specialf.name);
+      __str_append('>');
     } break;
     case SYXV_KIND_BUILTIN: {
-      __str_push('!');
-      __str_push('<');
-      if (value->builtin.name) __str_push_cstr(value->builtin.name);
-      __str_push('>');
+      __str_append('!');
+      __str_append('<');
+      if (value->builtin.name) __str_append_cstr(value->builtin.name);
+      __str_append('>');
     } break;
     case SYXV_KIND_CLOSURE: {
-      __str_push('(');
-      __str_push('$');
-      __str_push('<');
-      if (value->closure.name) __str_push_cstr(value->closure.name);
-      __str_push('>');
-      __str_push(' ');
-      __str_convert(stringify__cached_syxv, value->closure.defines, cache);
+      __str_append('(');
+      __str_append('$');
+      __str_append('<');
+      if (value->closure.name) __str_append_cstr(value->closure.name);
+      __str_append('>');
+      __str_append(' ');
+      __str_append_with(str_append_syxv, value->closure.defines);
       SyxV *it = value->closure.forms;
       while (it->kind == SYXV_KIND_PAIR) {
-        __str_push(' ');
-        __str_convert(stringify__cached_syxv, it->pair.left, cache);
+        __str_append(' ');
+        __str_append_with(str_append_syxv, it->pair.left);
         it = it->pair.right;
       }
-      __str_push(')');
+      __str_append(')');
     } break;
     case SYXV_KIND_CONSTRUCTOR: {
-      __str_push_cstr("new ");
-      __str_convert(stringify_syx_type_info_n, value->constructor.typeinfo);
+      __str_append_cstr("new ");
+      __str_append_with(str_append_syx_type_info, value->constructor.typeinfo);
     } break;
     case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be convderted");
   }
-  return __str_width();
-}
-
-syx_string_t stringify__syxv(SyxV *value, SyxV_Stringify_Cache *cache) {
-  SyxV_Stringify_Cache *_cache;
-  if (cache) _cache = rc_acquire(cache);
-  else _cache = rc_acquire(make_syxv_stringify_cache());
-
-  size_t width = stringify__syxv_n(NULL, value, _cache);
-  syx_string_t result = {.items = malloc(width + 1), .count = width, .capacity = width + 1};
-  result.items[width] = 0;
-  stringify__syxv_n(result.items, value, _cache);
-
-  rc_release(_cache);
-  return result;
-}
-
-void sb_append__syxv(String_Builder *sb, SyxV *value, SyxV_Stringify_Cache *cache) {
-  SyxV_Stringify_Cache *_cache;
-  if (cache) _cache = rc_acquire(cache);
-  else _cache = rc_acquire(make_syxv_stringify_cache());
-
-  size_t width = stringify__syxv_n(NULL, value, _cache);
-  da_realloc_capacity(sb, sb->count + width);
-  sb->count += stringify__syxv_n(sb->items + sb->count, value, _cache);
-
-  rc_release(_cache);
-}
-
-void fprint_syxv(FILE *f, SyxV *value) {
-  syx_string_t sb = stringify_syxv(value);
-  fprintf(f, "%.*s", (int)sb.count, sb.items);
-  sb_free(sb);
+  return __str_count();
 }
 
 #endif // SYX_VALUE_IMPL

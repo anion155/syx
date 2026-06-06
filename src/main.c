@@ -47,7 +47,7 @@ SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
   parser_syxvs_for_each(source, source_cstr) {
     if (script_ctx.opt_xtrace) {
       printf(CLI_DIM ">");
-      print_syxv(source);
+      printf_with(str_append_syxv, source);
       printf("\n" CLI_RESET);
     }
     if (result) rc_release(result);
@@ -63,12 +63,12 @@ SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
         return rc_move(result);
       }
     } else if (script_ctx.opt_xtrace) {
-      print_syxv(result);
+      printf_with(str_append_syxv, result);
       printf("\n");
     }
   }
   if (!script_ctx.opt_xtrace && script_ctx.opt_print && result && result->kind != SYXV_KIND_THROWN) {
-    print_syxv(result);
+    printf_with(str_append_syxv, result);
     printf("\n");
   }
   if (!result) return make_syxv_nil();

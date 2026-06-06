@@ -106,7 +106,7 @@ SyxV *syxv_test_vector_virtual_setter(Syx_Eval_Ctx *ctx, void *data, const char 
   UNUSED(ctx);
   UNUSED(data);
   if (strcmp(field_name, "test") == 0) {
-    syx_string_t str = stringify_syxv(argument);
+    syx_string_t str = stringify(str_append_syxv, argument);
     printf("test value set: %s\n", str.items);
     sb_free(str);
   }
