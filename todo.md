@@ -1,5 +1,8 @@
 - check memory cleanup
 
+- implement hex, octal, binary number parse: 0xFF, 0o07, 0b0101
+- implement number separators: 100_000_000
+- object values, like boxed
 - attach stack frame to error object on throw
 - compiler test runner
 - unit tests for parser : compiler test runner
@@ -7,8 +10,6 @@
 - unit tests for utilities : compiler test runner
 - defer execution
 - return from upper function
-- implement hex, octal, binary number parse: 0xFF, 0o07, 0b0101
-- implement number separators: 100_000_000
 - implement quit command
 - implement exports from module
 - implement parse error fancy message
