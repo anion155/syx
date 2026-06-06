@@ -465,7 +465,7 @@ size_t str_append_syxv_symbol(syx_string_t *string, SyxV_Symbol *symbol) {
   } else {
     __str_append_n(symbol->name, symbol->length);
   }
-  return __str_count();
+  return __str_width();
 }
 
 size_t str_append_syxv(syx_string_t *string, SyxV *value) {
@@ -551,7 +551,7 @@ size_t str_append_syxv(syx_string_t *string, SyxV *value) {
     case SYXV_KIND_THROWN: UNREACHABLE("thrown object can't be converted");
     case SYXV_KIND_RETURN_VALUE: UNREACHABLE("return value object can't be convderted");
   }
-  return __str_count();
+  return __str_width();
 }
 
 #endif // SYX_VALUE_IMPL

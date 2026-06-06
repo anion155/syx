@@ -97,10 +97,6 @@ SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
     rc_release(target);
     rc_release(value);
     return rc_move(result);
-  } else if (target->kind == SYXV_KIND_SYMBOL) {
-    syx_env_set(ctx->env, &target->symbol, rc_move(value));
-    rc_release(target);
-    return make_syxv_nil();
   } else if (target->kind == SYXV_KIND_BOXED) {
     SyxV *result = syx_boxed_set(ctx, target->boxed, value);
     if (!result) result = make_syxv_nil();
@@ -108,6 +104,10 @@ SyxV *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
     rc_release(target);
     rc_release(value);
     return rc_move(result);
+  } else if (target->kind == SYXV_KIND_SYMBOL) {
+    syx_env_set(ctx->env, &target->symbol, rc_move(value));
+    rc_release(target);
+    return make_syxv_nil();
   }
   RUNTIME_ERROR(ctx, "unsupported set expression", target);
 }
@@ -117,7 +117,7 @@ SyxV *syx_special_form_is_set(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *a
   UNUSED(callable);
   SyxV *name_s = syxv_list_next(&arguments);
   if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "Symbol expression expected as name");
-  SyxV *stored = syx_env_lookup_get(ctx->env, &name_s->symbol);
+  SyxV *stored = syx_env_lookup_get(ctx, &name_s->symbol);
   return make_syxv_bool(stored != NULL);
 }
 
@@ -126,17 +126,24 @@ SyxV *syx_special_form_get(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
   UNUSED(callable);
   SyxV *name_s = syxv_list_next(&arguments);
   if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "Symbol expression expected as name");
-  SyxV *stored = syx_env_lookup_get(ctx->env, &name_s->symbol);
+  SyxV *stored = syx_env_lookup_get(ctx, &name_s->symbol);
   if (!stored) return make_syxv_nil();
   return stored;
 }
 
-/** . */
-SyxV *syx_special_form_undefine(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
-  UNUSED(ctx);
+/** Unset value in current environment. */
+SyxV *syx_special_form_unset(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   UNUSED(callable);
-  UNUSED(arguments);
-  TODO("syx_special_form_undefine");
+  SyxV *name_s = syxv_list_next(&arguments);
+  if (name_s->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "Symbol expression expected as name");
+  Syx_Env *env = syx_env_lookup(ctx->env, &name_s->symbol);
+  if (!env) return NULL;
+  SyxV **storage = ht_find(&env->symbols, &name_s->symbol);
+  if (!storage) return NULL;
+  SyxV *value = *storage;
+  ht_delete(&env->symbols, storage);
+  rc_release(value);
+  return NULL;
 }
 
 /** Create new variable bindings in parallel on new environment and execute a series of forms in that environment. */
@@ -335,21 +342,28 @@ void syx_env_define_special_forms(Syx_Env *env) {
   /** Special forms */
   syx_env_define_cstr(env, "quote", make_syxv_specialf(NULL, syx_special_form_quote));
   syx_env_define_cstr(env, "unquote", make_syxv_specialf(NULL, syx_special_form_unquote));
+
   syx_env_define_cstr(env, "begin", make_syxv_specialf(NULL, syx_special_form_begin));
   syx_env_define_cstr(env, "lambda", make_syxv_specialf(NULL, syx_special_form_lambda));
+
   syx_env_define_cstr(env, "define", make_syxv_specialf(NULL, syx_special_form_define));
   syx_env_define_cstr(env, "set", make_syxv_specialf(NULL, syx_special_form_set));
   syx_env_define_cstr(env, "is-set?", make_syxv_specialf(NULL, syx_special_form_is_set));
   syx_env_define_cstr(env, "get", make_syxv_specialf(NULL, syx_special_form_get));
-  syx_env_define_cstr(env, "undefine", make_syxv_specialf(NULL, syx_special_form_undefine));
+  syx_env_define_cstr(env, "unset", make_syxv_specialf(NULL, syx_special_form_unset));
   syx_env_define_cstr(env, "let", make_syxv_specialf(NULL, syx_special_form_let));
+
   syx_env_define_cstr(env, "and", make_syxv_specialf(NULL, syx_special_form_and));
   syx_env_define_cstr(env, "or", make_syxv_specialf(NULL, syx_special_form_or));
+
   syx_env_define_cstr(env, "if", make_syxv_specialf(NULL, syx_special_form_if));
   syx_env_define_cstr(env, "cond", make_syxv_specialf(NULL, syx_special_form_cond));
+
   syx_env_define_cstr(env, "throw", make_syxv_specialf(NULL, syx_special_form_throw));
   syx_env_define_cstr(env, "try", make_syxv_specialf(NULL, syx_special_form_try));
+
   syx_env_define_cstr(env, "return", make_syxv_specialf(NULL, syx_special_form_return));
+
   syx_env_define_cstr(env, "new", make_syxv_specialf(NULL, syx_special_form_new));
 }
 

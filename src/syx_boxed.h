@@ -452,7 +452,7 @@ size_t str_append_syx_boxed(syx_string_t *string, Syx_Boxed *boxed) {
     default: break;
   }
   __str_append(')');
-  return __str_count();
+  return __str_width();
 }
 
 SyxV *syx_unbox(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed) {
@@ -664,7 +664,7 @@ size_t str_append_boxed_method(syx_string_t *string, Syx_Boxed_Method *method) {
   __str_append_sb(method->method_field->name);
   __str_append('>');
   __str_append(')');
-  return __str_count();
+  return __str_width();
 }
 
 #endif // SYX_BOXED_IMPL

@@ -78,7 +78,7 @@ bool parse_number(String_View *sv, Syx_Number *result);
 void string_reverse(char *string, size_t width);
 
 #define __str_init(capacity)                                       \
-  size_t __count = 0, __start = 0;                                 \
+  size_t width = 0, __start = 0;                                   \
   NOB_UNUSED(__start);                                             \
   do {                                                             \
     if (string != NULL) {                                          \
@@ -86,18 +86,20 @@ void string_reverse(char *string, size_t width);
       __start = string->count;                                     \
     }                                                              \
   } while (0)
-#define __str_count() (__count)
+#define __str_width() (width)
 #define __str_start_ptr() (string ? string->items + __start : NULL)
 size_t __str__append(syx_string_t *string, char value);
-#define __str_append(value) (__count += __str__append(string, (value)))
+#define __str_append(value) (width += __str__append(string, (value)))
 size_t __str__append_n(syx_string_t *string, const char *value, size_t n);
-#define __str_append_n(value, n) (__count += __str__append_n(string, (value), (n)))
+#define __str_append_n(value, n) (width += __str__append_n(string, (value), (n)))
 size_t __str__append_cstr(syx_string_t *string, const char *value);
-#define __str_append_cstr(value) (__count += __str__append_n(string, (value), strlen((value))))
-#define __str_append_sb(value) (__count += __str__append_n(string, (value).items, (value).count))
-#define __str_append_sv(value) (__count += __str__append_n(string, (value).data, (value).count))
-#define __str_append_with(appender, ...) (__count += appender(string __VA_OPT__(, ) __VA_ARGS__))
-#define __str_append_legacy(appender, ...) (__count += appender(string ? __str_start_ptr() + __str_count() : NULL __VA_OPT__(, ) __VA_ARGS__))
+#define __str_append_cstr(value) (width += __str__append_n(string, (value), strlen((value))))
+#define __str_append_sb(value) (width += __str__append_n(string, (value).items, (value).count))
+#define __str_append_sv(value) (width += __str__append_n(string, (value).data, (value).count))
+size_t __str__appendf(syx_string_t *string, const char *format, ...);
+#define __str_appendf(format, ...) (width += __str__appendf(string, (format), __VA_ARGS__))
+#define __str_append_with(appender, ...) (width += appender(string __VA_OPT__(, ) __VA_ARGS__))
+#define __str_append_legacy(appender, ...) (width += appender(string ? __str_start_ptr() + __str_width() : NULL __VA_OPT__(, ) __VA_ARGS__))
 
 syx_string_t __stringify_finish(syx_string_t sb);
 #define stringify(appender, ...)              \
@@ -340,6 +342,22 @@ size_t __str__append_cstr(syx_string_t *string, const char *value) {
   return __str__append_n(string, value, strlen(value));
 }
 
+size_t __str__appendf(syx_string_t *string, const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+  int width = vsnprintf(NULL, 0, format, args);
+  va_end(args);
+  if (!string) return width;
+
+  nob_da_reserve(string, string->count + width + 1);
+  va_start(args, format);
+  vsnprintf(string->items + string->count, width + 1, format, args);
+  string->count += width;
+  va_end(args);
+
+  return width;
+}
+
 syx_string_t __stringify_finish(syx_string_t sb) {
   nob_da_append(&sb, 0);
   nob_da_realloc_trim(&sb);
@@ -365,10 +383,10 @@ size_t str_append_integer(syx_string_t *string, syx_integer_t value) {
   if (value == 0) return (__str_append('0'), 1);
   if (value == LLONG_MIN) return __str_append_cstr(STRINGIFY2(LLONG_MIN));
   if (value < 0) (__str_append('-'), value *= -1);
-  size_t rev_start = __str_count();
+  size_t rev_start = __str_width();
   for (syx_integer_t it = value; it != 0; it /= 10) __str_append('0' + it % 10);
-  if (string) string_reverse(__str_start_ptr() + rev_start, __str_count() - rev_start);
-  return __str_count();
+  if (string) string_reverse(__str_start_ptr() + rev_start, __str_width() - rev_start);
+  return __str_width();
 }
 
 size_t get_fractions_precision(syx_fractional_t value) {
@@ -405,12 +423,12 @@ size_t str__append_fractional(syx_string_t *string, syx_fractional_t value, ssiz
   syx_fractional_t fractional_part = modfl(value, &integer_part);
   __str_append_with(str_append_integer, (syx_integer_t)integer_part);
   __str_append('.');
-  if (!string) return __str_count() + precision;
-  size_t rev_start = __str_count();
+  if (!string) return __str_width() + precision;
+  size_t rev_start = __str_width();
   syx_integer_t fractions = (syx_integer_t)(fractional_part * (syx_fractional_t)exponent);
   for (size_t index = 0; index < (size_t)precision; index += 1, fractions /= 10) __str_append('0' + (fractions % 10));
-  string_reverse(__str_start_ptr() + rev_start, __str_count() - rev_start);
-  return __str_count();
+  string_reverse(__str_start_ptr() + rev_start, __str_width() - rev_start);
+  return __str_width();
 }
 
 size_t str_append_number(syx_string_t *string, Syx_Number value) {

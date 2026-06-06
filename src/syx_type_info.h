@@ -486,7 +486,7 @@ size_t str_append_syx_type_info(syx_string_t *string, Syx_Type_Info *typeinfo) {
     case SYX_TYPE_INFO_KIND_SIZE: __str_append_cstr("#.c_size"); break;
     default: UNREACHABLE(temp_sprintf("kind is not supported: %u '%s'", typeinfo->kind, syx_type_info_kind_name(typeinfo->kind)));
   }
-  return __str_count();
+  return __str_width();
 }
 
 ffi_type *syx_type_info_to_ffi(Syx_Type_Info *typeinfo) {

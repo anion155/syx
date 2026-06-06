@@ -39,6 +39,7 @@ typedef struct Syx_Frame_Stack {
 } Syx_Frame_Stack;
 
 typedef struct Syx_Eval_Ctx {
+  Syx_Env *global_env;
   Syx_Env *env;
   Syx_Frame_Stack *frame_stack;
 } Syx_Eval_Ctx;
@@ -46,18 +47,20 @@ typedef struct Syx_Eval_Ctx {
 Syx_Eval_Ctx *make_global_syx_eval_ctx();
 Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
 #define inherit_syx_eval_ctx(parent, ...) inherit_syx_eval_ctx_opt((parent), ((Syx_Eval_Ctx){__VA_ARGS__}))
+
 void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, const char *function_name);
 void syx_ctx_frame_rename(Syx_Eval_Ctx *ctx, const char *function_name);
 void syx__ctx_pop_frame(Syx_Eval_Ctx *ctx, SyxV **to_save, size_t count);
 #define syx_ctx_pop_frame(ctx, ...) syx__ctx_pop_frame((ctx), (SyxV *[]){__VA_ARGS__}, sizeof((SyxV *[]){__VA_ARGS__}) / sizeof(SyxV *))
-syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame);
+
+size_t str_append_call_stack(syx_string_t *string, Syx_Frame *frame);
 
 void syx_env_destructor(void *data);
 uintptr_t ht_syxv_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n);
 Syx_Env *make_syx_env(Syx_Env *parent, const char *description);
 Syx_Env *syx_env_global(Syx_Env *env);
 Syx_Env *syx_env_lookup(Syx_Env *env, SyxV_Symbol *symbol);
-SyxV *syx_env_lookup_get(Syx_Env *env, SyxV_Symbol *symbol);
+SyxV *syx_env_lookup_get(Syx_Eval_Ctx *ctx, SyxV_Symbol *symbol);
 void syx_env_define(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value);
 void syx_env_define_cstr(Syx_Env *env, const char *name, SyxV *value);
 void syx_env_set(Syx_Env *env, SyxV_Symbol *symbol, SyxV *value);
@@ -141,19 +144,6 @@ SyxV *syx_convert_to_number(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *syx_convert_to_string(Syx_Eval_Ctx *ctx, SyxV *value);
 SyxV *sb_append_converted_syxv(syx_string_t *string, Syx_Eval_Ctx *ctx, SyxV *value);
 
-#define PRINT_SYX_ENV_DEEP_CURRENT_ONLY 1
-#define PRINT_SYX_ENV_DEEP_ALL 0
-#define PRINT_SYX_ENV_DEEP_ALL_WITH_GLOBAL -1
-
-typedef struct Print_Syx_Env_Opt {
-  int deep;
-  int indent;
-} Print_Syx_Env_Opt;
-
-void fprint_syx_env_opt(FILE *f, Syx_Env *env, Print_Syx_Env_Opt opt);
-#define fprint_syx_env(f, env, ...) fprint_syx_env_opt((f), (env), (Print_Syx_Env_Opt){__VA_ARGS__})
-#define print_syx_env(env, ...) fprint_syx_env_opt(stdout, (env), (Print_Syx_Env_Opt){__VA_ARGS__})
-
 #endif // SYX_EVAL_H
 
 #if defined(SYX_EVAL_IMPL) && !defined(SYX_EVAL_IMPL_C)
@@ -183,15 +173,16 @@ void syx_eval_ctx_destructor(void *data) {
   Syx_Eval_Ctx *ctx = (Syx_Eval_Ctx *)data;
   rc_release(ctx->frame_stack);
   rc_release(ctx->env);
+  rc_release(ctx->global_env);
 }
 
 Syx_Eval_Ctx *make_global_syx_eval_ctx() {
   Syx_Eval_Ctx *ctx = rc_malloc(sizeof(Syx_Eval_Ctx), .destructor = syx_eval_ctx_destructor);
   assert(ctx);
-  ctx->env = rc_acquire(make_global_syx_env());
-  ctx->frame_stack = rc_malloc(sizeof(Syx_Frame_Stack), .destructor = syx_frame_stack_destructor);
+  ctx->global_env = rc_acquire(make_global_syx_env());
+  ctx->env = rc_acquire(make_syx_env(NULL, "<global>"));
+  ctx->frame_stack = rc_acquire(rc_malloc(sizeof(Syx_Frame_Stack), .destructor = syx_frame_stack_destructor));
   assert(ctx->frame_stack);
-  rc_acquire(ctx->frame_stack);
   ctx->frame_stack->latest = NULL;
   return ctx;
 }
@@ -237,16 +228,15 @@ void syx__ctx_pop_frame(Syx_Eval_Ctx *ctx, SyxV **to_save, size_t count) {
   }
 }
 
-syx_string_t stringify_call_stack(Syx_Eval_Ctx *ctx, Syx_Frame *frame) {
-  UNUSED(ctx);
-  syx_string_t sb = {0};
+size_t str_append_call_stack(syx_string_t *string, Syx_Frame *frame) {
+  __str_init(1024);
   while (frame) {
     const char *name = frame->function_name;
     if (!name) name = "<anonim>";
-    sb_appendf(&sb, " at %s\n", name);
+    __str__appendf(string, " at %s\n", name);
     frame = frame->prev;
   }
-  return sb;
+  return __str_width();
 }
 
 void syx_env_destructor(void *data) {
@@ -301,8 +291,9 @@ Syx_Env *syx_env_lookup(Syx_Env *env, SyxV_Symbol *symbol) {
   return env;
 }
 
-SyxV *syx_env_lookup_get(Syx_Env *env, SyxV_Symbol *symbol) {
-  env = syx_env_lookup(env, symbol);
+SyxV *syx_env_lookup_get(Syx_Eval_Ctx *ctx, SyxV_Symbol *symbol) {
+  Syx_Env *env = syx_env_lookup(ctx->env, symbol);
+  if (env == NULL) env = syx_env_lookup(ctx->global_env, symbol);
   if (env == NULL) return NULL;
   return *ht_find(&env->symbols, symbol);
 }
@@ -438,7 +429,7 @@ SyxV *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, SyxV *arguments)
 SyxV *syx_eval(Syx_Eval_Ctx *ctx, SyxV *input) {
   if (input->kind == SYXV_KIND_THROWN) return input;
   if (input->kind == SYXV_KIND_SYMBOL) {
-    SyxV *item = syx_env_lookup_get(ctx->env, &input->symbol);
+    SyxV *item = syx_env_lookup_get(ctx, &input->symbol);
     if (item == NULL) RUNTIME_ERROR(ctx, temp_sprintf("unbound symbol '%s'", input->symbol.name));
     return item;
   }
@@ -505,7 +496,7 @@ bool syx_eval_report_error(Syx_Eval_Ctx *ctx, SyxV *value) {
   else fprintf(stderr, "unknown\n");
   rc_release(reason);
   if (value->thrown.stack_frame) {
-    syx_string_t frames_stack = stringify_call_stack(ctx, value->thrown.stack_frame);
+    syx_string_t frames_stack = stringify(str_append_call_stack, value->thrown.stack_frame);
     io_puts_n(stderr, frames_stack.items, frames_stack.count);
     sb_free(frames_stack);
   }
@@ -611,6 +602,14 @@ SyxV *sb_append_converted_syxv(syx_string_t *string, Syx_Eval_Ctx *ctx, SyxV *va
   return NULL;
 }
 
+#define PRINT_SYX_ENV_DEEP_CURRENT_ONLY 0
+#define PRINT_SYX_ENV_DEEP_ALL -1
+
+typedef struct Print_Syx_Env_Opt {
+  int deep;
+  int indent;
+} Print_Syx_Env_Opt;
+
 void fprint_syx_env_opt(FILE *f, Syx_Env *env, Print_Syx_Env_Opt opt) {
   if (opt.indent) fprintf(f, "%*c", opt.indent, ' ');
   fprintf(f, "Env: %s\n", env->description ? env->description : "NULL");
@@ -621,9 +620,7 @@ void fprint_syx_env_opt(FILE *f, Syx_Env *env, Print_Syx_Env_Opt opt) {
     fprintf(f, "\n");
   }
   if (env->parent) {
-    if (opt.deep == PRINT_SYX_ENV_DEEP_ALL_WITH_GLOBAL) {
-      fprint_syx_env_opt(f, env->parent, opt);
-    } else if (opt.deep == PRINT_SYX_ENV_DEEP_ALL && env->parent->parent) {
+    if (opt.deep == PRINT_SYX_ENV_DEEP_ALL) {
       fprint_syx_env_opt(f, env->parent, opt);
     } else if (opt.deep > PRINT_SYX_ENV_DEEP_CURRENT_ONLY) {
       fprint_syx_env_opt(f, env->parent, (Print_Syx_Env_Opt){.deep = opt.deep - 1, .indent = opt.indent});

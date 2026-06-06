@@ -171,9 +171,9 @@ int main(int argc, char **argv) {
 
   script_ctx.eval_ctx = rc_acquire(make_global_syx_eval_ctx());
 
-  syx_env_define_cstr(script_ctx.eval_ctx->env, "quit", make_syxv_builtin(NULL, eval_quit));
-  syx_env_define_cstr(script_ctx.eval_ctx->env, "setopt", make_syxv_specialf(NULL, eval_setopt));
-  syx_env_define_cstr(script_ctx.eval_ctx->env, "import", make_syxv_specialf(NULL, eval_import));
+  syx_env_define_cstr(script_ctx.eval_ctx->global_env, "quit", make_syxv_builtin(NULL, eval_quit));
+  syx_env_define_cstr(script_ctx.eval_ctx->global_env, "setopt", make_syxv_specialf(NULL, eval_setopt));
+  syx_env_define_cstr(script_ctx.eval_ctx->global_env, "import", make_syxv_specialf(NULL, eval_import));
 
   int result = 0;
   if (commands->count) {

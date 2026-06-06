@@ -1,6 +1,5 @@
 - check memory cleanup
 
-- builtin, special forms and default types should in separate readonly env
 - attach stack frame to error object on throw
 - catch parser errors
 - compiler test runner

@@ -25,7 +25,7 @@ Syx_Env *make_global_syx_env();
 #include "syx_test_vector.h"
 
 Syx_Env *make_global_syx_env() {
-  Syx_Env *env = make_syx_env(NULL, "<global>");
+  Syx_Env *env = make_syx_env(NULL, "<global-builtins>");
   syx_env_define_special_forms(env);
   syx_env_define_builtins(env);
   syx_env_define_boxed(env);
