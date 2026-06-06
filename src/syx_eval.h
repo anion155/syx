@@ -44,6 +44,8 @@ typedef struct Syx_Eval_Ctx {
   Syx_Frame_Stack *frame_stack;
 } Syx_Eval_Ctx;
 
+Syx_Frame_Stack *make_syx_frame_stack();
+Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt);
 Syx_Eval_Ctx *make_global_syx_eval_ctx();
 Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
 #define inherit_syx_eval_ctx(parent, ...) inherit_syx_eval_ctx_opt((parent), ((Syx_Eval_Ctx){__VA_ARGS__}))
@@ -169,6 +171,13 @@ void syx_frame_stack_destructor(void *data) {
   if (stack->latest) rc_release(stack->latest);
 }
 
+Syx_Frame_Stack *make_syx_frame_stack() {
+  Syx_Frame_Stack *frame_stack = rc_acquire(rc_malloc(sizeof(Syx_Frame_Stack), .destructor = syx_frame_stack_destructor));
+  assert(frame_stack);
+  frame_stack->latest = NULL;
+  return frame_stack;
+}
+
 void syx_eval_ctx_destructor(void *data) {
   Syx_Eval_Ctx *ctx = (Syx_Eval_Ctx *)data;
   rc_release(ctx->frame_stack);
@@ -176,23 +185,25 @@ void syx_eval_ctx_destructor(void *data) {
   rc_release(ctx->global_env);
 }
 
-Syx_Eval_Ctx *make_global_syx_eval_ctx() {
+Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt) {
   Syx_Eval_Ctx *ctx = rc_malloc(sizeof(Syx_Eval_Ctx), .destructor = syx_eval_ctx_destructor);
   assert(ctx);
-  ctx->global_env = rc_acquire(make_global_syx_env());
-  ctx->env = rc_acquire(make_syx_env(NULL, "<global>"));
-  ctx->frame_stack = rc_acquire(rc_malloc(sizeof(Syx_Frame_Stack), .destructor = syx_frame_stack_destructor));
-  assert(ctx->frame_stack);
-  ctx->frame_stack->latest = NULL;
+  *ctx = opt;
+  rc_acquire(ctx->global_env);
+  rc_acquire(ctx->env);
+  rc_acquire(ctx->frame_stack);
   return ctx;
 }
 
+Syx_Eval_Ctx *make_global_syx_eval_ctx() {
+  return make_syx_eval_ctx((Syx_Eval_Ctx){.global_env = make_global_syx_env(), .env = make_syx_env(NULL, "<global>"), .frame_stack = make_syx_frame_stack()});
+}
+
 Syx_Eval_Ctx *inherit_syx_eval_ctx_opt(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt) {
-  Syx_Eval_Ctx *ctx = rc_malloc(sizeof(Syx_Eval_Ctx), .destructor = syx_eval_ctx_destructor);
-  assert(ctx);
-  ctx->env = rc_acquire(opt.env ? opt.env : parent->env);
-  ctx->frame_stack = rc_acquire(opt.frame_stack ? opt.frame_stack : parent->frame_stack);
-  return ctx;
+  return make_syx_eval_ctx((Syx_Eval_Ctx){
+      .global_env = opt.global_env ? opt.global_env : parent->global_env,
+      .env = opt.env ? opt.env : parent->env,
+      .frame_stack = opt.frame_stack ? opt.frame_stack : parent->frame_stack});
 }
 
 void syx_ctx_push_frame(Syx_Eval_Ctx *ctx, const char *function_name) {

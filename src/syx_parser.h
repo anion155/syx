@@ -20,6 +20,7 @@ typedef struct SyxV_Parser_Context {
 struct SyxVs_Iterator {
   SyxV_Parser_Context ctx;
   SyxV_Vector syxvs;
+  SyxV_Thrown *error;
 };
 
 SyxV ***parse__make_syxvs_for_each_iterator(const char *source_src);
@@ -261,6 +262,7 @@ void parse__syxvs_for_each_iterator_destructor(void *data) {
   struct SyxVs_Iterator *it = data;
   da_destructor(&it->syxvs);
   free(it->ctx.it);
+  if (it->error) rc_release((SyxV *)((char *)it->error - offsetof(SyxV, thrown)));
 }
 
 SyxV ***parse__make_syxvs_for_each_iterator(const char *source_src) {
@@ -273,6 +275,7 @@ SyxV ***parse__make_syxvs_for_each_iterator(const char *source_src) {
   source_it->count = source_sv.count;
   it->ctx = (SyxV_Parser_Context){.source = source_sv, .it = source_it, .line = source_sv, .linenumber = 0};
   it->syxvs = (SyxV_Vector){0};
+  it->error = NULL;
   da_reserve(&it->syxvs, 1);
   return &it->syxvs.items;
 }
@@ -284,9 +287,18 @@ bool parse__syxvs_for_each_next(SyxV ****_ctx, SyxV **expr) {
     rc_release(it);
     return false;
   }
+  if (it->error) {
+    rc_release(it);
+    return false;
+  }
   SyxV *parsed = parse__syxv_nullable(&it->ctx);
   if (!parsed) return parse__syxvs_for_each_next(_ctx, expr);
-  da_append(&it->syxvs, rc_acquire(parsed));
+  if (parsed->kind == SYXV_KIND_THROWN) {
+    rc_acquire(parsed);
+    it->error = &parsed->thrown;
+  } else {
+    da_append(&it->syxvs, rc_acquire(parsed));
+  }
   (*_ctx) = &it->syxvs.items;
   (*expr) = parsed;
   return true;
@@ -329,6 +341,24 @@ SyxV *parse__dispatch_syxv_boxed(SyxV_Parser_Context *ctx) {
   SyxV *arguments = rc_acquire(parse__syxv_list(ctx, true, SYXV_TOKEN_LIST_START, SYXV_TOKEN_LIST_END));
   syx_eval_early_exit(arguments, constructor_symbol);
   return make_syxv_pair(make_syxv_symbol_cstr("new"), make_syxv_pair(rc_move(constructor_symbol), rc_move(arguments)));
+}
+
+Syx_Eval_Ctx *make_syx_parser_eval_ctx() {
+  return make_syx_eval_ctx((Syx_Eval_Ctx){
+      .global_env = make_syx_env(NULL, "<parser-builtins>"),
+      .env = make_syx_env(NULL, "<parser>"),
+      .frame_stack = make_syx_frame_stack()});
+}
+
+bool syx_parser_report_error(SyxV *value) {
+  if (value->kind != SYXV_KIND_THROWN) return true;
+  fprintf(stderr, "Parer exception: ");
+  Syx_Eval_Ctx *ctx = make_syx_parser_eval_ctx();
+  SyxV *reason = rc_acquire(syx_convert_to_string(ctx, value->thrown.reason));
+  if (reason->kind == SYXV_KIND_STRING) fprintf(stderr, SV_Fmt "\n", SV_Arg(reason->string));
+  else fprintf(stderr, "unknown\n");
+  rc_release(reason);
+  return false;
 }
 
 #endif // SYX_PARSER_IMPL

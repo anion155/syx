@@ -1,7 +1,6 @@
 - check memory cleanup
 
 - attach stack frame to error object on throw
-- catch parser errors
 - compiler test runner
 - unit tests for parser : compiler test runner
 - unit tests for evaluator : compiler test runner

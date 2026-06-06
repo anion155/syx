@@ -45,6 +45,11 @@ define_constant(Ht(const char *, bool *), ctx_options) {
 SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
   SyxV *result = NULL;
   parser_syxvs_for_each(source, source_cstr) {
+    if (!syx_parser_report_error(source)) {
+      result = rc_acquire(source);
+      rc_release(parser_syxvs_for_each_iterator());
+      break;
+    }
     if (script_ctx.opt_xtrace) {
       printf(CLI_DIM ">");
       printf_with(str_append_syxv, source);
