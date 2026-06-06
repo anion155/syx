@@ -23,14 +23,14 @@ struct SyxVs_Iterator {
   SyxV_Vector syxvs;
 };
 
-SyxV ***parser__make_syxvs_for_each_iterator(const char *source_src);
-bool parser__syxvs_for_each_next(SyxV ****syxvs, SyxV **expr);
-#define parser_syxvs_for_each(name, source)                                        \
-  for (                                                                            \
-      SyxV *name = NULL, ***_ctx = parser__make_syxvs_for_each_iterator((source)); \
-      parser__syxvs_for_each_next(&_ctx, &name);)
-struct SyxVs_Iterator *parser__syxvs_for_each_iterator(SyxV ***syxvs);
-#define parser_syxvs_for_each_iterator() parser__syxvs_for_each_iterator(_ctx)
+SyxV ***parse__make_syxvs_for_each_iterator(const char *source_src);
+bool parse__syxvs_for_each_next(SyxV ****syxvs, SyxV **expr);
+#define parser_syxvs_for_each(name, source)                                       \
+  for (                                                                           \
+      SyxV *name = NULL, ***_ctx = parse__make_syxvs_for_each_iterator((source)); \
+      parse__syxvs_for_each_next(&_ctx, &name);)
+struct SyxVs_Iterator *parse__syxvs_for_each_iterator(SyxV ***syxvs);
+#define parser_syxvs_for_each_iterator() parse__syxvs_for_each_iterator(_ctx)
 
 #endif // SYX_PARSER_H
 #if defined(SYX_PARSER_IMPL) && !defined(SYX_PARSER_IMPL_C)
@@ -56,7 +56,12 @@ struct SyxVs_Iterator *parser__syxvs_for_each_iterator(SyxV ***syxvs);
 #define SYXV_TOKEN_GUARD '|'
 #define SYXV_TOKEN_COMMENT ';'
 
-#define PARSER_ERROR(message, ctx) UNREACHABLE((UNUSED(ctx), (message)))
+#define PARSER_ERROR(ctx, message, ...)            \
+  do {                                             \
+    rc_release_all(__VA_ARGS__);                   \
+    SyxV *reason = make_syxv_string_cstr(message); \
+    return make_syxv_thrown(NULL, reason);         \
+  } while (0)
 
 String_View chop_spaces(SyxV_Parser_Context *ctx) {
   String_View spaces = sv_chop_while(ctx->it, isspace);
@@ -75,14 +80,14 @@ SyxV *parse__syxv(SyxV_Parser_Context *ctx);
 
 SyxV *parse__syxv_fractional(SyxV_Parser_Context *ctx, syx_integer_t integer_part) {
   syx_fractional_t fractional_part = 0;
-  if (!parse_fractions(ctx->it, &fractional_part)) PARSER_ERROR("expected fractional number's fractional part start here", ctx);
+  if (!parse_fractions(ctx->it, &fractional_part)) PARSER_ERROR(ctx, "expected fractional number's fractional part start here");
   if (integer_part < 0) fractional_part = integer_part - fractional_part;
   else fractional_part = integer_part + fractional_part;
   return make_syxv_number_fractional(fractional_part);
 }
 
 SyxV *parse__syxv_integer(SyxV_Parser_Context *ctx) {
-  if (!ctx->it->count) PARSER_ERROR("expected number literal here", ctx);
+  if (!ctx->it->count) PARSER_ERROR(ctx, "expected number literal here");
   if (ctx->it->data[0] == '0' && ctx->it->count >= 3) {
     if ((ctx->it->data[1] == 'x' || ctx->it->data[1] == 'X')) TODO("implement hex number parser");
     if ((ctx->it->data[1] == 'o' || ctx->it->data[1] == 'O')) TODO("implement octal number parser");
@@ -90,7 +95,7 @@ SyxV *parse__syxv_integer(SyxV_Parser_Context *ctx) {
   }
   syx_integer_t value = 0;
   if (ctx->it->data[0] == SYXV_TOKEN_DOT) goto upgrade;
-  if (!parse_integer(ctx->it, &value)) PARSER_ERROR("expected number literal here", ctx);
+  if (!parse_integer(ctx->it, &value)) PARSER_ERROR(ctx, "expected number literal here");
   if (ctx->it->data[0] == SYXV_TOKEN_DOT) goto upgrade;
   return make_syxv_number_integer(value);
 upgrade:
@@ -98,53 +103,61 @@ upgrade:
 }
 
 SyxV *parse__syxv_list(SyxV_Parser_Context *ctx, bool list_expected, char opening_parenthesis, char closing_parenthesis) {
-  if (ctx->it->data[0] != opening_parenthesis) PARSER_ERROR("expected ( symbol here", ctx);
+  if (ctx->it->data[0] != opening_parenthesis) PARSER_ERROR(ctx, "expected ( symbol here");
   sv_chop_left(ctx->it, 1);
-  SyxV_Vector syxvs = {0};
+  SyxV_Vector *syxvs = rc_acquire(rc_malloc(sizeof(SyxV_Vector), .destructor = da_destructor));
   while (true) {
     String_View spaces = chop_spaces(ctx);
-    if (ctx->it->count == 0) PARSER_ERROR("unexpected s-expr end, ) was expected here", ctx);
+    if (ctx->it->count == 0) PARSER_ERROR(ctx, "unexpected s-expr end, ) was expected here", syxvs);
     if (ctx->it->data[0] == closing_parenthesis) break;
-    if (syxvs.count && spaces.count == 0 && ctx->it->data[0] != SYXV_TOKEN_LIST_START) PARSER_ERROR("space was expected here", ctx);
+    if (syxvs->count && spaces.count == 0 && ctx->it->data[0] != SYXV_TOKEN_LIST_START) PARSER_ERROR(ctx, "space was expected here", syxvs);
     if (ctx->it->data[0] == SYXV_TOKEN_DOT && ctx->it->count > 1 && isspace(ctx->it->data[1])) {
-      if (list_expected) PARSER_ERROR("unexpected pair syntax", ctx);
+      if (list_expected) PARSER_ERROR(ctx, "unexpected pair syntax", syxvs);
       sv_chop_left(ctx->it, 1);
       chop_spaces(ctx);
-      da_append(&syxvs, parse__syxv(ctx));
+      SyxV *value = parse__syxv(ctx);
+      syx_eval_early_exit(value, syxvs);
+      da_append(syxvs, rc_acquire(value));
       chop_spaces(ctx);
-      if (ctx->it->data[0] != closing_parenthesis) PARSER_ERROR("expected list end here", ctx);
+      if (ctx->it->data[0] != closing_parenthesis) PARSER_ERROR(ctx, "expected list end here", syxvs);
       goto result;
     }
-    da_append(&syxvs, parse__syxv(ctx));
+    SyxV *value = parse__syxv(ctx);
+    syx_eval_early_exit(value, syxvs);
+    da_append(syxvs, rc_acquire(value));
   }
-  da_append(&syxvs, NULL);
+  da_append(syxvs, NULL);
 result:
   sv_chop_left(ctx->it, 1);
-  SyxV *list = make_syxv_list_opt(syxvs.count, syxvs.items);
-  da_free(syxvs);
-  return list;
+  SyxV *list = rc_acquire(make_syxv_list_opt(syxvs->count, syxvs->items));
+  rc_release(syxvs);
+  return rc_move(list);
 }
 
 SyxV *parse__syxv_quote(SyxV_Parser_Context *ctx) {
-  if (ctx->it->data[0] != SYXV_TOKEN_QUOTES) PARSER_ERROR("expected ' symbol here", ctx);
+  if (ctx->it->data[0] != SYXV_TOKEN_QUOTES) PARSER_ERROR(ctx, "expected ' symbol here");
   sv_chop_left(ctx->it, 1);
-  return make_syxv_list(make_syxv_symbol_cstr("quote"), parse__syxv(ctx), NULL);
+  SyxV *value = parse__syxv(ctx);
+  syx_eval_early_exit(value);
+  return make_syxv_list(make_syxv_symbol_cstr("quote"), value, NULL);
 }
 
 SyxV *parse__syxv_unquote(SyxV_Parser_Context *ctx) {
-  if (ctx->it->data[0] != SYXV_TOKEN_COMMA) PARSER_ERROR("expected , symbol here", ctx);
+  if (ctx->it->data[0] != SYXV_TOKEN_COMMA) PARSER_ERROR(ctx, "expected , symbol here");
   sv_chop_left(ctx->it, 1);
-  return make_syxv_list(make_syxv_symbol_cstr("unquote"), parse__syxv(ctx), NULL);
+  SyxV *value = parse__syxv(ctx);
+  syx_eval_early_exit(value);
+  return make_syxv_list(make_syxv_symbol_cstr("unquote"), value, NULL);
 }
 
 SyxV *parse__syxv_string(SyxV_Parser_Context *ctx) {
-  if (ctx->it->data[0] != SYXV_TOKEN_DQUOTES) PARSER_ERROR("expected string literal start here", ctx);
+  if (ctx->it->data[0] != SYXV_TOKEN_DQUOTES) PARSER_ERROR(ctx, "expected string literal start here");
   sv_chop_left(ctx->it, 1);
   size_t i = 0;
   while (ctx->it->data[i] != SYXV_TOKEN_DQUOTES) {
     if (ctx->it->data[i] == SYXV_TOKEN_ESCAPE) i += 1;
     i += 1;
-    if (i >= ctx->it->count) PARSER_ERROR("expected string literal end here", ctx);
+    if (i >= ctx->it->count) PARSER_ERROR(ctx, "expected string literal end here");
   }
   String_View value = sv_from_parts(ctx->it->data, i);
   i += 1;
@@ -154,12 +167,12 @@ SyxV *parse__syxv_string(SyxV_Parser_Context *ctx) {
 }
 
 SyxV *parse__syxv_guarded_symbol(SyxV_Parser_Context *ctx) {
-  if (ctx->it->data[0] != SYXV_TOKEN_GUARD) PARSER_ERROR("expected guarded symbol start here", ctx);
+  if (ctx->it->data[0] != SYXV_TOKEN_GUARD) PARSER_ERROR(ctx, "expected guarded symbol start here");
   sv_chop_left(ctx->it, 1);
   size_t i = 0;
   while (ctx->it->data[i] != SYXV_TOKEN_GUARD) {
     i += 1;
-    if (i >= ctx->it->count) PARSER_ERROR("expected guarded symbol end here", ctx);
+    if (i >= ctx->it->count) PARSER_ERROR(ctx, "expected guarded symbol end here");
   }
   String_View name = sv_from_parts(ctx->it->data, i);
   i += 1;
@@ -171,32 +184,32 @@ SyxV *parse__syxv_guarded_symbol(SyxV_Parser_Context *ctx) {
 SyxV *parse__syxv_symbol(SyxV_Parser_Context *ctx) {
   if (ctx->it->data[0] == SYXV_TOKEN_GUARD) return parse__syxv_guarded_symbol(ctx);
   String_View name = sv_chop_while(ctx->it, issymbol);
-  if (!name.count) PARSER_ERROR("unexpected empty symbol name", ctx);
+  if (!name.count) PARSER_ERROR(ctx, "unexpected empty symbol name");
   return make_syxv_symbol(name);
 }
 
 typedef SyxV *(*SyxV_Dispatcher)(SyxV_Parser_Context *ctx);
 
-SyxV *parser__dispatch_syxv_nil(SyxV_Parser_Context *ctx);
-SyxV *parser__dispatch_syxv_true(SyxV_Parser_Context *ctx);
-SyxV *parser__dispatch_syxv_false(SyxV_Parser_Context *ctx);
-SyxV *parser__dispatch_syxv_vector(SyxV_Parser_Context *ctx);
-SyxV *parser__dispatch_syxv_boxed(SyxV_Parser_Context *ctx);
+SyxV *parse__dispatch_syxv_nil(SyxV_Parser_Context *ctx);
+SyxV *parse__dispatch_syxv_true(SyxV_Parser_Context *ctx);
+SyxV *parse__dispatch_syxv_false(SyxV_Parser_Context *ctx);
+SyxV *parse__dispatch_syxv_vector(SyxV_Parser_Context *ctx);
+SyxV *parse__dispatch_syxv_boxed(SyxV_Parser_Context *ctx);
 
 define_constant(Ht(char, SyxV_Dispatcher), DISPATCH_TABLE) {
   DISPATCH_TABLE->hasheq = ht_mem_hasheq;
-  *ht_put(DISPATCH_TABLE, 'n') = parser__dispatch_syxv_nil;
-  *ht_put(DISPATCH_TABLE, 't') = parser__dispatch_syxv_true;
-  *ht_put(DISPATCH_TABLE, 'f') = parser__dispatch_syxv_false;
-  *ht_put(DISPATCH_TABLE, '(') = parser__dispatch_syxv_vector;
-  *ht_put(DISPATCH_TABLE, '.') = parser__dispatch_syxv_boxed;
+  *ht_put(DISPATCH_TABLE, 'n') = parse__dispatch_syxv_nil;
+  *ht_put(DISPATCH_TABLE, 't') = parse__dispatch_syxv_true;
+  *ht_put(DISPATCH_TABLE, 'f') = parse__dispatch_syxv_false;
+  *ht_put(DISPATCH_TABLE, '(') = parse__dispatch_syxv_vector;
+  *ht_put(DISPATCH_TABLE, '.') = parse__dispatch_syxv_boxed;
 }
 
 SyxV *parse__syxv_dispatch(SyxV_Parser_Context *ctx) {
-  if (ctx->it->data[0] != SYXV_TOKEN_HASH) PARSER_ERROR("expected hash symbol as dispatch start here", ctx);
+  if (ctx->it->data[0] != SYXV_TOKEN_HASH) PARSER_ERROR(ctx, "expected hash symbol as dispatch start here");
   sv_chop_left(ctx->it, 1);
   SyxV_Dispatcher *dispatcher = ht_find(DISPATCH_TABLE(), ctx->it->data[0]);
-  if (!dispatcher) PARSER_ERROR(temp_sprintf("no dispatcher found '%c'", ctx->it->data[0]), ctx);
+  if (!dispatcher) PARSER_ERROR(ctx, temp_sprintf("no dispatcher found '%c'", ctx->it->data[0]));
   return (*dispatcher)(ctx);
 }
 
@@ -234,14 +247,14 @@ SyxV *parse__syxv_nullable(SyxV_Parser_Context *ctx) {
 
 SyxV *parse__syxv(SyxV_Parser_Context *ctx) {
   SyxV *expr = parse__syxv_nullable(ctx);
-  if (!expr) PARSER_ERROR("expression expected", ctx);
+  if (!expr) PARSER_ERROR(ctx, "expression expected");
   return expr;
 }
 
 SyxV *parse_syxv(String_View *source) {
   SyxV_Parser_Context ctx = {.source = *source, .it = source, .line = *source, .linenumber = 0};
   chop_spaces(&ctx);
-  if (!ctx.it->count) PARSER_ERROR("unexpected end of s-expression", ctx);
+  if (!ctx.it->count) PARSER_ERROR(ctx, "unexpected end of s-expression");
   return parse__syxv_nullable(&ctx);
 }
 
@@ -256,19 +269,20 @@ SyxV_Vector *parse_syxvs(String_View *source) {
     chop_spaces(&ctx);
     if (!ctx.it->count) break;
     SyxV *expr = parse__syxv_nullable(&ctx);
+    syx_eval_early_exit(expr, syxvs);
     if (expr) da_append(syxvs, rc_acquire(expr));
   }
   return syxvs;
 }
 
-void parser__syxvs_for_each_iterator_destructor(void *data) {
+void parse__syxvs_for_each_iterator_destructor(void *data) {
   struct SyxVs_Iterator *it = data;
   da_destructor(&it->syxvs);
   free(it->ctx.it);
 }
 
-SyxV ***parser__make_syxvs_for_each_iterator(const char *source_src) {
-  struct SyxVs_Iterator *it = rc_malloc(sizeof(struct SyxVs_Iterator), .destructor = parser__syxvs_for_each_iterator_destructor);
+SyxV ***parse__make_syxvs_for_each_iterator(const char *source_src) {
+  struct SyxVs_Iterator *it = rc_malloc(sizeof(struct SyxVs_Iterator), .destructor = parse__syxvs_for_each_iterator_destructor);
   assert(it);
   rc_acquire(it);
   String_View source_sv = sv_from_cstr(source_src);
@@ -281,58 +295,59 @@ SyxV ***parser__make_syxvs_for_each_iterator(const char *source_src) {
   return &it->syxvs.items;
 }
 
-bool parser__syxvs_for_each_next(SyxV ****_ctx, SyxV **expr) {
-  struct SyxVs_Iterator *it = parser__syxvs_for_each_iterator(*_ctx);
+bool parse__syxvs_for_each_next(SyxV ****_ctx, SyxV **expr) {
+  struct SyxVs_Iterator *it = parse__syxvs_for_each_iterator(*_ctx);
   chop_spaces(&it->ctx);
   if (!it->ctx.it->count) {
     rc_release(it);
     return false;
   }
   SyxV *parsed = parse__syxv_nullable(&it->ctx);
-  if (!parsed) return parser__syxvs_for_each_next(_ctx, expr);
+  if (!parsed) return parse__syxvs_for_each_next(_ctx, expr);
   da_append(&it->syxvs, rc_acquire(parsed));
   (*_ctx) = &it->syxvs.items;
   (*expr) = parsed;
   return true;
 }
 
-struct SyxVs_Iterator *parser__syxvs_for_each_iterator(SyxV ***syxvs) {
+struct SyxVs_Iterator *parse__syxvs_for_each_iterator(SyxV ***syxvs) {
   return (struct SyxVs_Iterator *)((SyxV_Parser_Context *)syxvs - 1);
 }
 
-SyxV *parser__dispatch_syxv_nil(SyxV_Parser_Context *ctx) {
+SyxV *parse__dispatch_syxv_nil(SyxV_Parser_Context *ctx) {
   if (sv_starts_with(*ctx->it, sv_from_cstr("nil"))) sv_chop_left(ctx->it, 3);
   else if (sv_starts_with(*ctx->it, sv_from_cstr("null"))) sv_chop_left(ctx->it, 4);
   else sv_chop_left(ctx->it, 1);
   return make_syxv_nil();
 }
 
-SyxV *parser__dispatch_syxv_true(SyxV_Parser_Context *ctx) {
+SyxV *parse__dispatch_syxv_true(SyxV_Parser_Context *ctx) {
   if (sv_starts_with(*ctx->it, sv_from_cstr("true"))) sv_chop_left(ctx->it, 4);
   else sv_chop_left(ctx->it, 1);
   return make_syxv_bool(true);
 }
 
-SyxV *parser__dispatch_syxv_false(SyxV_Parser_Context *ctx) {
+SyxV *parse__dispatch_syxv_false(SyxV_Parser_Context *ctx) {
   if (sv_starts_with(*ctx->it, sv_from_cstr("false"))) sv_chop_left(ctx->it, 5);
   else sv_chop_left(ctx->it, 1);
   return make_syxv_bool(false);
 }
 
-SyxV *parser__dispatch_syxv_vector(SyxV_Parser_Context *ctx) {
+SyxV *parse__dispatch_syxv_vector(SyxV_Parser_Context *ctx) {
   SyxV *arguments = parse__syxv_list(ctx, true, SYXV_TOKEN_LIST_START, SYXV_TOKEN_LIST_END);
   syx_eval_early_exit(arguments);
   return make_syxv_pair(make_syxv_symbol_cstr("new"), make_syxv_pair(make_syxv_symbol_cstr("vector"), arguments));
 }
 
-SyxV *parser__dispatch_syxv_boxed(SyxV_Parser_Context *ctx) {
-  if (ctx->it->data[0] != SYXV_TOKEN_DOT) PARSER_ERROR("expected . symbol here", ctx);
+SyxV *parse__dispatch_syxv_boxed(SyxV_Parser_Context *ctx) {
+  if (ctx->it->data[0] != SYXV_TOKEN_DOT) PARSER_ERROR(ctx, "expected . symbol here");
   sv_chop_left(ctx->it, 1);
   SyxV *constructor_symbol = parse__syxv_symbol(ctx);
   syx_eval_early_exit(constructor_symbol);
+  rc_acquire(constructor_symbol);
   SyxV *arguments = parse__syxv_list(ctx, true, SYXV_TOKEN_LIST_START, SYXV_TOKEN_LIST_END);
-  syx_eval_early_exit(arguments);
-  return make_syxv_pair(make_syxv_symbol_cstr("new"), make_syxv_pair(constructor_symbol, arguments));
+  syx_eval_early_exit(arguments, constructor_symbol);
+  return make_syxv_pair(make_syxv_symbol_cstr("new"), make_syxv_pair(rc_move(constructor_symbol), arguments));
 }
 
 #endif // SYX_PARSER_IMPL

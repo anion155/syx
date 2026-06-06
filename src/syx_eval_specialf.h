@@ -302,9 +302,7 @@ SyxV *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *argu
       SyxV *list = branch->pair.right;
       if (list->kind != SYXV_KIND_PAIR) RUNTIME_ERROR(ctx, "malformed try's finally handler, list expected");
       SyxV *finally_result = syx_eval_forms_list(ctx, list);
-      syx_eval_early_exit(finally_result, catch_symbol, finally_symbol, body, result);
-      rc_acquire(finally_result);
-      rc_release(finally_result);
+      syx_eval_early_exit_temporary(finally_result, catch_symbol, finally_symbol, body, result);
       continue;
     }
     RUNTIME_ERROR(ctx, "malformed try's handlers list");

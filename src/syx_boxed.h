@@ -174,9 +174,7 @@ SyxV *syx_eval_boxed_construct(Syx_Eval_Ctx *ctx, Syx_Type_Info *typeinfo, SyxV 
     SyxV *argument = arguments->pair.left;
     if (argument && argument->kind == SYXV_KIND_BOXED && argument->boxed->typeinfo->kind == typeinfo->kind) {
       SyxV *result = syx_boxed_set(ctx, boxed, syxv_list_next(&arguments));
-      syx_eval_early_exit(result, boxed);
-      rc_acquire(result);
-      rc_release(result);
+      syx_eval_early_exit_temporary(result, boxed);
       return make_syxv_boxed(rc_move(boxed));
     }
   }
