@@ -42,31 +42,25 @@ define_constant(Ht(const char *, bool *), ctx_options) {
   *ht_put(ctx_options, "e") = &script_ctx.opt_error;
 }
 
-SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
+SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, String_View source_sv) {
+  SyxV *expressions = parse_multiple_syxv(source_sv);
+  if (!syx_parser_report_error(expressions)) return make_syxv_nil();
   SyxV *result = NULL;
-  parser_syxvs_for_each(source, source_cstr) {
-    if (!syx_parser_report_error(source)) {
-      result = rc_acquire(source);
-      rc_release(parser_syxvs_for_each_iterator());
-      break;
-    }
+  syxv_list_for_each(expression, expressions) {
     if (script_ctx.opt_xtrace) {
       printf(CLI_DIM ">");
-      printf_with(str_append_syxv, source);
+      printf_with(str_append_syxv, expression);
       printf("\n" CLI_RESET);
     }
     if (result) rc_release(result);
-    result = rc_acquire(syx_eval(ctx, source));
+    result = rc_acquire(syx_eval(ctx, expression));
     if (result->kind == SYXV_KIND_RETURN_VALUE) {
       SyxV *value = rc_acquire(result->return_value);
       rc_release(result);
       return rc_move(value);
     }
     if (!syx_eval_report_error(ctx, result)) {
-      if (script_ctx.opt_error) {
-        rc_release(parser_syxvs_for_each_iterator());
-        return rc_move(result);
-      }
+      if (script_ctx.opt_error) return rc_move(result);
     } else if (script_ctx.opt_xtrace) {
       printf_with(str_append_syxv, result);
       printf("\n");
@@ -80,8 +74,8 @@ SyxV *syx_parse_and_eval(Syx_Eval_Ctx *ctx, const char *source_cstr) {
   return rc_move(result);
 }
 
-int run_syx(const char *source_cstr) {
-  SyxV *result = rc_acquire(syx_parse_and_eval(script_ctx.eval_ctx, source_cstr));
+int run_syx(String_View source_sv) {
+  SyxV *result = rc_acquire(syx_parse_and_eval(script_ctx.eval_ctx, source_sv));
   if (result->kind == SYXV_KIND_RETURN_VALUE) {
     syx_integer_t code;
     SyxV *converted = rc_acquire(syx_convert_to_number(script_ctx.eval_ctx, result));
@@ -126,7 +120,7 @@ SyxV *eval_import(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
   module_sb.items = rc_acquire(rc_manage(module_sb.items, module_sb.count));
   syx_ctx_push_frame(ctx, callable->name);
   Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = syx_env_global(ctx->env)));
-  SyxV *result = rc_acquire(syx_parse_and_eval(import_ctx, module_sb.items));
+  SyxV *result = rc_acquire(syx_parse_and_eval(import_ctx, sb_to_sv(module_sb)));
   syx_ctx_pop_frame(ctx, result);
   syx_eval_early_exit(result, module_sb.items, import_ctx);
   // TODO: implement exports from module
@@ -185,26 +179,27 @@ int main(int argc, char **argv) {
     String_Builder sb = {0};
     da_foreach(const char *, command, commands) sb_append_cstr(&sb, *command);
     sb_append(&sb, 0);
-    int run_result = run_syx(sb.items);
+    int run_result = run_syx(sb_to_sv(sb));
     if (run_result >= 0) nob_return_defer(run_result);
   } else if (argc == 1) {
     String_Builder sb = {0};
     if (!nob_read_entire_file(argv[0], &sb)) UNREACHABLE("Failed to read file");
     sb_append(&sb, 0);
-    int run_result = run_syx(sb.items);
+    int run_result = run_syx(sb_to_sv(sb));
     sb_free(sb);
     if (run_result >= 0) nob_return_defer(run_result);
   } else {
     printf("Syx Language REPL\n");
     read_history(HIST_FILE);
-    char *line_ptr;
-    while ((line_ptr = readline("> ")) != NULL) {
-      if (line_ptr && *line_ptr) {
-        add_history(line_ptr);
+    char *line;
+    while ((line = readline("> ")) != NULL) {
+      if (!line) continue;
+      if (*line) {
+        add_history(line);
         write_history(HIST_FILE);
       }
-      int run_result = run_syx(line_ptr);
-      free(line_ptr);
+      int run_result = run_syx(sv_from_cstr(line));
+      free(line);
       if (run_result >= 0) nob_return_defer(run_result);
     }
   }
