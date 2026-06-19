@@ -16,8 +16,8 @@ int hex_to_int(int c);
 void da_destructor(void *data);
 
 typedef bool syx_bool_t;
-typedef long long int syx_integer_t;
-typedef long double syx_fractional_t;
+typedef long long syx_integer_t;
+typedef double syx_fractional_t;
 
 typedef enum Syx_Number_Kind {
   SYX_NUMBER_KIND_INTEGER,
@@ -90,16 +90,20 @@ void string_reverse(char *string, size_t width);
 #define __str_start_ptr() (string ? string->items + __start : NULL)
 size_t __str__append(syx_string_t *string, char value);
 #define __str_append(value) (width += __str__append(string, (value)))
-size_t __str__append_n(syx_string_t *string, const char *value, size_t n);
+size_t __str__append_n(syx_string_t *string, char value, size_t n);
 #define __str_append_n(value, n) (width += __str__append_n(string, (value), (n)))
+size_t __str__append_strn(syx_string_t *string, const char *value, size_t n);
+#define __str_append_strn(value, n) (width += __str__append_strn(string, (value), (n)))
 size_t __str__append_cstr(syx_string_t *string, const char *value);
-#define __str_append_cstr(value) (width += __str__append_n(string, (value), strlen((value))))
-#define __str_append_sb(value) (width += __str__append_n(string, (value).items, (value).count))
-#define __str_append_sv(value) (width += __str__append_n(string, (value).data, (value).count))
+#define __str_append_cstr(value) (width += __str__append_strn(string, (value), strlen((value))))
+#define __str_append_sb(value) (width += __str__append_strn(string, (value).items, (value).count))
+#define __str_append_sv(value) (width += __str__append_strn(string, (value).data, (value).count))
 size_t __str__appendf(syx_string_t *string, const char *format, ...);
 #define __str_appendf(format, ...) (width += __str__appendf(string, (format), __VA_ARGS__))
 #define __str_append_with(appender, ...) (width += appender(string __VA_OPT__(, ) __VA_ARGS__))
 #define __str_append_legacy(appender, ...) (width += appender(string ? __str_start_ptr() + __str_width() : NULL __VA_OPT__(, ) __VA_ARGS__))
+size_t __str__reserve(syx_string_t *string, size_t count);
+#define __str_reserve(count) (width += __str__reserve(string, (count)))
 
 syx_string_t __stringify_finish(syx_string_t sb);
 #define stringify(appender, ...)              \
@@ -129,13 +133,7 @@ void __fprintf__with(FILE *f, syx_string_t sb);
 
 size_t str_append_integer(syx_string_t *string, syx_integer_t value);
 
-#define FRAC_MINIMAL_DIFFERENCE 1e-9
 #define MAX_FRAC_FRACTIONAL_WIDTH 15
-
-size_t get_fractions_precision(syx_fractional_t value);
-size_t fractions__precision(syx_fractional_t value, ssize_t precision);
-#define fractions_precision(value, ...) fractions__precision((value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
-
 size_t str__append_fractional(syx_string_t *string, syx_fractional_t value, ssize_t precision);
 #define str_append_fractional(string, value, ...) str__append_fractional((string), (value), WITH_DEFAULT(-MAX_FRAC_FRACTIONAL_WIDTH, __VA_ARGS__))
 
@@ -180,6 +178,8 @@ String_Builder sb_copy_from_sv(String_View sv);
 #define SYX_UTILS_IMPL_C
 
 #include <math.h>
+#define RYU_IMPL
+#include <ryu.h>
 
 int islineend(int c) {
   return (c == '\n' || c == '\r');
@@ -192,6 +192,10 @@ int issymbol_special(int c) {
 
 int issymbol(int c) {
   return c == '-' || c == '_' || issymbol_special(c) || isalnum(c);
+}
+
+int isnumberic_separator(int c) {
+  return c >= '_';
 }
 
 int isoctal(int c) {
@@ -261,7 +265,7 @@ bool parse_integer(String_View *sv, syx_integer_t *result) {
     *result = *result * 10 + (sv->data[i] - '0');
     i += 1;
     if (i >= sv->count) break;
-    // TODO: implement number separators: 100_000_000;
+    if (isnumberic_separator(sv->data[i])) i += 1;
   }
   sv->count -= i;
   sv->data += i;
@@ -275,11 +279,12 @@ bool parse_fractions(String_View *sv, syx_fractional_t *result) {
   syx_integer_t fractional_part = 0;
   syx_integer_t exponent = 1;
   size_t i = 0;
-  while (i < sv->count && isdigit(sv->data[i])) {
+  while (isdigit(sv->data[i])) {
     fractional_part = fractional_part * 10 + (sv->data[i] - '0');
     exponent *= 10;
     i += 1;
-    // TODO: implement number separators: 1.000_000_1;
+    if (i >= sv->count) break;
+    if (isnumberic_separator(sv->data[i])) i += 1;
   }
   sv->count -= i;
   sv->data += i;
@@ -330,7 +335,14 @@ size_t __str__append(syx_string_t *string, char value) {
   return 1;
 }
 
-size_t __str__append_n(syx_string_t *string, const char *value, size_t n) {
+size_t __str__append_n(syx_string_t *string, char value, size_t n) {
+  if (!string) return n;
+  nob_da_reserve(string, string->count + n);
+  for (size_t index = 0; index < n; index += 1) string->items[string->count++] = value;
+  return n;
+}
+
+size_t __str__append_strn(syx_string_t *string, const char *value, size_t n) {
   if (!string) return n;
   nob_da_reserve(string, string->count + n);
   for (size_t index = 0; index < n; index += 1) string->items[string->count++] = value[index];
@@ -339,7 +351,7 @@ size_t __str__append_n(syx_string_t *string, const char *value, size_t n) {
 
 size_t __str__append_cstr(syx_string_t *string, const char *value) {
   if (!string) return strlen(value);
-  return __str__append_n(string, value, strlen(value));
+  return __str__append_strn(string, value, strlen(value));
 }
 
 size_t __str__appendf(syx_string_t *string, const char *format, ...) {
@@ -358,15 +370,24 @@ size_t __str__appendf(syx_string_t *string, const char *format, ...) {
   return width;
 }
 
+size_t __str__reserve(syx_string_t *string, size_t count) {
+  if (string) {
+    nob_da_reserve(string, string->count + count);
+    string->count += count;
+  }
+  return count;
+}
+
 syx_string_t __stringify_finish(syx_string_t sb) {
   nob_da_append(&sb, 0);
   nob_da_realloc_trim(&sb);
+  sb.count -= 1;
   return sb;
 }
 
 syx_string_view_t __stringify_temp_finish(syx_string_t sb) {
   nob_da_append(&sb, 0);
-  syx_string_view_t sv = {.count = sb.count};
+  syx_string_view_t sv = {.count = sb.count - 1};
   sv.data = nob_temp_alloc(sb.count * sizeof(char));
   memcpy((char *)sv.data, sb.items, sb.count);
   sb_free(sb);
@@ -389,45 +410,48 @@ size_t str_append_integer(syx_string_t *string, syx_integer_t value) {
   return __str_width();
 }
 
-size_t get_fractions_precision(syx_fractional_t value) {
-  if (value < 0) value *= -1;
-  value -= (syx_integer_t)value;
-  size_t width = 0;
-  while (width < MAX_FRAC_FRACTIONAL_WIDTH) {
-    if (value < FRAC_MINIMAL_DIFFERENCE) break;
-    if (value > 1.0 - FRAC_MINIMAL_DIFFERENCE) break;
-    value *= 10;
-    value -= (syx_integer_t)value;
-    width++;
-  }
-  if (width == 0) return 1;
-  return width;
-}
-
-size_t fractions__precision(syx_fractional_t value, ssize_t precision) {
-  if (precision >= 0) return precision;
-  size_t fractional_width = get_fractions_precision(value);
-  size_t exponenta = -precision;
-  return fractional_width > exponenta ? exponenta : fractional_width;
-}
-
 size_t str__append_fractional(syx_string_t *string, syx_fractional_t value, ssize_t precision) {
-  if (precision < 0) precision = fractions__precision(value, precision);
-  __str_init(33 + precision);
   if (precision == 0) return str_append_integer(string, (syx_integer_t)(value + (value < 0 ? -0.5 : 0.5)));
-  if (value < 0) (__str_append('-'), value *= -1);
-  syx_integer_t exponent = 1;
-  for (size_t index = 0; index < (size_t)precision; index += 1) exponent *= 10;
-  value += 0.5 / (syx_fractional_t)exponent;
-  syx_fractional_t integer_part = 0;
-  syx_fractional_t fractional_part = modfl(value, &integer_part);
-  __str_append_with(str_append_integer, (syx_integer_t)integer_part);
-  __str_append('.');
-  if (!string) return __str_width() + precision;
-  size_t rev_start = __str_width();
-  syx_integer_t fractions = (syx_integer_t)(fractional_part * (syx_fractional_t)exponent);
-  for (size_t index = 0; index < (size_t)precision; index += 1, fractions /= 10) __str_append('0' + (fractions % 10));
-  string_reverse(__str_start_ptr() + rev_start, __str_width() - rev_start);
+  floating_decimal_64 v = d2s_parse(value);
+  __str_init(33 + (precision < 25 ? 25 : precision));
+  if (value < 0) __str_append('-');
+  __str_append_with(str_append_integer, v.mantissa);
+  if (precision >= 0) {
+    if (v.exponent > 0) __str_append_n('0', v.exponent);
+    __str_append('.');
+  } else {
+    if (v.exponent < 0) __str_append('.');
+  }
+  if (v.exponent < 0 && string) {
+    for (size_t index = string->count - 1, to = string->count - 1 + v.exponent; index > to; index -= 1) {
+      swap(char, string->items[index], string->items[index - 1]);
+    }
+  }
+  if (precision < 0) {
+    if (v.exponent > 0) {
+      __str_append_n('0', v.exponent);
+    } else if (v.exponent < precision) {
+      width += v.exponent - precision;
+      if (string) {
+        string->count = width;
+        if (string->items[width] - '0' >= 5) string->items[width - 1] += 1;
+      }
+    }
+  } else {
+    if (v.exponent < 0) {
+      if (-v.exponent > precision) {
+        width += precision + v.exponent;
+        if (string) {
+          string->count = width;
+          if (string->items[width] - '0' >= 5) string->items[width - 1] += 1;
+        }
+      } else {
+        __str_append_n('0', precision + v.exponent);
+      }
+    } else {
+      __str_append_n('0', precision);
+    }
+  }
   return __str_width();
 }
 

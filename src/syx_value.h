@@ -460,10 +460,10 @@ size_t str_append_syxv_symbol(syx_string_t *string, SyxV_Symbol *symbol) {
   __str_init(symbol->length + (symbol->guarded ? 2 : 0));
   if (symbol->guarded) {
     __str_append('|');
-    __str_append_n(symbol->name, symbol->length);
+    __str_append_strn(symbol->name, symbol->length);
     __str_append('|');
   } else {
-    __str_append_n(symbol->name, symbol->length);
+    __str_append_strn(symbol->name, symbol->length);
   }
   return __str_width();
 }

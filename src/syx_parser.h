@@ -305,7 +305,7 @@ Syx_Eval_Ctx *make_syx_parser_eval_ctx() {
 
 bool syx_parser_report_error(SyxV *value) {
   if (value->kind != SYXV_KIND_THROWN) return true;
-  fprintf(stderr, "Parer exception: ");
+  fprintf(stderr, "Parser exception: ");
   Syx_Eval_Ctx *ctx = make_syx_parser_eval_ctx();
   SyxV *reason = rc_acquire(syx_convert_to_string(ctx, value->thrown.reason));
   if (reason->kind == SYXV_KIND_STRING) fprintf(stderr, SV_Fmt "\n", SV_Arg(reason->string));
