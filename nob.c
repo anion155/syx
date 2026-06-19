@@ -14,6 +14,7 @@ struct NoNob_Context_Storage {
   bool run_leaks;
   bool run_leaks_sanitize;
   bool run_watch;
+  bool playground_debug;
 };
 
 #define NONOB_IMPL
@@ -179,7 +180,9 @@ bool command_clean_run() {
   return true;
 }
 
-#define command_playground_init NULL
+void command_playground_init(NoNob_Command *command) {
+  flag_c_bool_var(command->flags, &ctx.s->playground_debug, "g", false, "Run with lldb");
+}
 
 bool command_playground_run() {
   nob_cc(&ctx.cmd);
@@ -201,12 +204,18 @@ bool command_playground_run() {
   nonob_append_cmd_to_ccjson();
   if (!nob_cmd_run(&ctx.cmd)) return false;
 
-  nob_cmd_append(&ctx.cmd, temp_sprintf("%s/playground", ctx.s->build_path));
-  if (!nob_cmd_run(&ctx.cmd)) {
+  if (ctx.s->playground_debug) {
     nob_cmd_append(&ctx.cmd, "lldb");
     nob_cmd_append(&ctx.cmd, temp_sprintf("%s/playground", ctx.s->build_path));
-    nob_cmd_run(&ctx.cmd);
-    return false;
+    if (!nob_cmd_run(&ctx.cmd)) return false;
+  } else {
+    nob_cmd_append(&ctx.cmd, temp_sprintf("%s/playground", ctx.s->build_path));
+    if (!nob_cmd_run(&ctx.cmd)) {
+      nob_cmd_append(&ctx.cmd, "lldb");
+      nob_cmd_append(&ctx.cmd, temp_sprintf("%s/playground", ctx.s->build_path));
+      nob_cmd_run(&ctx.cmd);
+      return false;
+    }
   }
 
   return true;
