@@ -81,10 +81,16 @@ SyxV *parse__syxv_integer(SyxV_Parser_Context *ctx) {
   if (ctx->it->data[0] == '0' && ctx->it->count >= 3) {
     if ((ctx->it->data[1] == 'x' || ctx->it->data[1] == 'X')) {
       sv_chop_left(ctx->it, 2);
-      if (!parse_hexedecimal(ctx->it, &value)) PARSER_ERROR(ctx, "expected number literal here");
+      if (!parse_hexedecimal_integer(ctx->it, &value)) PARSER_ERROR(ctx, "expected hexedecimal number literal here");
     }
-    if ((ctx->it->data[1] == 'o' || ctx->it->data[1] == 'O')) TODO("implement octal number parser");
-    if ((ctx->it->data[1] == 'b' || ctx->it->data[1] == 'B')) TODO("implement binary number parser");
+    if ((ctx->it->data[1] == 'o' || ctx->it->data[1] == 'O')) {
+      sv_chop_left(ctx->it, 2);
+      if (!parse_octal_integer(ctx->it, &value)) PARSER_ERROR(ctx, "expected octal number literal here");
+    }
+    if ((ctx->it->data[1] == 'b' || ctx->it->data[1] == 'B')) {
+      sv_chop_left(ctx->it, 2);
+      if (!parse_binary_integer(ctx->it, &value)) PARSER_ERROR(ctx, "expected octal number literal here");
+    }
   } else {
     if (!parse_integer(ctx->it, &value)) PARSER_ERROR(ctx, "expected number literal here");
     if (ctx->it->data[0] == SYXV_TOKEN_DOT) goto upgrade;

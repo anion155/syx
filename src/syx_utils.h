@@ -71,7 +71,9 @@ typedef String_View syx_string_view_t;
 typedef String_Builder syx_string_t;
 
 bool parse_integer(String_View *sv, syx_integer_t *result);
-bool parse_hexedecimal(String_View *sv, syx_integer_t *result);
+bool parse_hexedecimal_integer(String_View *sv, syx_integer_t *result);
+bool parse_octal_integer(String_View *sv, syx_integer_t *result);
+bool parse_binary_integer(String_View *sv, syx_integer_t *result);
 bool parse_fractions(String_View *sv, syx_fractional_t *result);
 bool parse_fractional(String_View *sv, syx_fractional_t *result);
 bool parse_number(String_View *sv, Syx_Number *result);
@@ -199,6 +201,10 @@ int isnumberic_separator(int c) {
   return c == '_';
 }
 
+int isbinary(int c) {
+  return c == '0' || c == '1';
+}
+
 int isoctal(int c) {
   return c >= '0' && c < '8';
 }
@@ -275,7 +281,7 @@ bool parse_integer(String_View *sv, syx_integer_t *result) {
   return true;
 }
 
-bool parse_hexedecimal(String_View *sv, syx_integer_t *result) {
+bool parse_hexedecimal_integer(String_View *sv, syx_integer_t *result) {
   bool is_negative = sv->data[0] == '-';
   if (is_negative) sv_chop_left(sv, 1);
   if (!sv->count) return false;
@@ -283,6 +289,44 @@ bool parse_hexedecimal(String_View *sv, syx_integer_t *result) {
   size_t i = 0;
   while (ishex(sv->data[i])) {
     *result = (*result << 4) + hex_to_int(sv->data[i]);
+    i += 1;
+    if (i >= sv->count) break;
+    if (isnumberic_separator(sv->data[i])) i += 1;
+    if (i >= sv->count) break;
+  }
+  sv->count -= i;
+  sv->data += i;
+  if (is_negative) *result *= -1;
+  return true;
+}
+
+bool parse_octal_integer(String_View *sv, syx_integer_t *result) {
+  bool is_negative = sv->data[0] == '-';
+  if (is_negative) sv_chop_left(sv, 1);
+  if (!sv->count) return false;
+  *result = 0;
+  size_t i = 0;
+  while (isoctal(sv->data[i])) {
+    *result = (*result * 8) + (sv->data[i] - '0');
+    i += 1;
+    if (i >= sv->count) break;
+    if (isnumberic_separator(sv->data[i])) i += 1;
+    if (i >= sv->count) break;
+  }
+  sv->count -= i;
+  sv->data += i;
+  if (is_negative) *result *= -1;
+  return true;
+}
+
+bool parse_binary_integer(String_View *sv, syx_integer_t *result) {
+  bool is_negative = sv->data[0] == '-';
+  if (is_negative) sv_chop_left(sv, 1);
+  if (!sv->count) return false;
+  *result = 0;
+  size_t i = 0;
+  while (isbinary(sv->data[i])) {
+    *result = (*result << 1) + (sv->data[i] - '0');
     i += 1;
     if (i >= sv->count) break;
     if (isnumberic_separator(sv->data[i])) i += 1;

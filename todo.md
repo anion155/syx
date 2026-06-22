@@ -1,5 +1,3 @@
-- implement hex, octal, binary number parse: 0xFF, 0o07, 0b0101
-- implement number separators: 100_000_000
 - object values, like boxed
 - attach stack frame to error object on throw
 - compiler test runner
