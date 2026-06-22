@@ -74,17 +74,25 @@ SyxV *parse__syxv_fractional(SyxV_Parser_Context *ctx, syx_integer_t integer_par
 
 SyxV *parse__syxv_integer(SyxV_Parser_Context *ctx) {
   if (!ctx->it->count) PARSER_ERROR(ctx, "expected number literal here");
-  if (ctx->it->data[0] == '0' && ctx->it->count >= 3) {
-    if ((ctx->it->data[1] == 'x' || ctx->it->data[1] == 'X')) TODO("implement hex number parser");
-    if ((ctx->it->data[1] == 'o' || ctx->it->data[1] == 'O')) TODO("implement octal number parser");
-    if ((ctx->it->data[1] == 'b' || ctx->it->data[1] == 'B')) TODO("implement binary number parser");
-  }
+  bool is_negative = ctx->it->data[0] == '-';
+  if (is_negative) sv_chop_left(ctx->it, 1);
   syx_integer_t value = 0;
   if (ctx->it->data[0] == SYXV_TOKEN_DOT) goto upgrade;
-  if (!parse_integer(ctx->it, &value)) PARSER_ERROR(ctx, "expected number literal here");
-  if (ctx->it->data[0] == SYXV_TOKEN_DOT) goto upgrade;
+  if (ctx->it->data[0] == '0' && ctx->it->count >= 3) {
+    if ((ctx->it->data[1] == 'x' || ctx->it->data[1] == 'X')) {
+      sv_chop_left(ctx->it, 2);
+      if (!parse_hexedecimal(ctx->it, &value)) PARSER_ERROR(ctx, "expected number literal here");
+    }
+    if ((ctx->it->data[1] == 'o' || ctx->it->data[1] == 'O')) TODO("implement octal number parser");
+    if ((ctx->it->data[1] == 'b' || ctx->it->data[1] == 'B')) TODO("implement binary number parser");
+  } else {
+    if (!parse_integer(ctx->it, &value)) PARSER_ERROR(ctx, "expected number literal here");
+    if (ctx->it->data[0] == SYXV_TOKEN_DOT) goto upgrade;
+  }
+  if (is_negative) value *= -1;
   return make_syxv_number_integer(value);
 upgrade:
+  if (is_negative) value *= -1;
   return parse__syxv_fractional(ctx, value);
 }
 

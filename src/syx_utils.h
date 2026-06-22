@@ -71,6 +71,7 @@ typedef String_View syx_string_view_t;
 typedef String_Builder syx_string_t;
 
 bool parse_integer(String_View *sv, syx_integer_t *result);
+bool parse_hexedecimal(String_View *sv, syx_integer_t *result);
 bool parse_fractions(String_View *sv, syx_fractional_t *result);
 bool parse_fractional(String_View *sv, syx_fractional_t *result);
 bool parse_number(String_View *sv, Syx_Number *result);
@@ -195,7 +196,7 @@ int issymbol(int c) {
 }
 
 int isnumberic_separator(int c) {
-  return c >= '_';
+  return c == '_';
 }
 
 int isoctal(int c) {
@@ -208,8 +209,8 @@ int ishex(int c) {
 
 int hex_to_int(int c) {
   if (isdigit(c)) return c - '0';
-  else if (c >= 'a' && c <= 'f') return c - 'a';
-  else if (c >= 'A' && c <= 'F') return c - 'A';
+  else if (c >= 'a' && c <= 'f') return (c - 'a') + 10;
+  else if (c >= 'A' && c <= 'F') return (c - 'A') + 10;
   return -1;
 }
 
@@ -266,6 +267,26 @@ bool parse_integer(String_View *sv, syx_integer_t *result) {
     i += 1;
     if (i >= sv->count) break;
     if (isnumberic_separator(sv->data[i])) i += 1;
+    if (i >= sv->count) break;
+  }
+  sv->count -= i;
+  sv->data += i;
+  if (is_negative) *result *= -1;
+  return true;
+}
+
+bool parse_hexedecimal(String_View *sv, syx_integer_t *result) {
+  bool is_negative = sv->data[0] == '-';
+  if (is_negative) sv_chop_left(sv, 1);
+  if (!sv->count) return false;
+  *result = 0;
+  size_t i = 0;
+  while (ishex(sv->data[i])) {
+    *result = (*result << 4) + hex_to_int(sv->data[i]);
+    i += 1;
+    if (i >= sv->count) break;
+    if (isnumberic_separator(sv->data[i])) i += 1;
+    if (i >= sv->count) break;
   }
   sv->count -= i;
   sv->data += i;
@@ -285,6 +306,7 @@ bool parse_fractions(String_View *sv, syx_fractional_t *result) {
     i += 1;
     if (i >= sv->count) break;
     if (isnumberic_separator(sv->data[i])) i += 1;
+    if (i >= sv->count) break;
   }
   sv->count -= i;
   sv->data += i;
@@ -531,24 +553,40 @@ size_t syx_put_unicode_char(FILE *fd, char base, struct escape_char_print escape
     uint16_t low = (hex_to_int(U[0]) << 12) | (hex_to_int(U[1]) << 8) | (hex_to_int(U[2]) << 4) | hex_to_int(U[3]);
     uint32_t codepoint = ((uint32_t)high << 16) | low;
     if (codepoint < 0x80) {
-      return io_putc(fd, codepoint);
+      io_putc(fd, codepoint);
+      return 1;
     } else if (codepoint < 0x800) {
-      return io_putc(fd, 0xC0 | (codepoint >> 6)) && io_putc(fd, 0x80 | (codepoint & 0x3F));
+      io_putc(fd, 0xC0 | (codepoint >> 6));
+      io_putc(fd, 0x80 | (codepoint & 0x3F));
+      return 2;
     } else if (codepoint < 0x10000) {
-      return io_putc(fd, 0xE0 | (codepoint >> 12)) && io_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F)) && io_putc(fd, 0x80 | (codepoint & 0x3F));
+      io_putc(fd, 0xE0 | (codepoint >> 12));
+      io_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F));
+      io_putc(fd, 0x80 | (codepoint & 0x3F));
+      return 3;
     } else {
-      return io_putc(fd, 0xF0 | (codepoint >> 18)) && io_putc(fd, 0x80 | ((codepoint >> 12) & 0x3F)) && io_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F)) && io_putc(fd, 0x80 | (codepoint & 0x3F));
+      io_putc(fd, 0xF0 | (codepoint >> 18));
+      io_putc(fd, 0x80 | ((codepoint >> 12) & 0x3F));
+      io_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F));
+      io_putc(fd, 0x80 | (codepoint & 0x3F));
+      return 4;
     }
   }
   UNREACHABLE("unknown base");
 print_u:
   uint16_t codepoint = (hex_to_int(u[0]) << 12) | (hex_to_int(u[1]) << 8) | (hex_to_int(u[2]) << 4) | hex_to_int(u[3]);
   if (codepoint < 0x80) {
-    return io_putc(fd, codepoint);
+    io_putc(fd, codepoint);
+    return 1;
   } else if (codepoint < 0x800) {
-    return io_putc(fd, 0xC0 | (codepoint >> 6)) && io_putc(fd, 0x80 | (codepoint & 0x3F));
+    io_putc(fd, 0xC0 | (codepoint >> 6));
+    io_putc(fd, 0x80 | (codepoint & 0x3F));
+    return 2;
   } else {
-    return io_putc(fd, 0xE0 | (codepoint >> 12)) && io_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F)) && io_putc(fd, 0x80 | (codepoint & 0x3F));
+    io_putc(fd, 0xE0 | (codepoint >> 12));
+    io_putc(fd, 0x80 | ((codepoint >> 6) & 0x3F));
+    io_putc(fd, 0x80 | (codepoint & 0x3F));
+    return 3;
   }
 }
 
