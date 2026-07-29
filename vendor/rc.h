@@ -22,6 +22,8 @@ typedef struct Rc {
   Rc_Methods methods;
 } Rc;
 
+Rc *rc_get(void *data);
+
 void *rc__alloc(void *(*alloc)(size_t size), void (*free)(void *data), size_t size, Rc_Methods opt);
 #define rc_malloc(size, ...) rc__alloc(malloc, free, (size), (Rc_Methods){__VA_ARGS__})
 void *rc__realloc(void *(*realloc)(void *__ptr, size_t __size), const void *data, size_t size);
@@ -31,11 +33,15 @@ void *rc__manage(void *(*alloc)(size_t size), void (*free)(void *data), void *da
 
 void *rc__acquire(void *data);
 #define rc_acquire(data) (__typeof__(data))rc__acquire((data))
+void rc__acquire_all(void *items[], size_t count);
+#define rc_acquire_all(...) rc__acquire_all((void *[]){__VA_ARGS__}, sizeof((void *[]){__VA_ARGS__}) / sizeof(void *))
 void *rc__move(void *data);
 #define rc_move(data) (__typeof__(data))rc__move((data))
 void rc_release(void *data);
 void rc__release_all(void *items[], size_t count);
 #define rc_release_all(...) rc__release_all((void *[]){__VA_ARGS__}, sizeof((void *[]){__VA_ARGS__}) / sizeof(void *))
+#define rc__guarded(items, size) for (bool _run = (rc__acquire_all(items, size), true); _run; (_run = false, rc__release_all(items, size)))
+#define rc_guarded(...) rc__guarded((void *[]){__VA_ARGS__}, sizeof((void *[]){__VA_ARGS__}) / sizeof(void *))
 
 void **rc__downgrade(void *(*alloc)(size_t size), void *data);
 #define rc_downgrade(data) (__typeof__(data) *)rc__downgrade(malloc, (data))
@@ -59,6 +65,10 @@ void rc_graph_visitor(Rc_Circulars *circulars, void **data, const void *source);
 #if defined(RC_IMPL) && !defined(RC_IMPL_C)
 #define RC_IMPL_C
 
+static inline Rc *rc_get(void *data) {
+  return (Rc *)data - 1;
+}
+
 void *rc__alloc(void *(*alloc)(size_t size), void (*free)(void *data), size_t size, Rc_Methods opt) {
   Rc *rc = alloc(sizeof(Rc) + size);
   if (!rc) return NULL;
@@ -71,7 +81,7 @@ void *rc__alloc(void *(*alloc)(size_t size), void (*free)(void *data), size_t si
 }
 
 void *rc__realloc(void *(*realloc)(void *__ptr, size_t __size), const void *data, size_t size) {
-  Rc *rc = (Rc *)data - 1;
+  Rc *rc = rc_get(data);
   rc = realloc(rc, sizeof(Rc) + size);
   assert(rc);
   return rc + 1;
@@ -86,14 +96,20 @@ void *rc__manage(void *(*alloc)(size_t size), void (*free)(void *data), void *da
 
 void *rc__acquire(void *data) {
   if (!data) return data;
-  Rc *rc = (Rc *)data - 1;
+  Rc *rc = rc_get(data);
   rc->header->strong += 1;
   return data;
 }
 
+void rc__acquire_all(void *items[], size_t count) {
+  for (size_t index = 0; index < count; index += 1) {
+    if (items[index]) rc_acquire(items[index]);
+  }
+}
+
 void *rc__move(void *data) {
   if (!data) return data;
-  Rc *rc = (Rc *)data - 1;
+  Rc *rc = rc_get(data);
   if (!rc->header->strong) UNREACHABLE("trying to move floating memory");
   rc->header->strong -= 1;
   return data;
@@ -101,7 +117,7 @@ void *rc__move(void *data) {
 
 void rc_release(void *data) {
   if (!data) return;
-  Rc *rc = (Rc *)data - 1;
+  Rc *rc = rc_get(data);
   Rc_Header *header = rc->header;
   if (!header->strong) UNREACHABLE("trying to either double free memory or release floating memory");
   header->strong -= 1;
@@ -129,7 +145,7 @@ void rc__release_all(void *items[], size_t count) {
 void **rc__downgrade(void *(*alloc)(size_t size), void *data) {
   Rc_Header **weak = alloc(sizeof(Rc_Header *) + sizeof(void *));
   assert(weak);
-  *weak = ((Rc *)data - 1)->header;
+  *weak = rc_get(data)->header;
   (*weak)->weak += 1;
   *((void **)(weak + 1)) = data;
   return (void **)(weak + 1);
@@ -157,7 +173,7 @@ void rc__weak_free(void (*free)(void *data), void **weak_data) {
 }
 
 size_t rc_count(const void *data) {
-  Rc *rc = (Rc *)data - 1;
+  Rc *rc = rc_get(data);
   return rc->header->strong;
 }
 
