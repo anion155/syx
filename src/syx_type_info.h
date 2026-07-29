@@ -9,7 +9,7 @@
 
 #include "syx_value.h"
 
-typedef enum Syx_Type_Info_Kind {
+typedef enum Syx_Type_Info_Kind : unsigned int {
   SYX_TYPE_INFO_KIND_PTR,
   SYX_TYPE_INFO_KIND_FUNCTION_PTR,
   SYX_TYPE_INFO_KIND_VALUE_PTR,

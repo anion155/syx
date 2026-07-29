@@ -112,13 +112,14 @@ SyxV *eval_setopt(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
 }
 
 SyxV *eval_import(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
+  UNUSED(callable);
   SyxV *name = syx_eval(ctx, syxv_list_next(&arguments));
   if (name->kind != SYXV_KIND_STRING) RUNTIME_ERROR(ctx, "module name expected");
   String_Builder module_sb = {0};
   if (!nob_read_entire_file(name->string.data, &module_sb)) UNREACHABLE("Failed to read file");
   sb_append(&module_sb, 0);
   module_sb.items = rc_acquire(rc_manage(module_sb.items, module_sb.count));
-  syx_ctx_push_frame(ctx, callable->name);
+  syx_ctx_push_frame(ctx, "import");
   Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = syx_env_global(ctx->env)));
   SyxV *result = rc_acquire(syx_parse_and_eval(import_ctx, sb_to_sv(module_sb)));
   syx_ctx_pop_frame(ctx, result);
