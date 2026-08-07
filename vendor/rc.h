@@ -12,9 +12,12 @@ typedef struct Rc_Header {
   size_t weak;
 } Rc_Header;
 
+typedef void (*Rc_Method_Destructor)(void *data);
+typedef void (*Rc_Method_Graph_Visitor)(Rc_Circulars *circulars, const void *data, const void *source);
+
 typedef struct Rc_Methods {
-  void (*destructor)(void *data);
-  void (*graph_visitor)(Rc_Circulars *circulars, const void *data, const void *source);
+  Rc_Method_Destructor destructor;
+  Rc_Method_Graph_Visitor graph_visitor;
 } Rc_Methods;
 
 typedef struct Rc {
@@ -27,7 +30,7 @@ Rc *rc_get(void *data);
 void *rc__alloc(void *(*alloc)(size_t size), void (*free)(void *data), size_t size, Rc_Methods opt);
 #define rc_malloc(size, ...) rc__alloc(malloc, free, (size), (Rc_Methods){__VA_ARGS__})
 void *rc__realloc(void *(*realloc)(void *__ptr, size_t __size), const void *data, size_t size);
-#define rc_realloc(data, size, ...) (__typeof__(data))rc__realloc(realloc, (data), (size))
+#define rc_realloc(data, size) (__typeof__(data))rc__realloc(realloc, (data), (size))
 void *rc__manage(void *(*alloc)(size_t size), void (*free)(void *data), void *data, size_t size, Rc_Methods opt);
 #define rc_manage(data, size, ...) (__typeof__(data))rc__manage(malloc, free, (data), (size), (Rc_Methods){__VA_ARGS__})
 
