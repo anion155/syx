@@ -9,6 +9,7 @@ struct NoNob_Context_Storage {
   const char *syx_path;
   const char *tests_path;
 
+  bool build_new;
   bool build_debug;
   bool build_sanitizer;
   bool run_leaks;
@@ -21,6 +22,7 @@ struct NoNob_Context_Storage {
 #include "./vendor/nonob.h"
 
 void command_build_init(NoNob_Command *command) {
+  flag_c_bool_var(command->flags, &ctx.s->build_new, "n", false, "Build new version");
   flag_c_bool_var(command->flags, &ctx.s->build_debug, "g", false, "Build with debug symbols");
   flag_c_bool_var(command->flags, &ctx.s->build_sanitizer, "sanitize", false, "Enable compiler memory leak detection");
 }
@@ -41,7 +43,11 @@ bool command_build_run() {
   if (ctx.s->build_sanitizer) nob_cmd_append(&ctx.cmd, "-ggdb", "-fsanitize=address");
   else if (ctx.s->build_debug) nob_cmd_append(&ctx.cmd, "-ggdb");
   nob_cc_inputs(&ctx.cmd, "-std=c23");
-  nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/main.c", ctx.s->src_path));
+  if (ctx.s->build_new) {
+    nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/main_new.c", ctx.s->src_path));
+  } else {
+    nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/main.c", ctx.s->src_path));
+  }
   nob_cc_output(&ctx.cmd, ctx.s->syx_path);
 #ifdef __APPLE__
   nob_cmd_append(&ctx.cmd, "-ledit");

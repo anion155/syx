@@ -19,18 +19,18 @@ typedef struct Syx_Exit Syx_Exit;
 typedef struct Syx_Pair Syx_Pair;
 typedef struct Syx_Special Syx_Special;
 typedef struct Syx_Symbol Syx_Symbol;
-typedef enum Syx_Const Syx_Const;
 typedef struct Syx_Number Syx_Number;
 typedef struct Syx_String Syx_String;
 typedef struct Syx_Closure Syx_Closure;
 
 typedef enum Syx_Value_Kind : unsigned int {
   SYX_VALUE_KIND_NIL,
+  SYX_VALUE_KIND_BOOL_TRUE,
+  SYX_VALUE_KIND_BOOL_FALSE,
   SYX_VALUE_KIND_EXIT,
   SYX_VALUE_KIND_PAIR,
   SYX_VALUE_KIND_SPECIAL,
   SYX_VALUE_KIND_SYMBOL,
-  SYX_VALUE_KIND_CONST,
   SYX_VALUE_KIND_NUMBER,
   SYX_VALUE_KIND_STRING,
   SYX_VALUE_KIND_CLOSURE,
@@ -46,7 +46,6 @@ typedef struct Syx_Value {
     Syx_Pair *pair;
     Syx_Special *special;
     Syx_Symbol *symbol;
-    Syx_Const constant;
     Syx_Number *number;
     Syx_String *string;
     Syx_Closure *closure;
@@ -95,22 +94,20 @@ typedef struct Syx_Symbol {
   bool guarded;
 } Syx_Symbol;
 
-typedef enum Syx_Const : unsigned int {
-  SYX_CONST_TRUE,
-  SYX_CONST_FALSE,
-} Syx_Const;
-
 typedef enum Syx_Number_Kind : unsigned int {
   SYX_NUMBER_KIND_INTEGER,
   SYX_NUMBER_KIND_FRACTIONAL,
 } Syx_Number_Kind;
 
+typedef unsigned int syx_integer_t;
+typedef double syx_fractional_t;
+
 typedef struct Syx_Number {
   Syx_Number_Kind kind;
 
   union {
-    unsigned int integer;
-    double fractional;
+    syx_integer_t integer;
+    syx_fractional_t fractional;
   };
 } Syx_Number;
 
@@ -163,8 +160,8 @@ Syx_Value *make_syx_value_symbol_cstr(const char *symbol);
 Syx_Value *syx_value_bool_false();
 Syx_Value *syx_value_bool_true();
 Syx_Value *make_syx_value_number(Syx_Number number);
-Syx_Value *make_syx_value_number_integer(unsigned int value);
-Syx_Value *make_syx_value_number_fractional(double value);
+Syx_Value *make_syx_value_number_integer(syx_integer_t value);
+Syx_Value *make_syx_value_number_fractional(syx_fractional_t value);
 Syx_Value *make_syx_value_string(Syx_String string);
 #define make_syx_value_string_lit(string) make_syx_value_string((Syx_String){.data = (string), .count = sizeof(string) - 1, .managed = false});
 Syx_Value *make_syx_value_string_n(const char *data, size_t count);
@@ -175,18 +172,38 @@ Syx_Value *make_syx_value_closure_specialf(syx_string_view name, Syx_Closure_Spe
 Syx_Value *make_syx_value_closure_builtin(syx_string_view name, Syx_Closure_Builtin builtin);
 Syx_Value *make_syx_value_closure_lambda(syx_string_view name, Syx_Closure_Lambda lambda);
 
+static inline Syx_Value *syx_value_from_exit(Syx_Exit *exit) { return (Syx_Value *)exit - 1; }
+
+static inline Syx_Value *syx_value_from_pair(Syx_Pair *pair) { return (Syx_Value *)pair - 1; }
+
+static inline Syx_Value *syx_value_from_special(Syx_Special *special) { return (Syx_Value *)special - 1; }
+
+static inline Syx_Value *syx_value_from_symbol(Syx_Symbol *symbol) { return (Syx_Value *)symbol - 1; }
+
+static inline Syx_Value *syx_value_from_number(Syx_Number *number) { return (Syx_Value *)number - 1; }
+
+static inline Syx_Value *syx_value_from_string(Syx_String *string) { return (Syx_Value *)string - 1; }
+
+static inline Syx_Value *syx_value_from_closure(Syx_Closure *closure) { return (Syx_Value *)closure - 1; }
+
+static inline Syx_Closure *syx_closure_from_specialf(Syx_Closure_Special_Form *specialf) { return (Syx_Closure *)(specialf - offsetof(Syx_Closure, specialf)); }
+
+static inline Syx_Closure *syx_closure_from_builtin(Syx_Closure_Builtin *builtin) { return (Syx_Closure *)(builtin - offsetof(Syx_Closure, builtin)); }
+
+static inline Syx_Closure *syx_closure_from_lambda(Syx_Closure_Lambda *lambda) { return (Syx_Closure *)lambda - 1; }
+
 bool syx_list_for_each_next(Syx_Value **current, Syx_Value **next, Syx_Value **value, Syx_Value **cdr);
-#define syx_list_for_each(value, list, ...) \
-  for (Syx_Value * value##_current,         \
-       *value##_next = (list),              \
-       *value;                              \
+#define syx_list_for_each(list, value, ...)       \
+  for (Syx_Value * value##_current,               \
+       *value##_next = syx_value_from_pair(list), \
+       *value;                                    \
        syx_list_for_each_next(&value##_current, &value##_next, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
 
 bool syx_list_map_next(Syx_Value **source_it, Syx_Value ***target_it, Syx_Value ***value, Syx_Value ***cdr);
-#define syx_list_map(value, list, results, ...)   \
-  for (Syx_Value *value##_source_it = (list),     \
-                 **value##_target_it = (results), \
-                 **value = NULL;                  \
+#define syx_list_map(list, value, results, ...)                  \
+  for (Syx_Value *value##_source_it = syx_value_from_pair(list), \
+                 **value##_target_it = (results),                \
+                 **value = NULL;                                 \
        syx_list_map_next(&value##_source_it, &value##_target_it, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
 
 #endif // SYX_VALUE_H
@@ -206,16 +223,12 @@ bool syx_list_map_next(Syx_Value **source_it, Syx_Value ***target_it, Syx_Value 
 
 define_constant(struct { Syx_Value *nil; Syx_Value *bool_true; Syx_Value *bool_false; }, SYX_VALUE_CONSTANTS) {
   SYX_VALUE_CONSTANTS->nil = rc_acquire(make_syx_value(SYX_VALUE_KIND_NIL, 0));
-
-  SYX_VALUE_CONSTANTS->bool_true = rc_acquire(make_syx_value(SYX_VALUE_KIND_CONST, 0));
-  SYX_VALUE_CONSTANTS->bool_true->constant = SYX_CONST_TRUE;
-
-  SYX_VALUE_CONSTANTS->bool_false = rc_acquire(make_syx_value(SYX_VALUE_KIND_CONST, 0));
-  SYX_VALUE_CONSTANTS->bool_false->constant = SYX_CONST_FALSE;
+  SYX_VALUE_CONSTANTS->bool_true = rc_acquire(make_syx_value(SYX_VALUE_KIND_BOOL_TRUE, 0));
+  SYX_VALUE_CONSTANTS->bool_false = rc_acquire(make_syx_value(SYX_VALUE_KIND_BOOL_FALSE, 0));
 }
 
 Syx_Value *make_syx_value(Syx_Value_Kind kind, size_t additional_size) {
-  Syx_Value *value = rc_acquire(rc_malloc(sizeof(Syx_Value) + additional_size));
+  Syx_Value *value = rc_malloc(sizeof(Syx_Value) + additional_size);
   assert(value);
   value->kind = kind;
   return value;
@@ -235,7 +248,7 @@ Syx_Value *make_syx_value_exit_returned(Syx_Value *returned) {
   rc_get(value)->methods.destructor = syx_value_exit_returned_destructor;
   value->exit = (Syx_Exit *)(value + 1);
   value->exit->kind = SYX_EXIT_KIND_RETURNED;
-  value->exit->returned = returned;
+  value->exit->returned = rc_acquire(returned);
   return value;
 }
 
@@ -251,8 +264,8 @@ Syx_Value *make_syx_value_exit_thrown(Syx_Value *reason, Syx_Frame *stack_frame)
   value->exit = (Syx_Exit *)(value + 1);
   value->exit->kind = SYX_EXIT_KIND_THROWN;
   value->exit->thrown = (Syx_Exit_Thrown *)(value->exit + 1);
-  value->exit->thrown->reason = reason;
-  value->exit->thrown->stack_frame = stack_frame;
+  value->exit->thrown->reason = rc_acquire(reason);
+  value->exit->thrown->stack_frame = rc_acquire(stack_frame);
   return value;
 }
 
@@ -362,11 +375,11 @@ Syx_Value *make_syx_value_number(Syx_Number number) {
   return value;
 }
 
-inline Syx_Value *make_syx_value_number_integer(unsigned int value) {
+inline Syx_Value *make_syx_value_number_integer(syx_integer_t value) {
   return make_syx_value_number((Syx_Number){.kind = SYX_NUMBER_KIND_INTEGER, .integer = value});
 }
 
-inline Syx_Value *make_syx_value_number_fractional(double value) {
+inline Syx_Value *make_syx_value_number_fractional(syx_fractional_t value) {
   return make_syx_value_number((Syx_Number){.kind = SYX_NUMBER_KIND_FRACTIONAL, .fractional = value});
 }
 
@@ -467,10 +480,10 @@ bool syx_list_map_next(Syx_Value **source_it, Syx_Value ***target_it, Syx_Value 
   if ((*source_it)->kind != SYX_VALUE_KIND_PAIR) {
     if (cdr != NULL) (*cdr) = (*target_it);
     else if ((*source_it)->kind != SYX_VALUE_KIND_NIL) UNREACHABLE("list expected");
-    else (**target_it) = rc_acquire(make_Syx_Value_nil());
+    else (**target_it) = rc_acquire(syx_value_nil());
     return false;
   }
-  (**target_it) = rc_acquire(make_Syx_Value_pair(NULL, NULL));
+  (**target_it) = rc_acquire(make_syx_value_pair(NULL, NULL));
   (*value) = &((**target_it)->pair->left);
   (**value) = (*source_it)->pair->left;
   (*source_it) = (*source_it)->pair->right;

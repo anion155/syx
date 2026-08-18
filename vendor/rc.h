@@ -25,7 +25,7 @@ typedef struct Rc {
   Rc_Methods methods;
 } Rc;
 
-Rc *rc_get(void *data);
+Rc *rc_get(const void *data);
 
 void *rc__alloc(void *(*alloc)(size_t size), void (*free)(void *data), size_t size, Rc_Methods opt);
 #define rc_malloc(size, ...) rc__alloc(malloc, free, (size), (Rc_Methods){__VA_ARGS__})
@@ -68,7 +68,7 @@ void rc_graph_visitor(Rc_Circulars *circulars, void **data, const void *source);
 #if defined(RC_IMPL) && !defined(RC_IMPL_C)
 #define RC_IMPL_C
 
-static inline Rc *rc_get(void *data) {
+inline Rc *rc_get(const void *data) {
   return (Rc *)data - 1;
 }
 
