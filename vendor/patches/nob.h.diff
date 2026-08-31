@@ -1,11 +1,9 @@
---- original/nob.h	2026-09-01 02:40:00
-+++ ./nob.h	2026-09-01 02:37:03
-@@ -366,6 +366,31 @@
-             (da)->items = NOB_DECLTYPE_CAST((da)->items)NOB_REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items)); \
-             NOB_ASSERT((da)->items != NULL && "Buy more RAM lol");                         \
+--- patches/nob.h	2026-09-01 02:45:23
++++ ./nob.h	2026-09-01 02:44:38
+@@ -368,6 +368,31 @@
          }                                                                                  \
-+    } while (0)
-+
+     } while (0)
+ 
 +    // Reserve specific size to a dynamic array
 +#define nob_da_realloc_capacity(da, target_capacity)                                       \
 +    do {                                                                                   \
@@ -29,10 +27,29 @@
 +          (da)->capacity = (da)->count;                                               \
 +        }                                                                             \
 +      }                                                                               \
-     } while (0)
- 
++    } while (0)
++
  // Append an item to a dynamic array
-@@ -995,7 +1020,8 @@
+ #define nob_da_append(da, item)                \
+     do {                                       \
+@@ -974,7 +999,7 @@
+ //     printf(SV_Fmt" => %zu\n", SV_Arg(c), n);
+ // }
+ // ```
+-static const uint8_t nob_bytes_for_utf8[] = {
++static const uint8_t nob__bytes_for_utf8[] = {
+     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+@@ -984,6 +1009,7 @@
+     2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+     3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3, 4,4,4,4,4,4,4,4,5,5,5,5,6,6,6,6,
+ };
++#define nob_bytes_for_utf8(sv) nob__bytes_for_utf8[(uint8_t)*(sv).data]
+ 
+ NOBDEF size_t nob_sv_utf8_len(Nob_String_View sv, size_t *bytes_overrun);
+ 
+@@ -995,7 +1021,8 @@
  
  #endif // NOB_H_
  
@@ -42,7 +59,16 @@
  
  // This is like nob_proc_wait() but waits asynchronously. Depending on the platform ms means different thing.
  // On Windows it means timeout. On POSIX it means for how long to sleep after checking if the process exited,
-@@ -3016,6 +3042,8 @@
+@@ -1024,7 +1051,7 @@
+             if (bytes_overrun) *bytes_overrun = i - sv.count;
+             return n;
+         }
+-        i += nob_bytes_for_utf8[(uint8_t)sv.data[i]];
++        i += nob__bytes_for_utf8[(uint8_t)sv.data[i]];
+         n += 1;
+     }
+     NOB_UNREACHABLE("sv_utf8_len");
+@@ -3016,6 +3043,8 @@
          #define da_append_many nob_da_append_many
          #define da_resize nob_da_resize
          #define da_reserve nob_da_reserve

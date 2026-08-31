@@ -999,7 +999,7 @@ NOBDEF Nob_String_View nob_sv_from_parts(const char *data, size_t count);
 //     printf(SV_Fmt" => %zu\n", SV_Arg(c), n);
 // }
 // ```
-static const uint8_t nob_bytes_for_utf8[] = {
+static const uint8_t nob__bytes_for_utf8[] = {
     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
@@ -1009,6 +1009,7 @@ static const uint8_t nob_bytes_for_utf8[] = {
     2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
     3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3, 4,4,4,4,4,4,4,4,5,5,5,5,6,6,6,6,
 };
+#define nob_bytes_for_utf8(sv) nob__bytes_for_utf8[(uint8_t)*(sv).data]
 
 NOBDEF size_t nob_sv_utf8_len(Nob_String_View sv, size_t *bytes_overrun);
 
@@ -1050,7 +1051,7 @@ NOBDEF size_t nob_sv_utf8_len(Nob_String_View sv, size_t *bytes_overrun)
             if (bytes_overrun) *bytes_overrun = i - sv.count;
             return n;
         }
-        i += nob_bytes_for_utf8[(uint8_t)sv.data[i]];
+        i += nob__bytes_for_utf8[(uint8_t)sv.data[i]];
         n += 1;
     }
     NOB_UNREACHABLE("sv_utf8_len");
