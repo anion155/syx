@@ -1,8 +1,19 @@
-value      = symbol | number | string | list ;
-list       = "(", { value | whitespace }, ")" ;
-symbol     = letter, { letter | digit } ;
-number     = digit, { digit } ;
-string     = '"', { [^ '"'] }, '"' ;
-letter     = [ "a" - "z", "A" - "Z" ] ;
-digit      = [ "0" - "9" ] ;
-whitespace = " " | "\t" | "\n"
+value                 = symbol | number | string | list ;
+list                  = "(", list-values, ")" ;
+list-values           = { [ whitespace ], value }, [ whitespace ] ;
+symbol                = symbol-character, { symbol-character } | "|", "[^|\n]", "|" ;
+symbol-character      = printable-char-expect-for-delimeter ;
+delimeter             = whitespace | ";" | "(" | ")" | '"' ;
+number                = ["-"], (
+                          | generic-number(decimal-digit)
+                          | ("0", "b" | "B", generic-number(binary-digit))
+                          | ("0", "o" | "O", generic-number(octal-digit))
+                          | ("0", "x" | "X", generic-number(hex-digit))
+                        ) ;
+generic-number(digit) = (digit, { ["_"], digit }, [".", [ digit, { ["_"], digit } ]]) | ".", digit, { ["_"], digit } ;
+string                = '"', { '[^"\n]' }, '"' ;
+binary-digit          = "[01]" ;
+octal-digit           = "[0-7]" ;
+decimal-digit         = "[0-9]" ;
+hex-digit             = "[0-9a-fA-F]" ;
+whitespace            = " " | "\t" | "\n"

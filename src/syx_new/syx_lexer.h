@@ -66,7 +66,6 @@ int syx_lexer_is_whitespace(int character) {
 
 int syx_lexer_is_binary_digit(int character) {
   switch (character) {
-    case '_':
     case '0':
     case '1':
       return true;
@@ -76,7 +75,6 @@ int syx_lexer_is_binary_digit(int character) {
 
 int syx_lexer_is_octal_digit(int character) {
   switch (character) {
-    case '_':
     case '0':
     case '1':
     case '2':
@@ -92,7 +90,6 @@ int syx_lexer_is_octal_digit(int character) {
 
 int syx_lexer_is_decimal_digit(int character) {
   switch (character) {
-    case '_':
     case '0':
     case '1':
     case '2':
@@ -110,7 +107,6 @@ int syx_lexer_is_decimal_digit(int character) {
 
 int syx_lexer_is_hexadecimal_digit(int character) {
   switch (character) {
-    case '_':
     case '0':
     case '1':
     case '2':
@@ -226,21 +222,44 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
       }
     }
     size_t digits_read = 0;
+    bool underscore = false;
     while (it->count) {
       if (*it->data == '.') {
+        if (underscore) break;
         it_chop_next();
-        while (it->count && is_digit(*it->data)) {
+        size_t digits_read_ = digits_read;
+        digits_read = 0;
+        while (it->count) {
+          if (*it->data == '_') {
+            it_chop_next();
+            if (underscore || !digits_read) break;
+            underscore = true;
+            continue;
+          }
+          underscore = false;
+          if (!is_digit(*it->data)) break;
           it_chop_next();
           digits_read++;
         }
+        digits_read += digits_read_;
         break;
       }
+      if (*it->data == '_') {
+        it_chop_next();
+        if (underscore || !digits_read) break;
+        underscore = true;
+        continue;
+      }
+      underscore = false;
       if (!is_digit(*it->data)) break;
       it_chop_next();
       digits_read++;
     }
+    if (*it->data == '_') goto return_error;
+    token.count = it->data - token.data;
+    if (token.count && *(it->data - 1) == '_') goto return_error;
     size_t error_width = it->count ? nob_bytes_for_utf8(*it) : 0;
-    token.count = it->data - token.data + error_width;
+    token.count += error_width;
     if (it->count && !syx_lexer_is_delimeter(*it->data)) goto return_error;
     token.count -= error_width;
     if (!digits_read) goto return_error;
@@ -249,8 +268,20 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
   if (*it->data == '.' && it->count > 1 && isdigit(*(it->data + 1))) {
     it_chop_next();
     token.kind = SYX_TOKEN_KIND_NUMLIT;
-    while (it->count && syx_lexer_is_decimal_digit(*it->data)) it_chop_next();
+    bool underscore = false;
+    while (it->count) {
+      if (*it->data == '_') {
+        it_chop_next();
+        if (underscore) break;
+        underscore = true;
+        continue;
+      }
+      underscore = false;
+      if (!syx_lexer_is_decimal_digit(*it->data)) break;
+      it_chop_next();
+    }
     token.count = it->data - token.data;
+    if (token.count && *(it->data - 1) == '_') goto return_error;
     if (it->count && !syx_lexer_is_delimeter(*it->data)) goto return_error;
     return token;
   }
@@ -305,4 +336,4 @@ Syx_Tokens syx_lexer_tokenize(syx_string_view source) {
   return tokens;
 }
 
-#endif // SYX_PARSER_IMPL_C
+#endif // SYX_LEXER_IMPL_C
