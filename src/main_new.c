@@ -25,6 +25,8 @@
 #include <syx_new/syx_eval.h>
 #define SYX_GLOBAL_ENV_IMPL
 #include <syx_new/syx_global_env.h>
+#define SYX_PARSER_IMPL
+#include <syx_new/syx_parser.h>
 
 typedef struct Syx_Script_Context {
   Syx_Eval_Ctx *eval_ctx;
@@ -42,8 +44,20 @@ define_constant(Ht(const char *, bool *), ctx_options) {
   *ht_put(ctx_options, "e") = &script_ctx.opt_error;
 }
 
-Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *ctx, String_View source_sv) {
-  TODO("syx_parse_and_eval");
+Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
+  UNUSED(eval_ctx);
+  Syx_Tokens tokens = syx_lexer_tokenize(source);
+  // SyxV_Parser_Context ctx = {.source = source_sv};
+  // Syx_Parser_Token token;
+  da_foreach(Syx_Token, token, &tokens) {
+    printf("%s: '%.*s'\n", syx_token_kind_string(token->kind), (int)token->count, token->data);
+  }
+  return NULL;
+  // do {
+  //   token = syx_parser_next_token(&ctx);
+  //   printf("kind = %d; line = %zu; column = %zu; count = %zu; text = '%.*s'\n", token.kind, token.line, token.column, token.count, (int)token.count, token.data);
+  // } while (token.kind != SYX_PARSER_TOKEN_KIND_EOF);
+  // TODO("syx_parse_and_eval");
   // SyxV *expressions = parse_multiple_syxv(source_sv);
   // if (!syx_parser_report_error(expressions)) return make_syxv_nil();
   // SyxV *result = NULL;
@@ -77,7 +91,7 @@ Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *ctx, String_View source_sv) {
 
 int run_syx(String_View source_sv) {
   Syx_Value *result = rc_acquire(syx_parse_and_eval(script_ctx.eval_ctx, source_sv));
-  if (result->kind != SYX_VALUE_KIND_EXIT || result->exit->kind != SYX_EXIT_KIND_RETURNED) {
+  if (!result || result->kind != SYX_VALUE_KIND_EXIT || result->exit->kind != SYX_EXIT_KIND_RETURNED) {
     rc_release(result);
     return -1;
   }
@@ -155,6 +169,7 @@ int main(int argc, char **argv) {
   bool *opt_xtrace = flag_bool("x", false, "Print every expression before evaluation");
   bool *opt_print = flag_bool("p", false, "Print result of last evaluation");
   bool *opt_error = flag_bool("e", true, "Should stop on unhandled error");
+  bool *opt_stdin = flag_bool("s", false, "Execute script from stdin");
   Flag_List *commands = flag_list("c", "Commands to run");
   bool *help = flag_bool("h", false, "Show this help message");
   if (!flag_parse(argc, argv)) {
@@ -188,6 +203,13 @@ int main(int argc, char **argv) {
     da_foreach(const char *, command, commands) sb_append_cstr(&sb, *command);
     sb_append(&sb, 0);
     int run_result = run_syx(sb_to_sv(sb));
+    if (run_result >= 0) nob_return_defer(run_result);
+  } else if (*opt_stdin) {
+    String_Builder sb = {0};
+    if (!nob_read_entire_stdin(&sb)) UNREACHABLE("Failed to read stdin");
+    sb_append(&sb, 0);
+    int run_result = run_syx(sb_to_sv(sb));
+    sb_free(sb);
     if (run_result >= 0) nob_return_defer(run_result);
   } else if (argc == 1) {
     String_Builder sb = {0};

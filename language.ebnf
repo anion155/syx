@@ -1,0 +1,8 @@
+value      = symbol | number | string | list ;
+list       = "(", { value | whitespace }, ")" ;
+symbol     = letter, { letter | digit } ;
+number     = digit, { digit } ;
+string     = '"', { [^ '"'] }, '"' ;
+letter     = [ "a" - "z", "A" - "Z" ] ;
+digit      = [ "0" - "9" ] ;
+whitespace = " " | "\t" | "\n"
