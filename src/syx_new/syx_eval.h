@@ -48,30 +48,9 @@ Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt);
 Syx_Eval_Ctx *make_global_syx_eval_ctx();
 Syx_Eval_Ctx *inherit_syx_eval_ctx(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
 
-#define SYX_THROW(ctx, message, ...)                             \
-  do {                                                           \
-    rc_release_all(__VA_ARGS__);                                 \
-    Syx_Value *reason = make_syx_value_string_cstr_dup(message); \
-    Syx_Frame *latest = NULL;                                    \
-    if ((ctx) != NULL) latest = (ctx)->frames_stack->latest;     \
-    return make_syx_value_exit_thrown(reason, latest);           \
-  } while (0)
-#define SYX_ASSERT(ctx, condition, message, ...) \
-  do {                                           \
-    if (!(condition)) {                          \
-      SYX_THROW(ctx, message, __VA_ARGS__);      \
-    }                                            \
-  } while (0)
-#define SYX_TODO(ctx, message, ...) SYX_THROW((ctx), "TODO: " message __VA_OPT__(, ) __VA_ARGS__)
-
-#define syx_eval_early_exit(value, ...)                  \
-  do {                                                   \
-    Syx_Value *_value = (value);                         \
-    if (_value && _value->kind == SYX_VALUE_KIND_EXIT) { \
-      rc_release_all(__VA_ARGS__);                       \
-      return rc_move(_value);                            \
-    }                                                    \
-  } while (0)
+#define SYX_EVAL_THROW(ctx, message, ...) SYX_THROW(message, (ctx)->frames_stack->latest __VA_OPT__(, ) __VA_ARGS__)
+#define SYX_EVAL_ASSERT(ctx, condition, message, ...) SYX_ASSERT((condition), message, (ctx)->frames_stack->latest __VA_OPT__(, ) __VA_ARGS__)
+#define SYX_EVAL_TODO(ctx, message, ...) SYX_TODO(message, (ctx)->frames_stack->latest __VA_OPT__(, ) __VA_ARGS__)
 
 Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input);
 Syx_Value *syx_eval_map_list(Syx_Eval_Ctx *ctx, Syx_Pair *list);
@@ -253,7 +232,7 @@ Syx_Value *syx_eval_specialf(Syx_Eval_Ctx *ctx, Syx_Closure_Special_Form *specia
 
 Syx_Value *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Closure_Builtin *builtin, Syx_Pair *arguments) {
   Syx_Value *evaluated = rc_acquire(syx_eval_map_list(ctx, arguments));
-  syx_eval_early_exit(evaluated);
+  syx_value_early_exit(evaluated);
   syx_ctx_push_frame(ctx, syx_closure_from_builtin(builtin)->name);
   Syx_Value *result = (*builtin)(ctx, evaluated->pair);
   if (!result) result = syx_value_nil();
@@ -271,27 +250,27 @@ Syx_Value *syx_eval_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda, Syx_Pa
        *define = NULL,
        *defines_list = syx_value_from_pair(lambda->defines);
        syx_list_for_each_next(&arg_current, &arg_next, &arg, NULL);) {
-    if (arg->kind == SYX_VALUE_KIND_SPECIAL && arg->special->kind == SYX_SPECIAL_KIND_COLON) SYX_TODO(ctx, "named para bindings");
-    SYX_ASSERT(ctx, defines_list->kind == SYX_VALUE_KIND_PAIR, "list of defines expected");
+    if (arg->kind == SYX_VALUE_KIND_SPECIAL && arg->special->kind == SYX_SPECIAL_KIND_COLON) SYX_EVAL_TODO(ctx, "named para bindings");
+    SYX_EVAL_ASSERT(ctx, defines_list->kind == SYX_VALUE_KIND_PAIR, "list of defines expected");
     define = defines_list->pair->left;
     if (define->kind == SYX_VALUE_KIND_PAIR) define = define->pair->left;
-    SYX_ASSERT(ctx, define->kind == SYX_VALUE_KIND_SYMBOL, "argument name expected");
+    SYX_EVAL_ASSERT(ctx, define->kind == SYX_VALUE_KIND_SYMBOL, "argument name expected");
     defines_list = defines_list->pair->right;
-    if (defines_list->kind != SYX_VALUE_KIND_PAIR) SYX_TODO(ctx, "implement rest arguments");
+    if (defines_list->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_TODO(ctx, "implement rest arguments");
     Syx_Value *value = rc_acquire(syx_eval(ctx, arg));
-    syx_eval_early_exit(value, call_ctx);
+    syx_value_early_exit(value, call_ctx);
     syx_env_define(call_ctx->env, define->symbol, rc_move(value));
   }
   syx_list_for_each(lambda->defines, define) {
     if (define->kind != SYX_VALUE_KIND_PAIR) continue;
-    SYX_ASSERT(ctx, define->pair->left->kind == SYX_VALUE_KIND_SYMBOL, "argument name expected");
+    SYX_EVAL_ASSERT(ctx, define->pair->left->kind == SYX_VALUE_KIND_SYMBOL, "argument name expected");
     Syx_Symbol *symbol = define->pair->left->symbol;
-    SYX_ASSERT(ctx, define->pair->right->kind == SYX_VALUE_KIND_PAIR, "default argument value expected");
+    SYX_EVAL_ASSERT(ctx, define->pair->right->kind == SYX_VALUE_KIND_PAIR, "default argument value expected");
     Syx_Value *default_arg = define->pair->right->pair->left;
     Syx_Value **stored = ht_find(&call_ctx->env->symbols, symbol);
     if (stored != NULL) continue;
     Syx_Value *value = rc_acquire(syx_eval(ctx, default_arg));
-    syx_eval_early_exit(value, call_ctx);
+    syx_value_early_exit(value, call_ctx);
     *ht_put(&call_ctx->env->symbols, symbol) = value;
   }
   syx_ctx_push_frame(ctx, syx_closure_from_lambda(lambda)->name);
@@ -310,15 +289,15 @@ Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input) {
   if (input->kind == SYX_VALUE_KIND_EXIT) return input;
   if (input->kind == SYX_VALUE_KIND_SYMBOL) {
     Syx_Value *item = syx_env_lookup_get(ctx, input->symbol);
-    SYX_ASSERT(ctx, item, temp_sprintf("unbound symbol '" SV_Fmt "'", SV_Arg(*input->symbol)));
+    SYX_EVAL_ASSERT(ctx, item, temp_sprintf("unbound symbol '" SV_Fmt "'", SV_Arg(*input->symbol)));
     return item;
   }
   if (input->kind != SYX_VALUE_KIND_PAIR) return input;
   Syx_Value *head = rc_acquire(syx_eval(ctx, input->pair->left));
-  SYX_ASSERT(ctx, head->kind == SYX_VALUE_KIND_CLOSURE, "is not a procedure");
-  syx_eval_early_exit(head);
+  SYX_EVAL_ASSERT(ctx, head->kind == SYX_VALUE_KIND_CLOSURE, "is not a procedure");
+  syx_value_early_exit(head);
   Syx_Value *arguments = input->pair->right;
-  SYX_ASSERT(ctx, arguments->kind == SYX_VALUE_KIND_PAIR || arguments->kind == SYX_VALUE_KIND_NIL, "unexpected pair's right value");
+  SYX_EVAL_ASSERT(ctx, arguments->kind == SYX_VALUE_KIND_PAIR || arguments->kind == SYX_VALUE_KIND_NIL, "unexpected pair's right value");
   Syx_Value *result;
   switch (head->closure->kind) {
     case SYX_CLOSURE_KIND_SPECIALF: result = syx_eval_specialf(ctx, &head->closure->specialf, arguments->pair); break;
@@ -335,7 +314,7 @@ Syx_Value *syx_eval_map_list(Syx_Eval_Ctx *ctx, Syx_Pair *list) {
   syx_list_map(list, item, &evaluated) {
     *item = syx_eval(ctx, *item);
     if (!*item) *item = syx_value_nil();
-    syx_eval_early_exit(rc_acquire(*item), evaluated);
+    syx_value_early_exit(rc_acquire(*item), evaluated);
   }
   return rc_move(evaluated);
 }
@@ -346,14 +325,14 @@ Syx_Value *syx_eval_forms_list_opt(Syx_Eval_Ctx *ctx, Syx_Pair *forms, Syx_Eval_
   syx_list_for_each(forms, form) {
     if (result) rc_release(result);
     result = rc_acquire(syx_eval(ctx, form));
-    syx_eval_early_exit(result);
+    syx_value_early_exit(result);
     // if (opt.should_stop != NULL) {
     //   bool should_stop = {0};
     //   syx_convert_to(ctx, opt.should_stop(ctx, result), &should_stop, result);
     //   if (should_stop) return rc_move(result);
     // }
   }
-  SYX_ASSERT(ctx, result != NULL, "empty forms list");
+  SYX_EVAL_ASSERT(ctx, result != NULL, "empty forms list");
   return rc_move(result);
 }
 

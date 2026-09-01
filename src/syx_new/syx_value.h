@@ -206,6 +206,27 @@ bool syx_list_map_next(Syx_Value **source_it, Syx_Value ***target_it, Syx_Value 
                  **value = NULL;                                 \
        syx_list_map_next(&value##_source_it, &value##_target_it, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
 
+#define syx_value_early_exit(value, ...)                 \
+  do {                                                   \
+    Syx_Value *_value = (value);                         \
+    if (_value && _value->kind == SYX_VALUE_KIND_EXIT) { \
+      rc_release_all(__VA_ARGS__);                       \
+      return rc_move(_value);                            \
+    }                                                    \
+  } while (0)
+
+#define SYX_THROW(message, ...)                                                            \
+  do {                                                                                     \
+    rc_release_all(REST_ARGS(__VA_ARGS__));                                                \
+    Syx_Value *reason = make_syx_value_string_cstr_dup(message);                           \
+    return make_syx_value_exit_thrown(reason, WITH_DEFAULT(NULL, FIRST_ARG(__VA_ARGS__))); \
+  } while (0)
+#define SYX_ASSERT(condition, message, ...)            \
+  do {                                                 \
+    if (!(condition)) SYX_THROW(message, __VA_ARGS__); \
+  } while (0)
+#define SYX_TODO(message, ...) SYX_THROW("TODO: " message __VA_OPT__(, ) __VA_ARGS__)
+
 #endif // SYX_VALUE_H
 
 #define SYX_VALUE_IMPL
