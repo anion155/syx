@@ -198,7 +198,7 @@ bool nonob__run_command(const char *default_command) {
     if (ctx.usage) ctx.usage(stderr, NULL);
     else nonob_default_usage(stderr, NULL);
     fprintf(stderr, "ERROR: %s: unknown command\n", name);
-    exit(1);
+    return false;
   }
   Flag_Context *flags = command->flags;
   if (command->init) command->init(command);
@@ -207,12 +207,12 @@ bool nonob__run_command(const char *default_command) {
     if (!flag_c_parse(flags, ctx.argc, ctx.argv)) {
       flag_c_print_error(flags, stderr);
       ctx.usage(stderr, command);
-      exit(1);
+      return false;
     }
     if (*help) {
       if (ctx.usage) ctx.usage(stdout, command);
       else nonob_default_usage(stdout, command);
-      exit(0);
+      return true;
     }
     ctx.argc = flag_c_rest_argc(flags);
     ctx.argv = flag_c_rest_argv(flags);
