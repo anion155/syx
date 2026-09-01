@@ -463,6 +463,7 @@ typedef struct {
 #define nob_swap(T, a, b) do { T t = a; a = b; b = t; } while (0)
 
 NOBDEF bool nob_read_entire_file(const char *path, Nob_String_Builder *sb);
+NOBDEF bool nob_read_entire_stdin(Nob_String_Builder *sb);
 NOBDEF int nob_sb_appendf(Nob_String_Builder *sb, const char *fmt, ...) NOB_PRINTF_FORMAT(2, 3);
 // Pads the String_Builder (sb) to the desired word size boundary with 0s.
 // Imagine we have sb that contains 5 `a`-s:
@@ -2625,6 +2626,27 @@ defer:
     return result;
 }
 
+NOBDEF bool nob_read_entire_stdin(Nob_String_Builder *sb)
+{
+    bool result = true;
+#ifdef _WIN32
+    if (_setmode(_fileno(stdin), _O_BINARY) < 0) nob_return_defer(false);
+#endif
+
+    char buffer[32 * 1024];
+    size_t bytes_read = 0;
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), stdin)) > 0) {
+        nob_da_append_many(sb, buffer, bytes_read);
+    }
+    if (ferror(stdin)) {
+        nob_return_defer(false);
+    }
+
+defer:
+    if (!result) nob_log(NOB_ERROR, "Could not read stdin: %s", strerror(errno));
+    return result;
+}
+
 NOBDEF int nob_sb_appendf(Nob_String_Builder *sb, const char *fmt, ...)
 {
     va_list args;
@@ -3057,6 +3079,7 @@ NOBDEF char *nob_temp_running_executable_path(void)
         #endif // __cplusplus
         #define String_Builder Nob_String_Builder
         #define read_entire_file nob_read_entire_file
+        #define read_entire_stdin nob_read_entire_stdin
         #define sb_appendf nob_sb_appendf
         #define sb_append_buf nob_sb_append_buf
         #define sb_append_sv nob_sb_append_sv
