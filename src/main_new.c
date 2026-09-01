@@ -37,7 +37,7 @@ typedef struct Syx_Script_Context {
 
 Syx_Script_Context script_ctx = {0, .opt_error = true};
 
-define_constant(Ht(const char *, bool *), ctx_options) {
+syx_define_constant(Ht(const char *, bool *), ctx_options) {
   ctx_options->hasheq = ht_cstr_hasheq;
   *ht_put(ctx_options, "x") = &script_ctx.opt_xtrace;
   *ht_put(ctx_options, "p") = &script_ctx.opt_print;
@@ -46,12 +46,18 @@ define_constant(Ht(const char *, bool *), ctx_options) {
 
 Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
   UNUSED(eval_ctx);
-  Syx_Tokens tokens = syx_lexer_tokenize(source);
+  // Syx_Tokens tokens = syx_lexer_tokenize(source);
+  // da_foreach(Syx_Token, token, &tokens) {
+  //   printf("%s: '%.*s'\n", syx_token_kind_string(token->kind), (int)token->count, token->data);
+  // }
+
+  Syx_Value *values = parse_syx(source);
+  syx_list_for_each(values->pair, value) {
+    printf("%.*s\n", (int)value->string->count, value->string->data);
+  }
+
   // SyxV_Parser_Context ctx = {.source = source_sv};
   // Syx_Parser_Token token;
-  da_foreach(Syx_Token, token, &tokens) {
-    printf("%s: '%.*s'\n", syx_token_kind_string(token->kind), (int)token->count, token->data);
-  }
   return NULL;
   // do {
   //   token = syx_parser_next_token(&ctx);

@@ -6,7 +6,7 @@
     {
       "label": "nob build debug",
       "type": "shell",
-      "command": "${workspaceFolder}/nob build -g",
+      "command": "${workspaceFolder}/nob build -n -g",
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",

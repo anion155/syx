@@ -42,10 +42,11 @@ bool command_build_run() {
 #endif
   if (ctx.s->build_sanitizer) nob_cmd_append(&ctx.cmd, "-ggdb", "-fsanitize=address");
   else if (ctx.s->build_debug) nob_cmd_append(&ctx.cmd, "-ggdb");
-  nob_cc_inputs(&ctx.cmd, "-std=c23");
   if (ctx.s->build_new) {
+    nob_cc_inputs(&ctx.cmd, "-std=gnu23");
     nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/main_new.c", ctx.s->src_path));
   } else {
+    nob_cc_inputs(&ctx.cmd, "-std=c23");
     nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/main.c", ctx.s->src_path));
   }
   nob_cc_output(&ctx.cmd, ctx.s->syx_path);

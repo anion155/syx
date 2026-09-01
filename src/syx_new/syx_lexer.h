@@ -2,6 +2,7 @@
 #define SYX_LEXER_H
 
 #include <nob.h>
+#include <syx_new/syx_utils.h>
 #include <syx_new/syx_value.h>
 
 typedef enum Syx_Token_Kind {
@@ -10,8 +11,8 @@ typedef enum Syx_Token_Kind {
   SYX_TOKEN_KIND_RPAREN = ')',
   SYX_TOKEN_KIND_STRLIT = '"',
   SYX_TOKEN_KIND_NUMLIT = '0',
-  SYX_TOKEN_KIND_DISPATCH = '#',
   SYX_TOKEN_KIND_SYMBOL = 'a',
+  SYX_TOKEN_KIND_DISPATCH = '#',
   SYX_TOKEN_KIND_ERROR = 0x100,
   SYX_TOKEN_KIND_EOF,
 } Syx_Token_Kind;
@@ -43,6 +44,8 @@ Syx_Tokens syx_lexer_tokenize(syx_string_view source);
 
 #define NOB_IMPL
 #include <nob.h>
+#define SYX_UTILS_IMPL
+#include <syx_new/syx_utils.h>
 #define SYX_VALUE_IMPL
 #include <syx_new/syx_value.h>
 
@@ -52,8 +55,8 @@ const char *syx_token_kind_string(Syx_Token_Kind kind) {
     case SYX_TOKEN_KIND_RPAREN: return "RPAREN";
     case SYX_TOKEN_KIND_STRLIT: return "STRLIT";
     case SYX_TOKEN_KIND_NUMLIT: return "NUMLIT";
-    case SYX_TOKEN_KIND_DISPATCH: return "DISPATCH";
     case SYX_TOKEN_KIND_SYMBOL: return "SYMBOL";
+    case SYX_TOKEN_KIND_DISPATCH: return "DISPATCH";
     case SYX_TOKEN_KIND_ERROR: return "ERROR";
     case SYX_TOKEN_KIND_EOF: return "EOF";
     default: return "UNKNOWN";
@@ -83,52 +86,6 @@ int syx_lexer_is_octal_digit(int character) {
     case '5':
     case '6':
     case '7':
-      return true;
-    default: return false;
-  }
-}
-
-int syx_lexer_is_decimal_digit(int character) {
-  switch (character) {
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9':
-      return true;
-    default: return false;
-  }
-}
-
-int syx_lexer_is_hexadecimal_digit(int character) {
-  switch (character) {
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9':
-    case 'a':
-    case 'A':
-    case 'b':
-    case 'B':
-    case 'c':
-    case 'C':
-    case 'd':
-    case 'D':
-    case 'e':
-    case 'E':
-    case 'f':
-    case 'F':
       return true;
     default: return false;
   }
@@ -206,17 +163,17 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
   if (isdigit(*it->data) || (it->count > 1 && *it->data == '-' && isdigit(*(it->data + 1)))) {
     token.kind = SYX_TOKEN_KIND_NUMLIT;
     if (*it->data == '-') it_chop_next();
-    int (*is_digit)(int character) = syx_lexer_is_decimal_digit;
+    int (*is_digit)(int character) = syx_utils_is_decimal_digit;
     if (*it->data == '0' && it->count > 2) {
       switch (*(it->data + 1)) {
         case 'x':
-        case 'X': is_digit = syx_lexer_is_hexadecimal_digit; break;
+        case 'X': is_digit = syx_utils_is_hex_digit; break;
         case 'o':
         case 'O': is_digit = syx_lexer_is_octal_digit; break;
         case 'b':
         case 'B': is_digit = syx_lexer_is_binary_digit; break;
       }
-      if (is_digit != syx_lexer_is_decimal_digit) {
+      if (is_digit != syx_utils_is_decimal_digit) {
         it_chop_next();
         it_chop_next();
       }
@@ -277,7 +234,7 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
         continue;
       }
       underscore = false;
-      if (!syx_lexer_is_decimal_digit(*it->data)) break;
+      if (!syx_utils_is_decimal_digit(*it->data)) break;
       it_chop_next();
     }
     token.count = it->data - token.data;

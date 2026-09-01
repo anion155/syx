@@ -164,7 +164,7 @@ Syx_Value *make_syx_value_number_integer(syx_integer_t value);
 Syx_Value *make_syx_value_number_fractional(syx_fractional_t value);
 Syx_Value *make_syx_value_string(Syx_String string);
 #define make_syx_value_string_lit(string) make_syx_value_string((Syx_String){.data = (string), .count = sizeof(string) - 1, .managed = false});
-Syx_Value *make_syx_value_string_n(const char *data, size_t count);
+Syx_Value *make_syx_value_string_n(char *data, size_t count);
 Syx_Value *make_syx_value_string_dup(const char *data, size_t count);
 Syx_Value *make_syx_value_string_cstr_dup(const char *data);
 Syx_Value *make_syx_value_closure(syx_string_view name, Syx_Closure_Kind kind, size_t size);
@@ -242,7 +242,7 @@ bool syx_list_map_next(Syx_Value **source_it, Syx_Value ***target_it, Syx_Value 
 #define SYX_UTILS_IMPL
 #include <syx_new/syx_utils.h>
 
-define_constant(struct { Syx_Value *nil; Syx_Value *bool_true; Syx_Value *bool_false; }, SYX_VALUE_CONSTANTS) {
+syx_define_constant(struct { Syx_Value *nil; Syx_Value *bool_true; Syx_Value *bool_false; }, SYX_VALUE_CONSTANTS) {
   SYX_VALUE_CONSTANTS->nil = rc_acquire(make_syx_value(SYX_VALUE_KIND_NIL, 0));
   SYX_VALUE_CONSTANTS->bool_true = rc_acquire(make_syx_value(SYX_VALUE_KIND_BOOL_TRUE, 0));
   SYX_VALUE_CONSTANTS->bool_false = rc_acquire(make_syx_value(SYX_VALUE_KIND_BOOL_FALSE, 0));
@@ -327,7 +327,7 @@ Syx_Value *make_syx_value_special(Syx_Value *inner_value) {
   return value;
 }
 
-define_constant(Ht(const char *, Syx_Value *), SYX_SYMBOLS) {
+syx_define_constant(Ht(const char *, Syx_Value *), SYX_SYMBOLS) {
   SYX_SYMBOLS->hasheq = ht_cstr_hasheq;
 }
 
@@ -405,20 +405,21 @@ inline Syx_Value *make_syx_value_number_fractional(syx_fractional_t value) {
 }
 
 Syx_Value *make_syx_value_string(Syx_String string) {
-  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NUMBER, sizeof(Syx_String));
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_STRING, sizeof(Syx_String));
   value->string = (Syx_String *)(value + 1);
   (*value->string) = string;
   return value;
 }
 
-inline Syx_Value *make_syx_value_string_n(const char *data, size_t count) {
+inline Syx_Value *make_syx_value_string_n(char *data, size_t count) {
   return make_syx_value_string((Syx_String){.data = data, .count = count});
 }
 
 Syx_Value *make_syx_value_string_dup(const char *data, size_t count) {
-  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NUMBER, sizeof(Syx_String) + sizeof(char) * count);
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_STRING, sizeof(Syx_String) + sizeof(char) * count);
   value->string = (Syx_String *)(value + 1);
   value->string->data = (const char *)(value->string + 1);
+  value->string->count = count;
   memcpy((char *)value->string->data, data, count);
   return value;
 }
