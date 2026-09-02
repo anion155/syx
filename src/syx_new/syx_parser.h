@@ -4,7 +4,7 @@
 #include <nob.h>
 #include <syx_new/syx_lexer.h>
 
-Syx_Value *parse_syx(syx_string_view source);
+Syx_Value *parse_syx(syx_string_view source, bool ignore_errors);
 
 #endif // SYX_PARSER_H
 
@@ -213,8 +213,23 @@ Syx_Value *parse_syx_string_value(Syx_Token token) {
 }
 
 Syx_Value *parse_syx_number_binary_value(Syx_Token token) {
-  UNUSED(token);
-  TODO("parse_syx_number_binary_value");
+  syx_string_view sv = sv_from_parts(token.data, token.count);
+  bool negative = false;
+  if (sv.data[0] == '-') negative = (sv.data += 1, sv.count -= 1, true);
+  SYX_ASSERT(sv.data[0] == '0' && (sv.data[1] == 'b' || sv.data[1] == 'B'), "expected binary number");
+  sv_chop_left(&sv, 2);
+  syx_integer_t number = 0;
+  while (sv.count) {
+    switch (sv.data[0]) {
+      case '0': number = number << 1 | 0; break;
+      case '1': number = number << 1 | 1; break;
+      case '.': SYX_TODO("binary fractionals numbers are not supported");
+      default: SYX_TODO("expected binary number");
+    }
+    sv_chop_left(&sv, 1);
+  }
+  if (negative) number *= -1;
+  return make_syx_value_number_integer(number);
 }
 
 Syx_Value *parse_syx_number_decimal_value(Syx_Token token) {
@@ -271,7 +286,7 @@ Syx_Value *parse_syx_value(Syx_Tokens *tokens) {
   }
 }
 
-Syx_Value *parse_syx(syx_string_view source) {
+Syx_Value *parse_syx(syx_string_view source, bool ignore_errors) {
   Syx_Tokens tokens = syx_lexer_tokenize(source);
   if (!tokens.count) SYX_THROW("Failed to parse syx script");
   if (tokens.items[tokens.count - 1].kind != SYX_TOKEN_KIND_EOF) SYX_THROW("Failed to parse syx script");
@@ -280,7 +295,7 @@ Syx_Value *parse_syx(syx_string_view source) {
   Syx_Value **pair_value = &list;
   for (Syx_Tokens it = tokens; it.count;) {
     Syx_Value *value = rc_acquire(parse_syx_value(&it));
-    syx_value_early_exit(value, list);
+    if (!ignore_errors) syx_value_early_exit(value, list);
     *pair_value = rc_acquire(make_syx_value_pair(value, NULL));
     pair_value = &(*pair_value)->pair->right;
   }

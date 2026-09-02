@@ -51,9 +51,23 @@ Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
   //   printf("%s: '%.*s'\n", syx_token_kind_string(token->kind), (int)token->count, token->data);
   // }
 
-  Syx_Value *values = parse_syx(source);
+  Syx_Value *values = parse_syx(source, true);
   syx_list_for_each(values->pair, value) {
-    printf("%.*s\n", (int)value->string->count, value->string->data);
+    switch (value->kind) {
+      case SYX_VALUE_KIND_NUMBER: {
+        switch (value->number->kind) {
+          case SYX_NUMBER_KIND_INTEGER: printf("number: integer: %d\n", value->number->integer); break;
+          case SYX_NUMBER_KIND_FRACTIONAL: printf("number: fractional: %f\n", value->number->fractional); break;
+        }
+      } break;
+      case SYX_VALUE_KIND_EXIT: {
+        switch (value->exit->kind) {
+          case SYX_EXIT_KIND_RETURNED: printf("exit: returned\n"); break;
+          case SYX_EXIT_KIND_THROWN: printf("exit: thrown: '" SV_Fmt "'\n", SV_Arg(*value->exit->thrown->reason->string)); break;
+        }
+      } break;
+      default: printf("NotImplementedYet: %u\n", value->kind);
+    }
   }
 
   // SyxV_Parser_Context ctx = {.source = source_sv};
