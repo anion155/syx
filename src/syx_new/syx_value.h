@@ -159,6 +159,7 @@ Syx_Value *make_syx_value_symbol_n(const char *symbol, size_t count);
 Syx_Value *make_syx_value_symbol_cstr(const char *symbol);
 Syx_Value *syx_value_bool_false();
 Syx_Value *syx_value_bool_true();
+Syx_Value *syx_value_bool(bool value);
 Syx_Value *make_syx_value_number(Syx_Number number);
 Syx_Value *make_syx_value_number_integer(syx_integer_t value);
 Syx_Value *make_syx_value_number_fractional(syx_fractional_t value);
@@ -205,6 +206,9 @@ bool syx_list_map_next(Syx_Value **source_it, Syx_Value ***target_it, Syx_Value 
                  **value##_target_it = (results),                \
                  **value = NULL;                                 \
        syx_list_map_next(&value##_source_it, &value##_target_it, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
+
+Syx_Value *syx_list_next_nullable(Syx_Pair **list);
+Syx_Value *syx_list_next(Syx_Pair **list);
 
 #define syx_value_early_exit(value, ...)                 \
   do {                                                   \
@@ -359,7 +363,8 @@ int issymbol(int c) {
 Syx_Value *make_syx_value_symbol(syx_string_view symbol) {
   Syx_Value **stored = ht_find(SYX_SYMBOLS(), symbol.data);
   if (stored) return *stored;
-  Syx_Value *value = *stored = make_syx_value(SYX_VALUE_KIND_SYMBOL, sizeof(Syx_Symbol) + sizeof(char) * symbol.count);
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_SYMBOL, sizeof(Syx_Symbol) + sizeof(char) * symbol.count);
+  *ht_put(SYX_SYMBOLS(), symbol.data) = value;
   rc_get(value)->methods.destructor = syx_value_symbol_destructor;
   value->symbol = (Syx_Symbol *)(value + 1);
   value->symbol->data = (const char *)(value->symbol + 1);
@@ -387,6 +392,10 @@ inline Syx_Value *syx_value_bool_false() {
 
 inline Syx_Value *syx_value_bool_true() {
   return SYX_VALUE_CONSTANTS()->bool_true;
+}
+
+inline Syx_Value *syx_value_bool(bool value) {
+  return value ? SYX_VALUE_CONSTANTS()->bool_true : SYX_VALUE_CONSTANTS()->bool_false;
 }
 
 Syx_Value *make_syx_value_number(Syx_Number number) {
@@ -511,6 +520,21 @@ bool syx_list_map_next(Syx_Value **source_it, Syx_Value ***target_it, Syx_Value 
   (*source_it) = (*source_it)->pair->right;
   (*target_it) = &((**target_it)->pair->right);
   return true;
+}
+
+Syx_Value *syx_list_next_nullable(Syx_Pair **list) {
+  if (!(*list)) return NULL;
+  Syx_Value *value = (*list)->left;
+  if ((*list)->right->kind == SYX_VALUE_KIND_PAIR) {
+    (*list) = (*list)->right->pair;
+  }
+  return value;
+}
+
+Syx_Value *syx_list_next(Syx_Pair **list) {
+  Syx_Value *item = syx_list_next_nullable(list);
+  if (!item) return syx_value_nil();
+  return item;
 }
 
 #endif // SYX_VALUE_IMPL_C

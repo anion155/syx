@@ -53,6 +53,7 @@ Syx_Eval_Ctx *inherit_syx_eval_ctx(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
 #define SYX_EVAL_TODO(ctx, message, ...) SYX_TODO(message, (ctx)->frames_stack->latest __VA_OPT__(, ) __VA_ARGS__)
 
 Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input);
+Syx_Value *syx_eval_unquote(Syx_Eval_Ctx *ctx, Syx_Value *unevaluated);
 Syx_Value *syx_eval_map_list(Syx_Eval_Ctx *ctx, Syx_Pair *list);
 
 typedef struct Syx_Eval_Forms_List_Opt {
@@ -307,6 +308,14 @@ Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input) {
   rc_acquire(result);
   rc_release(head);
   return rc_move(result);
+}
+
+Syx_Value *syx_eval_unquote(Syx_Eval_Ctx *ctx, Syx_Value *unevaluated) {
+  Syx_Value *unquote_symbol = rc_acquire(make_syx_value_symbol_cstr("unquote"));
+  if (unevaluated->kind != SYX_VALUE_KIND_PAIR) return unevaluated;
+  if (unevaluated->pair->left != unquote_symbol) return unevaluated;
+  if (unevaluated->pair->right->kind != SYX_VALUE_KIND_PAIR) return unevaluated;
+  return syx_eval(ctx, unevaluated->pair->right->pair->left);
 }
 
 Syx_Value *syx_eval_map_list(Syx_Eval_Ctx *ctx, Syx_Pair *list) {
