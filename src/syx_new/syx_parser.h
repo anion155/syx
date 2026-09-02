@@ -225,7 +225,7 @@ Syx_Value *parse_syx_number_binary_value(Syx_Token token) {
       case '1': number = number << 1 | 1; break;
       case '_': break;
       case '.': SYX_TODO("binary fractionals number literals are not supported");
-      default: SYX_TODO("expected binary number");
+      default: SYX_THROW("expected binary number");
     }
     sv_chop_left(&sv, 1);
   }
@@ -252,7 +252,7 @@ Syx_Value *parse_syx_number_octal_value(Syx_Token token) {
       case '7': number = number << 3 | 7; break;
       case '_': break;
       case '.': SYX_TODO("octal fractionals number literals are not supported");
-      default: SYX_TODO("expected octal number");
+      default: SYX_THROW("expected octal number");
     }
     sv_chop_left(&sv, 1);
   }
@@ -278,7 +278,7 @@ Syx_Value *parse_syx_number_decimal_fractional_value(syx_string_view sv, bool ne
       case '8': fractions = fractions * 10 + 8; break;
       case '9': fractions = fractions * 10 + 9; break;
       case '_': break;
-      default: SYX_TODO("expected fractions number part");
+      default: SYX_THROW("expected fractions number part");
     }
     sv_chop_left(&sv, 1);
     exponent *= 10;
@@ -307,7 +307,7 @@ Syx_Value *parse_syx_number_decimal_value(Syx_Token token) {
       case '9': number = number * 10 + 9; break;
       case '_': break;
       case '.': return parse_syx_number_decimal_fractional_value(sv, negative, number);
-      default: SYX_TODO("expected number");
+      default: SYX_THROW("expected number");
     }
     sv_chop_left(&sv, 1);
   }
@@ -348,7 +348,7 @@ Syx_Value *parse_syx_number_hex_value(Syx_Token token) {
       case 'F': number = number << 4 | 15; break;
       case '_': break;
       case '.': SYX_TODO("hex fractionals number literals are not supported");
-      default: SYX_TODO("expected hex number");
+      default: SYX_THROW("expected hex number");
     }
     sv_chop_left(&sv, 1);
   }
