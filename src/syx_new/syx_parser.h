@@ -137,12 +137,11 @@ Syx_Value *parse_syx_string_value(Syx_Token token) {
     sb_append(&literal, token.data[tindex]); \
     continue;                                \
   }
-#define utf_bytes_from_string(bytes_count)                                  \
-  if (token.count - tindex - 1 < (bytes_count)) handle_error();             \
-  char chars[(bytes_count)];                                                \
-  memcpy(chars, token.data + tindex + 1, (bytes_count));                    \
-  if (!syx_parser_validate_utf_bytes(chars, (bytes_count))) handle_error(); \
-  tindex += (bytes_count);
+#define utf_bytes_from_string(bytes_count)                      \
+  if (token.count - tindex - 1 < (bytes_count)) handle_error(); \
+  char chars[(bytes_count)];                                    \
+  memcpy(chars, token.data + tindex + 1, (bytes_count));        \
+  if (!syx_parser_validate_utf_bytes(chars, (bytes_count))) handle_error();
 
       switch (token.data[tindex]) {
         case 'b': sb_append(&literal, '\b'); break;
@@ -158,20 +157,44 @@ Syx_Value *parse_syx_string_value(Syx_Token token) {
           utf_bytes_from_string(2);
           uint8_t byte = (syx_utils_hex_to_decimal(chars[0]) << 4) + syx_utils_hex_to_decimal(chars[1]);
           sb_append(&literal, byte);
-          continue;
+          tindex += 2;
         } break;
         case 'u': {
-          if (token.count > tindex + 2 && token.data[tindex + 2] == '{') {
-            TODO("string literal: Unicode Long \\u{H...H}");
+          if (token.count > tindex + 3 && token.data[tindex + 1] == '{') {
+            size_t count = 0;
+            while (true) {
+              size_t index = tindex + count + 2;
+              if (token.count <= index) {
+                count = 0;
+                break;
+              }
+              if (token.data[index] == '}') break;
+              if (!syx_utils_is_hex_digit(token.data[index])) {
+                count = 0;
+                break;
+              }
+              count += 1;
+            }
+            if (!count || count > 8) handle_error();
+            char chars[8] = {};
+            memset(chars, '0', 8 - count);
+            memcpy(chars + (8 - count), token.data + tindex + 2, count);
+            uint16_t high = syx_parser_utf_4_chars_to_codepoint(chars);
+            uint16_t low = syx_parser_utf_4_chars_to_codepoint(chars + 4);
+            if (!syx_parser_utf_codepoint_to_string(((uint32_t)high << 16) | low, &literal)) handle_error();
+            tindex += count + 2;
+            continue;
           }
           utf_bytes_from_string(4);
           if (!syx_parser_utf_codepoint_to_string(syx_parser_utf_4_chars_to_codepoint(chars), &literal)) handle_error();
+          tindex += 4;
         } break;
         case 'U': {
           utf_bytes_from_string(8);
           uint16_t high = syx_parser_utf_4_chars_to_codepoint(chars);
           uint16_t low = syx_parser_utf_4_chars_to_codepoint(chars + 4);
           if (!syx_parser_utf_codepoint_to_string(((uint32_t)high << 16) | low, &literal)) handle_error();
+          tindex += 8;
         } break;
         default: sb_append(&literal, token.data[tindex]); break;
       }
