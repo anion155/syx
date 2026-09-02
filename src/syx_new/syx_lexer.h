@@ -10,7 +10,10 @@ typedef enum Syx_Token_Kind {
   SYX_TOKEN_KIND_LPAREN = '(',
   SYX_TOKEN_KIND_RPAREN = ')',
   SYX_TOKEN_KIND_STRLIT = '"',
-  SYX_TOKEN_KIND_NUMLIT = '0',
+  SYX_TOKEN_KIND_NUMBINLIT = '1',
+  SYX_TOKEN_KIND_NUMOCTLIT = '7',
+  SYX_TOKEN_KIND_NUMDECLIT = '9',
+  SYX_TOKEN_KIND_NUMHEXLIT = 'F',
   SYX_TOKEN_KIND_SYMBOL = 'a',
   SYX_TOKEN_KIND_DISPATCH = '#',
   SYX_TOKEN_KIND_ERROR = 0x100,
@@ -54,7 +57,10 @@ const char *syx_token_kind_string(Syx_Token_Kind kind) {
     case SYX_TOKEN_KIND_LPAREN: return "LPAREN";
     case SYX_TOKEN_KIND_RPAREN: return "RPAREN";
     case SYX_TOKEN_KIND_STRLIT: return "STRLIT";
-    case SYX_TOKEN_KIND_NUMLIT: return "NUMLIT";
+    case SYX_TOKEN_KIND_NUMBINLIT: return "NUMBINLIT";
+    case SYX_TOKEN_KIND_NUMOCTLIT: return "NUMOCTLIT";
+    case SYX_TOKEN_KIND_NUMDECLIT: return "NUMDECLIT";
+    case SYX_TOKEN_KIND_NUMHEXLIT: return "NUMHEXLIT";
     case SYX_TOKEN_KIND_SYMBOL: return "SYMBOL";
     case SYX_TOKEN_KIND_DISPATCH: return "DISPATCH";
     case SYX_TOKEN_KIND_ERROR: return "ERROR";
@@ -161,17 +167,26 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
     }
   }
   if (isdigit(*it->data) || (it->count > 1 && *it->data == '-' && isdigit(*(it->data + 1)))) {
-    token.kind = SYX_TOKEN_KIND_NUMLIT;
+    token.kind = SYX_TOKEN_KIND_NUMDECLIT;
     if (*it->data == '-') it_chop_next();
     int (*is_digit)(int character) = syx_utils_is_decimal_digit;
     if (*it->data == '0' && it->count > 2) {
       switch (*(it->data + 1)) {
         case 'x':
-        case 'X': is_digit = syx_utils_is_hex_digit; break;
+        case 'X': {
+          is_digit = syx_utils_is_hex_digit;
+          token.kind = SYX_TOKEN_KIND_NUMHEXLIT;
+        } break;
         case 'o':
-        case 'O': is_digit = syx_lexer_is_octal_digit; break;
+        case 'O': {
+          is_digit = syx_lexer_is_octal_digit;
+          token.kind = SYX_TOKEN_KIND_NUMOCTLIT;
+        }; break;
         case 'b':
-        case 'B': is_digit = syx_lexer_is_binary_digit; break;
+        case 'B': {
+          is_digit = syx_lexer_is_binary_digit;
+          token.kind = SYX_TOKEN_KIND_NUMBINLIT;
+        }; break;
       }
       if (is_digit != syx_utils_is_decimal_digit) {
         it_chop_next();
@@ -224,7 +239,7 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
   }
   if (*it->data == '.' && it->count > 1 && isdigit(*(it->data + 1))) {
     it_chop_next();
-    token.kind = SYX_TOKEN_KIND_NUMLIT;
+    token.kind = SYX_TOKEN_KIND_NUMDECLIT;
     bool underscore = false;
     while (it->count) {
       if (*it->data == '_') {

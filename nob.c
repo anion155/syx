@@ -40,8 +40,8 @@ bool command_build_run() {
   nonob_cc_append_pkgconfig(&ctx.cmd, "readline");
   nonob_cc_append_pkgconfig(&ctx.cmd, "libffi");
 #endif
-  if (ctx.s->build_sanitizer) nob_cmd_append(&ctx.cmd, "-ggdb", "-fsanitize=address");
-  else if (ctx.s->build_debug) nob_cmd_append(&ctx.cmd, "-ggdb");
+  if (ctx.s->build_sanitizer) nob_cmd_append(&ctx.cmd, "-ggdb3", "-fsanitize=address");
+  else if (ctx.s->build_debug) nob_cmd_append(&ctx.cmd, "-ggdb3");
   if (ctx.s->build_new) {
     nob_cc_inputs(&ctx.cmd, "-std=gnu23");
     nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/main_new.c", ctx.s->src_path));
@@ -139,7 +139,7 @@ bool command_tests_run() {
   nob_cc_flags(&ctx.cmd);
   nob_cmd_append(&ctx.cmd, temp_sprintf("-I%s", ctx.s->vendor_path));
   nob_cmd_append(&ctx.cmd, "-std=c23");
-  nob_cmd_append(&ctx.cmd, "-ggdb");
+  nob_cmd_append(&ctx.cmd, "-ggdb3");
   const char *tests_c = temp_sprintf("%s/tests.c", ctx.exe_path);
   nob_cc_inputs(&ctx.cmd, tests_c);
   nob_cc_output(&ctx.cmd, ctx.s->tests_path);
@@ -204,7 +204,7 @@ bool command_playground_run() {
   nonob_cc_append_pkgconfig(&ctx.cmd, "readline");
   nonob_cc_append_pkgconfig(&ctx.cmd, "libffi");
 #endif
-  nob_cmd_append(&ctx.cmd, "-ggdb");
+  nob_cmd_append(&ctx.cmd, "-ggdb3");
   nob_cc_inputs(&ctx.cmd, "-std=c23");
   nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/playground.c", ctx.s->src_path));
   nob_cc_output(&ctx.cmd, temp_sprintf("%s/playground", ctx.s->build_path));
