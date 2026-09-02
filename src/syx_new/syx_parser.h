@@ -368,6 +368,7 @@ Syx_Value *parse_syx_dispatch(Syx_Token token, Syx_Tokens *tokens) {
   SYX_ASSERT(token.kind == SYX_TOKEN_KIND_DISPATCH && token.count > 1, "dispatch expected");
   uint32_t type = syx_parser_utf_string_to_codepoint(sv_from_parts(token.data + 1, token.count - 1));
   switch (type) {
+    case 'n': return syx_value_nil();
     case 't': return syx_value_bool_true();
     case 'f': return syx_value_bool_false();
     case 'R': {

@@ -54,6 +54,11 @@ typedef struct Syx_Value {
   };
 } Syx_Value;
 
+#define syx_boolean_get(value) (                         \
+    (value)->kind == SYX_VALUE_KIND_BOOL_TRUE    ? true  \
+    : (value)->kind == SYX_VALUE_KIND_BOOL_FALSE ? false \
+                                                 : (UNREACHABLE("boolean expected"), false))
+
 typedef enum Syx_Exit_Kind : unsigned int {
   SYX_EXIT_KIND_RETURNED,
   SYX_EXIT_KIND_THROWN,
@@ -110,6 +115,11 @@ typedef struct Syx_Number {
     syx_fractional_t fractional;
   };
 } Syx_Number;
+
+#define syx_number_get(number) (                                          \
+    (number)->kind == SYX_NUMBER_KIND_INTEGER      ? (number)->integer    \
+    : (number)->kind == SYX_NUMBER_KIND_FRACTIONAL ? (number)->fractional \
+                                                   : (UNREACHABLE("unknown number type"), false))
 
 typedef struct Syx_String {
   const char *data;

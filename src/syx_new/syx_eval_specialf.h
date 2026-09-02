@@ -164,86 +164,78 @@ Syx_Value *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   return rc_move(result);
 }
 
-// Syx_Value *syx_special_form_and_reduce(Syx_Eval_Ctx *ctx, Syx_Value *evaluated) {
-//   bool value = {0};
-//   syx_convert_to(ctx, evaluated, &value);
-//   return make_syxv_bool(!value);
-// }
+Syx_Value *syx_special_form_and_reduce(Syx_Eval_Ctx *ctx, Syx_Value *evaluated) {
+  bool value = {0};
+  syx_convert_to(ctx, evaluated, &value);
+  return make_syxv_bool(!value);
+}
 
-// /** Evaluates left to right, returns first falsy value or last value if all truthy */
-// Syx_Value *syx_special_form_and(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-//   return syx_eval_forms_list(ctx, arguments, .should_stop = syx_special_form_and_reduce, .default_result = syx_value_nil());
-// }
+/** Evaluates left to right, returns first falsy value or last value if all truthy */
+Syx_Value *syx_special_form_and(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  return syx_eval_forms_list(ctx, arguments, .should_stop = syx_special_form_and_reduce, .initial = syx_value_nil());
+}
 
-// Syx_Value *syx_special_form_or_reduce(Syx_Eval_Ctx *ctx, Syx_Value *evaluated) {
-//   UNUSED(ctx);
-//   return evaluated;
-// }
+Syx_Value *syx_special_form_or_reduce(Syx_Eval_Ctx *ctx, Syx_Value *evaluated) {
+  UNUSED(ctx);
+  return evaluated;
+}
 
-// /** Evaluates left to right, returns first truthy value or last value if all falsy */
-// Syx_Value *syx_special_form_or(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-//   return syx_eval_forms_list(ctx, arguments, .should_stop = syx_special_form_or_reduce, .default_result = syx_value_nil());
-// }
+/** Evaluates left to right, returns first truthy value or last value if all falsy */
+Syx_Value *syx_special_form_or(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  return syx_eval_forms_list(ctx, arguments, .should_stop = syx_special_form_or_reduce, .initial = syx_value_nil());
+}
 
-// /** if - Evaluates condition then evaluates only one branch */
-// Syx_Value *syx_special_form_if(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-//   bool cond = {0};
-//   syx_convert_to(ctx, syx_eval(ctx, syx_list_next(&arguments)), &cond);
-//   Syx_Value *then_body = syx_list_next(&arguments);
-//   Syx_Value *else_body = syx_list_next(&arguments);
-//   Syx_Value *result;
-//   if (cond) result = syx_eval(ctx, then_body);
-//   else result = syx_eval(ctx, else_body);
-//   return result;
-// }
+/** if - Evaluates condition then evaluates only one branch */
+Syx_Value *syx_special_form_if(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  bool cond = {0};
+  syx_convert_to(ctx, syx_eval(ctx, syx_list_next(&arguments)), &cond);
+  Syx_Value *then_body = syx_list_next(&arguments);
+  Syx_Value *else_body = syx_list_next(&arguments);
+  Syx_Value *result;
+  if (cond) result = syx_eval(ctx, then_body);
+  else result = syx_eval(ctx, else_body);
+  return result;
+}
 
-// /** Multi-branch conditional */
-// Syx_Value *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-//   Syx_Value *result = NULL;
-//   Syx_Value *else_symbol = rc_acquire(make_syxv_symbol_cstr("else"));
-//   Syx_Value *apply_symbol = rc_acquire(make_syxv_symbol_cstr("=>"));
-//   syx_list_for_each(arguments, branch) {
-//     if (branch->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "malformed cond branch, list expected");
-//     if (branch->pair->left == else_symbol) {
-//       result = syx_eval_forms_list(ctx, branch->pair->right);
-//       rc_release(else_symbol);
-//       rc_release(apply_symbol);
-//       return result;
-//     }
-//     if (result) rc_release(result);
-//     result = rc_acquire(syx_eval(ctx, branch->pair->left));
-//     bool cond = {0};
-//     syx_convert_to(ctx, result, &cond, result, else_symbol, apply_symbol);
-//     if (!cond) continue;
-//     Syx_Value *right = branch->pair->right;
-//     if (right->kind == SYX_VALUE_KIND_NIL) {
-//       rc_release(else_symbol);
-//       rc_release(apply_symbol);
-//       return rc_move(result);
-//     }
-//     if (right->pair->left == apply_symbol) {
-//       Syx_Value *apply_right = right->pair->right;
-//       if (apply_right->kind == SYX_VALUE_KIND_PAIR && apply_right->pair->right->kind == SYX_VALUE_KIND_NIL) {
-//         Syx_Value *call = rc_acquire(make_syxv_list(apply_right->pair->left, result, NULL));
-//         Syx_Value *call_result = rc_acquire(syx_eval(ctx, call));
-//         syx_value_early_exit(call_result, call, result, else_symbol, apply_symbol);
-//         rc_release(call);
-//         rc_release(result);
-//         rc_release(else_symbol);
-//         rc_release(apply_symbol);
-//         return rc_move(call_result);
-//       }
-//     }
-//     rc_release(result);
-//     rc_release(else_symbol);
-//     rc_release(apply_symbol);
-//     return syx_eval_forms_list(ctx, right);
-//   }
-//   if (result == NULL) SYX_EVAL_THROW(ctx, "cond empty branches list");
-//   rc_release(else_symbol);
-//   rc_release(apply_symbol);
-//   return result;
-// }
+/** Multi-branch conditional */
+Syx_Value *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  Syx_Value *result = NULL;
+  Syx_Value *else_symbol = rc_acquire(make_syxv_symbol_cstr("else"));
+  Syx_Value *apply_symbol = rc_acquire(make_syxv_symbol_cstr("=>"));
+  syx_list_for_each(arguments, branch) {
+    if (branch->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "malformed cond branch, list expected");
+    if (branch->pair->left == else_symbol) {
+      result = syx_eval_forms_list(ctx, branch->pair->right);
+      rc_release_all(else_symbol, apply_symbol);
+      return result;
+    }
+    if (result) rc_release(result);
+    result = rc_acquire(syx_eval(ctx, branch->pair->left));
+    bool cond = {0};
+    syx_convert_to(ctx, result, &cond, result, else_symbol, apply_symbol);
+    if (!cond) continue;
+    Syx_Value *right = branch->pair->right;
+    if (right->kind == SYX_VALUE_KIND_NIL) {
+      rc_release_all(else_symbol, apply_symbol);
+      return rc_move(result);
+    }
+    if (right->pair->left == apply_symbol) {
+      Syx_Value *apply_right = right->pair->right;
+      if (apply_right->kind == SYX_VALUE_KIND_PAIR && apply_right->pair->right->kind == SYX_VALUE_KIND_NIL) {
+        Syx_Value *call = rc_acquire(make_syxv_list(apply_right->pair->left, result, NULL));
+        Syx_Value *call_result = rc_acquire(syx_eval(ctx, call));
+        syx_value_early_exit(call_result, call, result, else_symbol, apply_symbol);
+        rc_release_all(call, result, else_symbol, apply_symbol);
+        return rc_move(call_result);
+      }
+    }
+    rc_release_all(result, else_symbol, apply_symbol);
+    return syx_eval_forms_list(ctx, right);
+  }
+  if (result == NULL) SYX_EVAL_THROW(ctx, "cond empty branches list");
+  rc_release_all(else_symbol, apply_symbol);
+  return result;
+}
 
 /** Create thrown value. */
 Syx_Value *syx_special_form_throw(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
@@ -340,11 +332,11 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define_cstr(env, "unset", make_syx_value_closure_specialf(SVLIT("unset"), syx_special_form_unset));
   syx_env_define_cstr(env, "let", make_syx_value_closure_specialf(SVLIT("let"), syx_special_form_let));
 
-  // syx_env_define_cstr(env, "and", make_syx_value_closure_specialf(SVLIT( "and"), syx_special_form_and));
-  // syx_env_define_cstr(env, "or", make_syx_value_closure_specialf(SVLIT( "or"), syx_special_form_or));
+  syx_env_define_cstr(env, "and", make_syx_value_closure_specialf(SVLIT("and"), syx_special_form_and));
+  syx_env_define_cstr(env, "or", make_syx_value_closure_specialf(SVLIT("or"), syx_special_form_or));
 
-  // syx_env_define_cstr(env, "if", make_syx_value_closure_specialf(SVLIT("if"), syx_special_form_if));
-  // syx_env_define_cstr(env, "cond", make_syx_value_closure_specialf(SVLIT("cond"), syx_special_form_cond));
+  syx_env_define_cstr(env, "if", make_syx_value_closure_specialf(SVLIT("if"), syx_special_form_if));
+  syx_env_define_cstr(env, "cond", make_syx_value_closure_specialf(SVLIT("cond"), syx_special_form_cond));
 
   syx_env_define_cstr(env, "throw", make_syx_value_closure_specialf(SVLIT("throw"), syx_special_form_throw));
   syx_env_define_cstr(env, "try", make_syx_value_closure_specialf(SVLIT("try"), syx_special_form_try));
