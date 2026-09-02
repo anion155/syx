@@ -167,7 +167,7 @@ Syx_Value *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 Syx_Value *syx_special_form_and_reduce(Syx_Eval_Ctx *ctx, Syx_Value *evaluated) {
   bool value = {0};
   syx_convert_to(ctx, evaluated, &value);
-  return make_syxv_bool(!value);
+  return syx_value_bool(!value);
 }
 
 /** Evaluates left to right, returns first falsy value or last value if all truthy */
@@ -200,12 +200,12 @@ Syx_Value *syx_special_form_if(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 /** Multi-branch conditional */
 Syx_Value *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *result = NULL;
-  Syx_Value *else_symbol = rc_acquire(make_syxv_symbol_cstr("else"));
-  Syx_Value *apply_symbol = rc_acquire(make_syxv_symbol_cstr("=>"));
+  Syx_Value *else_symbol = rc_acquire(make_syx_value_symbol_strlit("else"));
+  Syx_Value *apply_symbol = rc_acquire(make_syx_value_symbol_strlit("=>"));
   syx_list_for_each(arguments, branch) {
     if (branch->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "malformed cond branch, list expected");
     if (branch->pair->left == else_symbol) {
-      result = syx_eval_forms_list(ctx, branch->pair->right);
+      result = syx_eval_forms_list(ctx, branch->pair->right->pair);
       rc_release_all(else_symbol, apply_symbol);
       return result;
     }
@@ -222,7 +222,7 @@ Syx_Value *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
     if (right->pair->left == apply_symbol) {
       Syx_Value *apply_right = right->pair->right;
       if (apply_right->kind == SYX_VALUE_KIND_PAIR && apply_right->pair->right->kind == SYX_VALUE_KIND_NIL) {
-        Syx_Value *call = rc_acquire(make_syxv_list(apply_right->pair->left, result, NULL));
+        Syx_Value *call = rc_acquire(make_syx_value_list(apply_right->pair->left, result, NULL));
         Syx_Value *call_result = rc_acquire(syx_eval(ctx, call));
         syx_value_early_exit(call_result, call, result, else_symbol, apply_symbol);
         rc_release_all(call, result, else_symbol, apply_symbol);
@@ -230,7 +230,7 @@ Syx_Value *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       }
     }
     rc_release_all(result, else_symbol, apply_symbol);
-    return syx_eval_forms_list(ctx, right);
+    return syx_eval_forms_list(ctx, right->pair);
   }
   if (result == NULL) SYX_EVAL_THROW(ctx, "cond empty branches list");
   rc_release_all(else_symbol, apply_symbol);

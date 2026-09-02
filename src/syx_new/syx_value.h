@@ -121,6 +121,37 @@ typedef struct Syx_Number {
     : (number)->kind == SYX_NUMBER_KIND_FRACTIONAL ? (number)->fractional \
                                                    : (UNREACHABLE("unknown number type"), false))
 
+#define syx_number_optimize_fractional(value) ({     \
+  if ((value)->kind == SYX_NUMBER_KIND_FRACTIONAL) { \
+    if (fmodl((value)->fractional, 1.0) == 0.0) {    \
+      (value)->kind = SYX_NUMBER_KIND_INTEGER;       \
+      (value)->integer = (value)->fractional;        \
+    }                                                \
+  }                                                  \
+})
+
+#define syx_number_operate(left, operator, right) ({                                                                             \
+  Syx_Number result = {0};                                                                                                       \
+  if (STRINGIFY(operator)[0] == '/') {                                                                                           \
+    result.kind = SYX_NUMBER_KIND_FRACTIONAL;                                                                                    \
+    result.fractional = ((syx_fractional_t)syx_number_get(left) operator((syx_fractional_t)syx_number_get(right)));              \
+  } else if ((left)->kind == (right)->kind) {                                                                                    \
+    result.kind = (left)->kind;                                                                                                  \
+    switch ((left)->kind) {                                                                                                      \
+      case SYX_NUMBER_KIND_INTEGER: result.integer = (left)->integer operator((right)->integer); break;                          \
+      case SYX_NUMBER_KIND_FRACTIONAL: result.fractional = (left)->fractional operator((right)->fractional); break;              \
+    }                                                                                                                            \
+  } else {                                                                                                                       \
+    result.kind = SYX_NUMBER_KIND_FRACTIONAL;                                                                                    \
+    switch ((left)->kind) {                                                                                                      \
+      case SYX_NUMBER_KIND_INTEGER: result.fractional = (syx_fractional_t)(left)->integer operator(right)->fractional; break;    \
+      case SYX_NUMBER_KIND_FRACTIONAL: result.fractional = (left)->fractional operator(syx_fractional_t)(right)->integer; break; \
+    }                                                                                                                            \
+  }                                                                                                                              \
+  syx_number_optimize_fractional(&result);                                                                                       \
+  result;                                                                                                                        \
+})
+
 typedef struct Syx_String {
   const char *data;
   size_t count;
@@ -204,10 +235,10 @@ static inline Syx_Closure *syx_closure_from_builtin(Syx_Closure_Builtin *builtin
 static inline Syx_Closure *syx_closure_from_lambda(Syx_Closure_Lambda *lambda) { return (Syx_Closure *)lambda - 1; }
 
 bool syx_list_for_each_next(Syx_Value **current, Syx_Value **next, Syx_Value **value, Syx_Value **cdr);
-#define syx_list_for_each(list, value, ...)       \
-  for (Syx_Value * value##_current,               \
-       *value##_next = syx_value_from_pair(list), \
-       *value;                                    \
+#define syx_list_for_each(list, value, ...)                       \
+  for (Syx_Value * value##_current,                               \
+       *value##_next = (list) ? syx_value_from_pair(list) : NULL, \
+       *value;                                                    \
        syx_list_for_each_next(&value##_current, &value##_next, &value, WITH_DEFAULT(NULL, __VA_ARGS__));)
 
 bool syx_list_map_next(Syx_Value **source_it, Syx_Value ***target_it, Syx_Value ***value, Syx_Value ***cdr);
@@ -265,6 +296,7 @@ syx_define_constant(struct { Syx_Value *nil; Syx_Value *bool_true; Syx_Value *bo
 Syx_Value *make_syx_value(Syx_Value_Kind kind, size_t additional_size) {
   Syx_Value *value = rc_malloc(sizeof(Syx_Value) + additional_size);
   assert(value);
+  memset(value, 0, sizeof(Syx_Value) + additional_size);
   value->kind = kind;
   return value;
 }
@@ -537,6 +569,8 @@ Syx_Value *syx_list_next_nullable(Syx_Pair **list) {
   Syx_Value *value = (*list)->left;
   if ((*list)->right->kind == SYX_VALUE_KIND_PAIR) {
     (*list) = (*list)->right->pair;
+  } else {
+    (*list) = NULL;
   }
   return value;
 }

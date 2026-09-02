@@ -1,6 +1,7 @@
 #ifndef SYX_EVAL_H
 #define SYX_EVAL_H
 
+#include <general_utils.h>
 #include <ht.h>
 #include <rc.h>
 #include <syx_new/syx_value.h>
@@ -67,27 +68,27 @@ Syx_Value *syx_eval_forms_list_opt(Syx_Eval_Ctx *ctx, Syx_Pair *forms, Syx_Eval_
 Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value);
 Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value);
 Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value);
-#define syx_convert_to(ctx, value, storage, ...) ({                    \
-  Syx_Value *__value = rc_acquire((value));                            \
-  syx_value_early_exit(__value __VA_OPT__(, ) __VA_ARGS__);            \
-  Syx_Value *converted = _Generic(storage,                             \
-      bool *: syx_convert_to_bool,                                     \
-      Syx_Number *: syx_convert_to_number,                             \
-      syx_integer_t *: syx_convert_to_number,                          \
-      syx_fractional_t *: syx_convert_to_number,                       \
-      syx_string_view *: syx_convert_to_string,                        \
-      syx_string *: syx_convert_to_string)((ctx), __value);            \
-  rc_acquire(converted);                                               \
-  syx_value_early_exit(converted, __value __VA_OPT__(, ) __VA_ARGS__); \
-  rc_release(__value);                                                 \
-  *(storage) = _Generic(storage,                                       \
-      bool *: syx_boolean_get(converted),                              \
-      Syx_Number *: converted->number,                                 \
-      syx_integer_t *: syx_number_get(converted->number),              \
-      syx_fractional_t *: syx_number_get(converted->number),           \
-      syx_string_view *: converted->string,                            \
-      syx_string *: sb_copy_from_sv(converted->string));               \
-  rc_release(converted);                                               \
+#define syx_convert_to(ctx, value, storage, ...) ({                     \
+  Syx_Value *__value = rc_acquire((value));                             \
+  syx_value_early_exit(__value __VA_OPT__(, ) __VA_ARGS__);             \
+  Syx_Value *converted = _Generic(storage,                              \
+      bool *: syx_convert_to_bool,                                      \
+      Syx_Number *: syx_convert_to_number,                              \
+      syx_integer_t *: syx_convert_to_number,                           \
+      syx_fractional_t *: syx_convert_to_number,                        \
+      syx_string_view *: syx_convert_to_string,                         \
+      syx_string *: syx_convert_to_string)((ctx), __value);             \
+  rc_acquire(converted);                                                \
+  syx_value_early_exit(converted, __value __VA_OPT__(, ) __VA_ARGS__);  \
+  rc_release(__value);                                                  \
+  *(storage) = _Generic(storage,                                        \
+      bool *: syx_boolean_get(converted),                               \
+      Syx_Number *: *converted->number,                                 \
+      syx_integer_t *: syx_number_get(converted->number),               \
+      syx_fractional_t *: syx_number_get(converted->number),            \
+      syx_string_view *: sv_from_like(*converted->string),              \
+      syx_string *: sb_copy_from_sv(sv_from_like(*converted->string))); \
+  rc_release(converted);                                                \
 })
 
 #endif // SYX_EVAL_H
@@ -102,6 +103,8 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value);
 #include <rc.h>
 #define SYX_VALUE_IMPL
 #include <syx_new/syx_value.h>
+#define GENERAL_UTILS_IMPL
+#include <general_utils.h>
 
 void syx_frames_stack_destructor(void *data) {
   Syx_Frames_Stack *stack = data;
@@ -162,7 +165,7 @@ void syx_env_graph_visitor(Rc_Circulars *circulars, const void *data, const void
   if (env->parent) rc_release(env->parent);
 }
 
-uintptr_t ht_syxv_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n) {
+uintptr_t ht_syx_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n) {
   UNUSED(n);
   Syx_Symbol const **a = (Syx_Symbol const **)a_;
   Syx_Symbol const **b = (Syx_Symbol const **)b_;
@@ -177,7 +180,7 @@ Syx_Env *make_syx_env(Syx_Env *parent) {
   Syx_Env *env = rc_malloc(sizeof(Syx_Env), .destructor = syx_env_destructor);
   assert(env);
   env->parent = parent ? rc_acquire(parent) : NULL;
-  env->symbols = (Syx_Env_Symbols){.hasheq = ht_syxv_symbol_hasheq};
+  env->symbols = (Syx_Env_Symbols){.hasheq = ht_syx_symbol_hasheq};
   return env;
 }
 
@@ -378,7 +381,7 @@ Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_BOOL_FALSE: return value;
     case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to bool");
     case SYX_VALUE_KIND_PAIR: SYX_EVAL_THROW(ctx, "pair can't be converted to bool");
-    case SYX_VALUE_KIND_SPECIAL: SYX_EVAL_THROW(ctx, "special form can't be converted to bool");
+    case SYX_VALUE_KIND_SPECIAL: SYX_EVAL_THROW(ctx, "special can't be converted to bool");
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to bool");
     case SYX_VALUE_KIND_NUMBER: return syx_value_bool(syx_number_get(value->number));
     case SYX_VALUE_KIND_STRING: SYX_EVAL_THROW(ctx, "string can't be converted to bool");
@@ -395,7 +398,7 @@ Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_BOOL_FALSE: return make_syx_value_number_integer(0);
     case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to number");
     case SYX_VALUE_KIND_PAIR: SYX_EVAL_THROW(ctx, "pair can't be converted to number");
-    case SYX_VALUE_KIND_SPECIAL: SYX_EVAL_THROW(ctx, "special form can't be converted to number");
+    case SYX_VALUE_KIND_SPECIAL: SYX_EVAL_THROW(ctx, "special can't be converted to number");
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to number");
     case SYX_VALUE_KIND_NUMBER: return value;
     case SYX_VALUE_KIND_STRING: SYX_EVAL_THROW(ctx, "string can't be converted to number");
@@ -412,7 +415,7 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_BOOL_FALSE: SYX_EVAL_THROW(ctx, "bool can't be converted to string");
     case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to string");
     case SYX_VALUE_KIND_PAIR: SYX_EVAL_THROW(ctx, "pair can't be converted to string");
-    case SYX_VALUE_KIND_SPECIAL: SYX_EVAL_THROW(ctx, "special form can't be converted to string");
+    case SYX_VALUE_KIND_SPECIAL: SYX_EVAL_THROW(ctx, "special can't be converted to string");
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to string");
     case SYX_VALUE_KIND_NUMBER: SYX_EVAL_THROW(ctx, "number can't be converted to string");
     case SYX_VALUE_KIND_STRING: return value;

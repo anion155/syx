@@ -18,17 +18,14 @@ Syx_Value *parse_syx(syx_string_view source, bool ignore_errors);
 #include <nob.h>
 #define SYX_LEXER_IMPL
 #include <syx_new/syx_lexer.h>
+#define GENERAL_UTILS_IMPL
+#include <general_utils.h>
 
 #define tokens_chop_left(tokens) ({                                      \
   size_t count = (tokens)->count;                                        \
   (tokens)->items += MIN(1, count);                                      \
   (tokens)->count -= MIN(1, count);                                      \
   count ? (tokens)->items[-1] : (Syx_Token){.kind = SYX_TOKEN_KIND_EOF}; \
-})
-#define sv_like_eq(a, b) ({                                       \
-  typeof((a)) ac = (a);                                           \
-  typeof((b)) bc = (b);                                           \
-  ac.count == bc.count &&memcmp(ac.data, bc.data, ac.count) == 0; \
 })
 
 Syx_Value *parse_syx_value(Syx_Tokens *tokens);
