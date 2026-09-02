@@ -232,19 +232,75 @@ Syx_Value *parse_syx_number_binary_value(Syx_Token token) {
   return make_syx_value_number_integer(number);
 }
 
+Syx_Value *parse_syx_number_octal_value(Syx_Token token) {
+  syx_string_view sv = sv_from_parts(token.data, token.count);
+  bool negative = false;
+  if (sv.data[0] == '-') negative = (sv.data += 1, sv.count -= 1, true);
+  SYX_ASSERT(sv.data[0] == '0' && (sv.data[1] == 'o' || sv.data[1] == 'O'), "expected octal number");
+  sv_chop_left(&sv, 2);
+  syx_integer_t number = 0;
+  while (sv.count) {
+    switch (sv.data[0]) {
+      case '0': number = number << 3 | 0; break;
+      case '1': number = number << 3 | 1; break;
+      case '2': number = number << 3 | 2; break;
+      case '3': number = number << 3 | 3; break;
+      case '4': number = number << 3 | 4; break;
+      case '5': number = number << 3 | 5; break;
+      case '6': number = number << 3 | 6; break;
+      case '7': number = number << 3 | 7; break;
+      case '.': SYX_TODO("octal fractionals numbers are not supported");
+      default: SYX_TODO("expected octal number");
+    }
+    sv_chop_left(&sv, 1);
+  }
+  if (negative) number *= -1;
+  return make_syx_value_number_integer(number);
+}
+
 Syx_Value *parse_syx_number_decimal_value(Syx_Token token) {
   UNUSED(token);
   TODO("parse_syx_number_decimal_value");
 }
 
-Syx_Value *parse_syx_number_octal_value(Syx_Token token) {
-  UNUSED(token);
-  TODO("parse_syx_number_octal_value");
-}
-
 Syx_Value *parse_syx_number_hex_value(Syx_Token token) {
-  UNUSED(token);
-  TODO("parse_syx_number_hex_value");
+  syx_string_view sv = sv_from_parts(token.data, token.count);
+  bool negative = false;
+  if (sv.data[0] == '-') negative = (sv.data += 1, sv.count -= 1, true);
+  SYX_ASSERT(sv.data[0] == '0' && (sv.data[1] == 'x' || sv.data[1] == 'X'), "expected hex number");
+  sv_chop_left(&sv, 2);
+  syx_integer_t number = 0;
+  while (sv.count) {
+    switch (sv.data[0]) {
+      case '0': number = number << 4 | 0; break;
+      case '1': number = number << 4 | 1; break;
+      case '2': number = number << 4 | 2; break;
+      case '3': number = number << 4 | 3; break;
+      case '4': number = number << 4 | 4; break;
+      case '5': number = number << 4 | 5; break;
+      case '6': number = number << 4 | 6; break;
+      case '7': number = number << 4 | 7; break;
+      case '8': number = number << 4 | 8; break;
+      case '9': number = number << 4 | 9; break;
+      case 'a':
+      case 'A': number = number << 4 | 10; break;
+      case 'b':
+      case 'B': number = number << 4 | 11; break;
+      case 'c':
+      case 'C': number = number << 4 | 12; break;
+      case 'd':
+      case 'D': number = number << 4 | 13; break;
+      case 'e':
+      case 'E': number = number << 4 | 14; break;
+      case 'f':
+      case 'F': number = number << 4 | 15; break;
+      case '.': SYX_TODO("hex fractionals numbers are not supported");
+      default: SYX_TODO("expected hex number");
+    }
+    sv_chop_left(&sv, 1);
+  }
+  if (negative) number *= -1;
+  return make_syx_value_number_integer(number);
 }
 
 Syx_Value *parse_syx_symbol_value(Syx_Token token) {
@@ -277,8 +333,8 @@ Syx_Value *parse_syx_value(Syx_Tokens *tokens) {
     case SYX_TOKEN_KIND_LPAREN: return parse_syx_list_values(tokens, SYX_TOKEN_KIND_RPAREN);
     case SYX_TOKEN_KIND_STRLIT: return parse_syx_string_value(first);
     case SYX_TOKEN_KIND_NUMBINLIT: return parse_syx_number_binary_value(first);
-    case SYX_TOKEN_KIND_NUMDECLIT: return parse_syx_number_decimal_value(first);
     case SYX_TOKEN_KIND_NUMOCTLIT: return parse_syx_number_octal_value(first);
+    case SYX_TOKEN_KIND_NUMDECLIT: return parse_syx_number_decimal_value(first);
     case SYX_TOKEN_KIND_NUMHEXLIT: return parse_syx_number_hex_value(first);
     case SYX_TOKEN_KIND_SYMBOL: return parse_syx_symbol_value(first);
     case SYX_TOKEN_KIND_DISPATCH: return parse_syx_dispatch(first, tokens);
