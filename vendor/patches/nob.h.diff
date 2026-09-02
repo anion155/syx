@@ -1,24 +1,31 @@
---- vendor/patches/nob.h	2026-09-01 05:10:03
-+++ vendor/nob.h	2026-09-01 05:09:22
-@@ -363,11 +363,36 @@
-             while ((expected_capacity) > (da)->capacity) {                                 \
-                 (da)->capacity *= 2;                                                       \
-             }                                                                              \
-+            (da)->items = NOB_DECLTYPE_CAST((da)->items)NOB_REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items)); \
-+            NOB_ASSERT((da)->items != NULL && "Buy more RAM lol");                         \
-+        }                                                                                  \
-+    } while (0)
-+
+--- vendor/patches/nob.h	2026-09-02 22:34:26
++++ vendor/nob.h	2026-09-02 22:33:59
+@@ -206,9 +206,9 @@
+ NOBDEF void nob__panicf(const char *file, int line, const char *label, const char *format, ...);
+ 
+ #define NOB_UNUSED(value) (void)(value)
+-#define NOB_TODO(message) do { fprintf(stderr, "%s:%d: TODO: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
++#define NOB_TODO(message) nob__panicf(__FILE__, __LINE__, "TODO", "%s", message)
+ #define NOB_TODOF(...) nob__panicf(__FILE__, __LINE__, "TODO", __VA_ARGS__)
+-#define NOB_UNREACHABLE(message) do { fprintf(stderr, "%s:%d: UNREACHABLE: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
++#define NOB_UNREACHABLE(message) nob__panicf(__FILE__, __LINE__, "UNREACHABLE", "%s", message)
+ #define NOB_UNREACHABLEF(...) nob__panicf(__FILE__, __LINE__, "UNREACHABLE", __VA_ARGS__)
+ 
+ #define NOB_ARRAY_LEN(array) (sizeof(array)/sizeof(array[0]))
+@@ -368,6 +368,31 @@
+         }                                                                                  \
+     } while (0)
+ 
 +    // Reserve specific size to a dynamic array
 +#define nob_da_realloc_capacity(da, target_capacity)                                       \
 +    do {                                                                                   \
 +        if ((target_capacity) > (da)->capacity) {                                          \
 +            (da)->capacity = (target_capacity);                                            \
-             (da)->items = NOB_DECLTYPE_CAST((da)->items)NOB_REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items)); \
-             NOB_ASSERT((da)->items != NULL && "Buy more RAM lol");                         \
-         }                                                                                  \
-     } while (0)
- 
++            (da)->items = NOB_DECLTYPE_CAST((da)->items)NOB_REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items)); \
++            NOB_ASSERT((da)->items != NULL && "Buy more RAM lol");                         \
++        }                                                                                  \
++    } while (0)
++
 +// Trim array's capacity to it's count
 +#define nob_da_realloc_trim(da)                                                       \
 +    do {                                                                              \
@@ -81,10 +88,12 @@
          n += 1;
      }
      NOB_UNREACHABLE("sv_utf8_len");
-@@ -2597,7 +2625,28 @@
+@@ -2595,6 +2623,27 @@
+ defer:
+     if (!result) nob_log(NOB_ERROR, "Could not read file %s: %s", path, strerror(errno));
      if (f) fclose(f);
-     return result;
- }
++    return result;
++}
 +
 +NOBDEF bool nob_read_entire_stdin(Nob_String_Builder *sb)
 +{
@@ -92,7 +101,7 @@
 +#ifdef _WIN32
 +    if (_setmode(_fileno(stdin), _O_BINARY) < 0) nob_return_defer(false);
 +#endif
- 
++
 +    char buffer[32 * 1024];
 +    size_t bytes_read = 0;
 +    while ((bytes_read = fread(buffer, 1, sizeof(buffer), stdin)) > 0) {
@@ -104,12 +113,9 @@
 +
 +defer:
 +    if (!result) nob_log(NOB_ERROR, "Could not read stdin: %s", strerror(errno));
-+    return result;
-+}
-+
- NOBDEF int nob_sb_appendf(Nob_String_Builder *sb, const char *fmt, ...)
- {
-     va_list args;
+     return result;
+ }
+ 
 @@ -3016,6 +3065,8 @@
          #define da_append_many nob_da_append_many
          #define da_resize nob_da_resize
