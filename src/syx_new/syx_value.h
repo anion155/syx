@@ -365,12 +365,12 @@ Syx_Value *make_syx_value_symbol(syx_string_view symbol) {
   Syx_Value **stored = ht_find(SYX_SYMBOLS(), symbol.data);
   if (stored) return *stored;
   Syx_Value *value = make_syx_value(SYX_VALUE_KIND_SYMBOL, sizeof(Syx_Symbol) + sizeof(char) * symbol.count);
-  *ht_put(SYX_SYMBOLS(), symbol.data) = value;
   rc_get(value)->methods.destructor = syx_value_symbol_destructor;
   value->symbol = (Syx_Symbol *)(value + 1);
   value->symbol->data = (const char *)(value->symbol + 1);
   value->symbol->count = symbol.count;
   memcpy((char *)value->symbol->data, symbol.data, symbol.count);
+  *ht_put(SYX_SYMBOLS(), value->symbol->data) = value;
   value->symbol->guarded = false;
   for (syx_string_view it = symbol; it.count; sv_chop_left(&it, 1)) {
     if (issymbol(*it.data)) continue;

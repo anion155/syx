@@ -9,6 +9,8 @@ typedef enum Syx_Token_Kind {
   SYX_TOKEN_KIND_NULL = 0,
   SYX_TOKEN_KIND_LPAREN = '(',
   SYX_TOKEN_KIND_RPAREN = ')',
+  SYX_TOKEN_KIND_LCURLY = '{',
+  SYX_TOKEN_KIND_RCURLY = '}',
   SYX_TOKEN_KIND_STRLIT = '"',
   SYX_TOKEN_KIND_NUMBINLIT = '1',
   SYX_TOKEN_KIND_NUMOCTLIT = '7',
@@ -104,6 +106,8 @@ int syx_lexer_is_delimeter(int character) {
     case ';':
     case '(':
     case ')':
+    case '{':
+    case '}':
     case '"':
       return true;
     default: return false;
@@ -127,7 +131,9 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
 #define it_chop_next() sv_chop_left(it, it->count ? nob_bytes_for_utf8(*it) : 0)
   switch (*it->data) {
     case '(':
-    case ')': {
+    case ')':
+    case '{':
+    case '}': {
       token.kind = (Syx_Token_Kind)*it->data;
       it_chop_next();
       return token;

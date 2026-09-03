@@ -55,12 +55,11 @@ void dump_value(Syx_Value *value) {
         printf("  constant: unknown\n");
       }
     } break;
-    // case SYX_VALUE_KIND_PAIR: {
-    //   switch (value->number->kind) {
-    //     case SYX_NUMBER_KIND_INTEGER: printf("  number: integer: %d\n", value->number->integer); break;
-    //     case SYX_NUMBER_KIND_FRACTIONAL: printf("  number: fractional: %f\n", value->number->fractional); break;
-    //   }
-    // } break;
+    case SYX_VALUE_KIND_PAIR: {
+      syx_list_for_each(value->pair, value) {
+        dump_value(value);
+      }
+    } break;
     case SYX_VALUE_KIND_NUMBER: {
       switch (value->number->kind) {
         case SYX_NUMBER_KIND_INTEGER: printf("  number: integer: %d\n", value->number->integer); break;
@@ -84,11 +83,6 @@ void dump_value(Syx_Value *value) {
     default: printf("  NotImplementedYet: %u\n", value->kind);
   }
 }
-void dump_values(Syx_Value *values) {
-  syx_list_for_each(values->pair, value) {
-    dump_value(value);
-  }
-}
 
 Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
   UNUSED(eval_ctx);
@@ -99,7 +93,7 @@ Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
 
   Syx_Value *values = rc_acquire(parse_syx(source, true));
   printf("input:\n");
-  dump_values(values);
+  dump_value(values);
   Syx_Value *result = rc_acquire(syx_eval_forms_list(eval_ctx, values->pair));
   rc_release(values);
   printf("result:\n");

@@ -21,7 +21,7 @@ void syx_object_delete(Syx_Object *object, Syx_Symbol *field_name);
 #include <syx_new/syx_eval.h>
 
 Syx_Value **syx_object_lookup(Syx_Object *object, Syx_Symbol *field_name) {
-  Syx_Value **field;
+  Syx_Value **field = NULL;
   while (!field && object) {
     field = ht_find(&object->fields, field_name);
     if (field) break;
@@ -44,7 +44,7 @@ Syx_Value *syx_object_get(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Symbol *fie
   }
 }
 
-inline void syx_object_field_set(Syx_Object *object, Syx_Symbol *field_name, Syx_Value *form, Syx_Value **field) {
+static inline void syx_object_field_set(Syx_Object *object, Syx_Symbol *field_name, Syx_Value *form, Syx_Value **field) {
   if (!field) {
     rc_acquire(syx_value_from_symbol(field_name));
     field = ht_put(&object->fields, field_name);

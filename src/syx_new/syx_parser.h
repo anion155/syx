@@ -392,6 +392,11 @@ Syx_Value *parse_syx_dispatch(Syx_Token token, Syx_Tokens *tokens) {
       SYX_ASSERT(token.kind == SYX_TOKEN_KIND_STRLIT, "expected string literal");
       return make_syx_value_string_dup(token.data, token.count);
     }
+    case '{': {
+      Syx_Value *fields = rc_acquire(parse_syx_list_values(tokens, SYX_TOKEN_KIND_RCURLY));
+      syx_value_early_exit(fields);
+      return make_syx_value_pair(make_syx_value_symbol_strlit("object"), rc_move(fields));
+    }
     default: SYX_THROW("unexpected dispatch type");
   }
 }

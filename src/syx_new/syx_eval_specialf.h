@@ -318,20 +318,29 @@ Syx_Value *syx_special_form_return(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 /** Creates object with of named fields. */
 Syx_Value *syx_special_form_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  UNUSED(ctx);
-  UNUSED(arguments);
-  Syx_Value *value = make_syx_value_object(NULL);
+  Syx_Value *value = rc_acquire(make_syx_value_object(NULL));
+  Syx_Value *proto_symbol = rc_acquire(make_syx_value_symbol_strlit("proto"));
   while (arguments) {
     Syx_Value *field_name = syx_list_next_nullable(&arguments);
-    if (!arguments) SYX_EVAL_THROW(ctx, "malformed object key-value pair");
-    if (field_name->kind != SYX_VALUE_KIND_PREFIXED) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'");
-    if (field_name->prefixed->kind != SYX_PREFIXED_KIND_COLON) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'");
+    if (!arguments) SYX_EVAL_THROW(ctx, "malformed object key-value pair", value, proto_symbol);
+    if (field_name->kind != SYX_VALUE_KIND_PREFIXED) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", value, proto_symbol);
+    if (field_name->prefixed->kind != SYX_PREFIXED_KIND_COLON) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", value, proto_symbol);
     field_name = field_name->prefixed->value;
-    if (field_name->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'");
+    if (field_name == proto_symbol) {
+      Syx_Value *proto_form = syx_list_next_nullable(&arguments);
+      Syx_Value *proto = rc_acquire(syx_eval(ctx, proto_form));
+      syx_value_early_exit(proto, value, proto_symbol);
+      if (proto->kind != SYX_VALUE_KIND_OBJECT) SYX_EVAL_THROW(ctx, "expected object as prototype", value, proto_symbol, proto);
+      if (value->object->proto) rc_release(syx_value_from_object(value->object->proto));
+      value->object->proto = proto->object;
+      continue;
+    }
+    if (field_name->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", value, proto_symbol);
     Syx_Value *form = syx_list_next_nullable(&arguments);
     syx_object_set(value->object, field_name->symbol, form);
   }
-  return value;
+  rc_release(proto_symbol);
+  return rc_move(value);
 }
 
 // /** Instantiates a user-defined boxed types, allocates its dedicated block of native heap memory, and executes its associated constructor behavior. */
