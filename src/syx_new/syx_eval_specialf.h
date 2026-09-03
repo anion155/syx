@@ -333,28 +333,28 @@ Syx_Value *syx_special_form_return(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 void syx_env_define_special_forms(Syx_Env *env) {
   /** Special forms */
-  syx_env_define_cstr(env, "begin", make_syx_value_closure_specialf(SVLIT("begin"), syx_special_form_begin));
-  syx_env_define_cstr(env, "lambda", make_syx_value_closure_specialf(SVLIT("lambda"), syx_special_form_lambda));
+  syx_env_define_strlit(env, "begin", make_syx_value_closure_specialf(NULL, syx_special_form_begin));
+  syx_env_define_strlit(env, "lambda", make_syx_value_closure_specialf(NULL, syx_special_form_lambda));
 
-  syx_env_define_cstr(env, "define", make_syx_value_closure_specialf(SVLIT("define"), syx_special_form_define));
-  syx_env_define_cstr(env, "set", make_syx_value_closure_specialf(SVLIT("set"), syx_special_form_set));
-  syx_env_define_cstr(env, "is-set?", make_syx_value_closure_specialf(SVLIT("is-set?"), syx_special_form_is_set));
-  syx_env_define_cstr(env, "get", make_syx_value_closure_specialf(SVLIT("get"), syx_special_form_get));
-  syx_env_define_cstr(env, "unset", make_syx_value_closure_specialf(SVLIT("unset"), syx_special_form_unset));
-  syx_env_define_cstr(env, "let", make_syx_value_closure_specialf(SVLIT("let"), syx_special_form_let));
+  syx_env_define_strlit(env, "define", make_syx_value_closure_specialf(NULL, syx_special_form_define));
+  syx_env_define_strlit(env, "set", make_syx_value_closure_specialf(NULL, syx_special_form_set));
+  syx_env_define_strlit(env, "is-set?", make_syx_value_closure_specialf(NULL, syx_special_form_is_set));
+  syx_env_define_strlit(env, "get", make_syx_value_closure_specialf(NULL, syx_special_form_get));
+  syx_env_define_strlit(env, "unset", make_syx_value_closure_specialf(NULL, syx_special_form_unset));
+  syx_env_define_strlit(env, "let", make_syx_value_closure_specialf(NULL, syx_special_form_let));
 
-  syx_env_define_cstr(env, "and", make_syx_value_closure_specialf(SVLIT("and"), syx_special_form_and));
-  syx_env_define_cstr(env, "or", make_syx_value_closure_specialf(SVLIT("or"), syx_special_form_or));
+  syx_env_define_strlit(env, "and", make_syx_value_closure_specialf(NULL, syx_special_form_and));
+  syx_env_define_strlit(env, "or", make_syx_value_closure_specialf(NULL, syx_special_form_or));
 
-  syx_env_define_cstr(env, "if", make_syx_value_closure_specialf(SVLIT("if"), syx_special_form_if));
-  syx_env_define_cstr(env, "cond", make_syx_value_closure_specialf(SVLIT("cond"), syx_special_form_cond));
+  syx_env_define_strlit(env, "if", make_syx_value_closure_specialf(NULL, syx_special_form_if));
+  syx_env_define_strlit(env, "cond", make_syx_value_closure_specialf(NULL, syx_special_form_cond));
 
-  syx_env_define_cstr(env, "throw", make_syx_value_closure_specialf(SVLIT("throw"), syx_special_form_throw));
-  syx_env_define_cstr(env, "try", make_syx_value_closure_specialf(SVLIT("try"), syx_special_form_try));
+  syx_env_define_strlit(env, "throw", make_syx_value_closure_specialf(NULL, syx_special_form_throw));
+  syx_env_define_strlit(env, "try", make_syx_value_closure_specialf(NULL, syx_special_form_try));
 
-  syx_env_define_cstr(env, "return", make_syx_value_closure_specialf(SVLIT("return"), syx_special_form_return));
+  syx_env_define_strlit(env, "return", make_syx_value_closure_specialf(NULL, syx_special_form_return));
 
-  // syx_env_define_cstr(env, "new", make_syx_value_closure_specialf(SVLIT( "new"), syx_special_form_new));
+  // syx_env_define_strlit(env, "new", make_syx_value_closure_specialf(NULL, syx_special_form_new));
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL

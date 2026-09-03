@@ -43,6 +43,7 @@ Syx_Env *syx_env_lookup(Syx_Env *env, Syx_Symbol *symbol);
 Syx_Value *syx_env_lookup_get(Syx_Eval_Ctx *ctx, Syx_Symbol *symbol);
 void syx_env_define(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value);
 void syx_env_define_cstr(Syx_Env *env, const char *name, Syx_Value *value);
+#define syx_env_define_strlit(env, name, value) syx_env_define((env), make_syx_value_symbol_strlit(name), (value))
 void syx_env_set(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value);
 
 Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt);
