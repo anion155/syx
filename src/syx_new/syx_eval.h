@@ -17,6 +17,7 @@ typedef struct Syx_Frames_Stack {
 
 Syx_Frames_Stack *make_syx_frames_stack();
 void syx_frames_stack_push(Syx_Frames_Stack *frames_stack, syx_string_view trace);
+void syx_frames_stack_push_f(Syx_Frames_Stack *frames_stack, const char *format, ...) NOB_PRINTF_FORMAT(2, 3);
 void syx_frames_stack__pop(Syx_Frames_Stack *frames_stack, Syx_Value **to_save, size_t count);
 #define syx_frames_stack_pop(frames_stack, ...) \
   syx_frames_stack__pop((frames_stack), (Syx_Value *[]){__VA_ARGS__}, sizeof((Syx_Value *[]){__VA_ARGS__}) / sizeof(Syx_Value *))
@@ -24,6 +25,7 @@ void syx_frames_stack__pop(Syx_Frames_Stack *frames_stack, Syx_Value **to_save, 
 typedef Ht(Syx_Symbol *, Syx_Value *) Syx_Env_Symbols;
 
 typedef struct Syx_Env {
+  Syx_Symbol *name;
   Syx_Env *parent;
   Syx_Env_Symbols symbols;
 } Syx_Env;
@@ -35,9 +37,10 @@ typedef struct Syx_Eval_Ctx {
 } Syx_Eval_Ctx;
 
 #define syx_ctx_push_frame(ctx, trace) syx_frames_stack_push((ctx)->frames_stack, trace)
+#define syx_ctx_push_frame_f(ctx, format, ...) syx_frames_stack_push_f((ctx)->frames_stack, format __VA_OPT__(, ) __VA_ARGS__)
 #define syx_ctx_pop_frame(ctx, ...) syx_frames_stack_pop((ctx)->frames_stack __VA_OPT__(, ) __VA_ARGS__)
 
-Syx_Env *make_syx_env(Syx_Env *parent);
+Syx_Env *make_syx_env(Syx_Symbol *name, Syx_Env *parent);
 Syx_Env *syx_env_global(Syx_Env *env);
 Syx_Env *syx_env_lookup(Syx_Env *env, Syx_Symbol *symbol);
 Syx_Value *syx_env_lookup_get(Syx_Eval_Ctx *ctx, Syx_Symbol *symbol);
@@ -138,6 +141,16 @@ void syx_frames_stack_push(Syx_Frames_Stack *frames_stack, syx_string_view trace
   frames_stack->latest = (next);
 }
 
+void syx_frames_stack_push_f(Syx_Frames_Stack *frames_stack, const char *format, ...) {
+  size_t checkpoint = nob_temp_save();
+  va_list args;
+  va_start(args, format);
+  syx_string_view sv = temp_view_vsprintf(format, args);
+  va_end(args);
+  syx_frames_stack_push(frames_stack, sv);
+  nob_temp_rewind(checkpoint);
+}
+
 void syx_frames_stack__pop(Syx_Frames_Stack *frames_stack, Syx_Value **to_save, size_t count) {
   Syx_Frame *current = frames_stack->latest;
   frames_stack->latest = current->prev ? rc_acquire(current->prev) : NULL;
@@ -177,10 +190,12 @@ uintptr_t ht_syx_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t 
   return 0;
 }
 
-Syx_Env *make_syx_env(Syx_Env *parent) {
+Syx_Env *make_syx_env(Syx_Symbol *name, Syx_Env *parent) {
   Syx_Env *env = rc_malloc(sizeof(Syx_Env), .destructor = syx_env_destructor);
   assert(env);
-  env->parent = parent ? rc_acquire(parent) : NULL;
+  if (name) rc_acquire(syx_value_from_symbol(name));
+  env->name = name;
+  env->parent = rc_acquire(parent);
   env->symbols = (Syx_Env_Symbols){.hasheq = ht_syx_symbol_hasheq};
   return env;
 }
@@ -266,7 +281,8 @@ Syx_Value *syx_eval_closure_specialf(Syx_Eval_Ctx *ctx, Syx_Closure_Special_Form
 Syx_Value *syx_eval_closure_builtin(Syx_Eval_Ctx *ctx, Syx_Closure_Builtin *builtin, Syx_Pair *arguments) {
   Syx_Value *evaluated = rc_acquire(syx_eval_map_list(ctx, arguments));
   syx_value_early_exit(evaluated);
-  syx_ctx_push_frame(ctx, syx_closure_from_builtin(builtin)->name);
+  Syx_Symbol *name = syx_closure_from_builtin(builtin)->name;
+  syx_ctx_push_frame_f(ctx, SV_Fmt "()", SV_Arg(*name));
   Syx_Value *result = (*builtin)(ctx, evaluated->pair);
   if (!result) result = syx_value_nil();
   rc_acquire(result);
@@ -276,7 +292,9 @@ Syx_Value *syx_eval_closure_builtin(Syx_Eval_Ctx *ctx, Syx_Closure_Builtin *buil
 }
 
 Syx_Value *syx_eval_closure_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda, Syx_Pair *arguments) {
-  Syx_Eval_Ctx *call_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = make_syx_env(lambda->env)}));
+  Syx_Symbol *name = syx_closure_from_lambda(lambda)->name;
+  Syx_Env *call_env = make_syx_env(make_syx_value_symbol_f("<" SV_Fmt ">", SV_Arg(*name)), lambda->env);
+  Syx_Eval_Ctx *call_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = call_env}));
   for (Syx_Value *arg_current,
        *arg_next = syx_value_from_pair(arguments),
        *arg,
@@ -308,7 +326,7 @@ Syx_Value *syx_eval_closure_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda
     syx_value_early_exit(value, call_ctx);
     *ht_put(&call_ctx->env->symbols, symbol) = value;
   }
-  syx_ctx_push_frame(ctx, syx_closure_from_lambda(lambda)->name);
+  syx_ctx_push_frame_f(ctx, SV_Fmt "()", SV_Arg(*name));
   Syx_Value *result = rc_acquire(syx_eval_forms_list(call_ctx, lambda->forms));
   syx_ctx_pop_frame(ctx);
   rc_release(call_ctx);

@@ -17,7 +17,7 @@ Syx_Value *syx_special_form_begin(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   return syx_eval_forms_list(ctx, arguments);
 }
 
-Syx_Value *syx__special_form_make_lambda(Syx_Eval_Ctx *ctx, Syx_Symbol *name_symbol, Syx_Pair *defines, Syx_Pair *forms) {
+Syx_Value *syx__special_form_make_lambda(Syx_Eval_Ctx *ctx, Syx_Symbol *name, Syx_Pair *defines, Syx_Pair *forms) {
   Syx_Value *rest_define = NULL;
   syx_list_for_each(defines, define, &rest_define) {
     if (define->kind == SYX_VALUE_KIND_SYMBOL) continue;
@@ -30,7 +30,6 @@ Syx_Value *syx__special_form_make_lambda(Syx_Eval_Ctx *ctx, Syx_Symbol *name_sym
   if (rest_define->kind != SYX_VALUE_KIND_PAIR) {
     if (rest_define->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "malformed lambda rest argument");
   }
-  syx_string_view name = sv_from_like(*name_symbol);
   return make_syx_value_closure_lambda(name, (Syx_Closure_Lambda){.env = ctx->env, .defines = defines, .forms = forms});
 }
 
@@ -129,8 +128,8 @@ Syx_Value *syx_special_form_unset(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 /** Create new variable bindings in parallel on new environment and execute a series of forms in that environment. */
 Syx_Value *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  Syx_Eval_Ctx *body_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = make_syx_env(ctx->env)}));
-  // body_ctx->env->description = strdup(temp_sprintf("let<%p>", body_ctx->env));
+  Syx_Env *body_env = make_syx_env(make_syx_value_symbol_strlit("<let>"), ctx->env);
+  Syx_Eval_Ctx *body_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = body_env}));
   Syx_Value *bindings_src = syx_list_next(&arguments);
   if (bindings_src->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "List of definitions expected", body_ctx);
   syx_list_for_each(bindings_src->pair, binding) {
@@ -283,8 +282,8 @@ Syx_Value *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
         syx_value_early_exit(result, body, catch_symbol, apply_symbol, finally_symbol);
         continue;
       }
-      Syx_Eval_Ctx *handler_ctx = inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = make_syx_env(ctx->env)});
-      // handler_ctx->env->description = strdup(temp_sprintf("try-catch<%p>", handler_ctx->env));
+      Syx_Env *handler_env = make_syx_env(make_syx_value_symbol_strlit("<try-catch>"), ctx->env);
+      Syx_Eval_Ctx *handler_ctx = inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = handler_env});
       syx_env_define(handler_ctx->env, error_name->symbol, body->exit->thrown->reason);
       if (result) rc_release(result);
       result = rc_acquire(syx_eval_forms_list(handler_ctx, branch->pair, .initial = syx_value_nil()));

@@ -187,6 +187,7 @@ Syx_Value *make_syx_value__list(size_t count, Syx_Value **items);
 Syx_Value *make_syx_value_symbol(syx_string_view symbol);
 #define make_syx_value_symbol_strlit(symbol) make_syx_value_symbol((String_View){.data = (symbol), .count = sizeof(symbol) - 1})
 Syx_Value *make_syx_value_symbol_n(const char *symbol, size_t count);
+Syx_Value *make_syx_value_symbol_f(const char *format, ...) NOB_PRINTF_FORMAT(1, 2);
 Syx_Value *make_syx_value_symbol_cstr(const char *symbol);
 Syx_Value *syx_value_bool_false();
 Syx_Value *syx_value_bool_true();
@@ -363,6 +364,17 @@ Syx_Value *make_syx_value_symbol(syx_string_view symbol) {
 
 inline Syx_Value *make_syx_value_symbol_n(const char *symbol, size_t count) {
   return make_syx_value_symbol((syx_string_view){.data = symbol, .count = count});
+}
+
+Syx_Value *make_syx_value_symbol_f(const char *format, ...) {
+  size_t checkpoint = nob_temp_save();
+  va_list args;
+  va_start(args, format);
+  syx_string_view sv = temp_view_vsprintf(format, args);
+  va_end(args);
+  Syx_Value *value = make_syx_value_symbol(sv);
+  nob_temp_rewind(checkpoint);
+  return value;
 }
 
 inline Syx_Value *make_syx_value_symbol_cstr(const char *symbol) {

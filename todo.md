@@ -1,4 +1,3 @@
-- eval: env add name
 - eval: evaluate in specific env
 - value: object
 
