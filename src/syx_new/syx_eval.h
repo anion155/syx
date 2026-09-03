@@ -22,12 +22,10 @@ void syx_frames_stack__pop(Syx_Frames_Stack *frames_stack, Syx_Value **to_save, 
 #define syx_frames_stack_pop(frames_stack, ...) \
   syx_frames_stack__pop((frames_stack), (Syx_Value *[]){__VA_ARGS__}, sizeof((Syx_Value *[]){__VA_ARGS__}) / sizeof(Syx_Value *))
 
-typedef Ht(Syx_Symbol *, Syx_Value *) Syx_Env_Symbols;
-
 typedef struct Syx_Env {
   Syx_Symbol *name;
   Syx_Env *parent;
-  Syx_Env_Symbols symbols;
+  Syx_Symbols_Ht symbols;
 } Syx_Env;
 
 typedef struct Syx_Eval_Ctx {
@@ -46,7 +44,7 @@ Syx_Env *syx_env_lookup(Syx_Env *env, Syx_Symbol *symbol);
 Syx_Value *syx_env_lookup_get(Syx_Eval_Ctx *ctx, Syx_Symbol *symbol);
 void syx_env_define(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value);
 void syx_env_define_cstr(Syx_Env *env, const char *name, Syx_Value *value);
-#define syx_env_define_strlit(env, name, value) syx_env_define((env), make_syx_value_symbol_strlit(name), (value))
+#define syx_env_define_strlit(env, name, value) syx_env_define((env), make_syx_value_symbol_strlit(name)->symbol, (value))
 void syx_env_set(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value);
 
 Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt);
@@ -105,10 +103,12 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value);
 #include <ht.h>
 #define RC_IMPL
 #include <rc.h>
-#define SYX_VALUE_IMPL
-#include <syx_new/syx_value.h>
 #define GENERAL_UTILS_IMPL
 #include <general_utils.h>
+#define SYX_VALUE_IMPL
+#include <syx_new/syx_value.h>
+#define SYX_OBJECT_IMPL
+#include <syx_new/syx_object.h>
 
 void syx_frames_stack_destructor(void *data) {
   Syx_Frames_Stack *stack = data;
@@ -130,6 +130,7 @@ void syx_frame_destructor(void *data) {
 void syx_frames_stack_push(Syx_Frames_Stack *frames_stack, syx_string_view trace) {
   Syx_Frame *prev = frames_stack->latest;
   Syx_Frame *next = rc_acquire(rc_malloc(sizeof(Syx_Frame) + sizeof(char) * trace.count, .destructor = syx_frame_destructor));
+  next->trace.data = (char *)next + 1;
   assert(next);
   memcpy((char *)next->trace.data, trace.data, trace.count);
   if (prev) {
@@ -179,17 +180,6 @@ void syx_env_graph_visitor(Rc_Circulars *circulars, const void *data, const void
   if (env->parent) rc_release(env->parent);
 }
 
-uintptr_t ht_syx_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n) {
-  UNUSED(n);
-  Syx_Symbol const **a = (Syx_Symbol const **)a_;
-  Syx_Symbol const **b = (Syx_Symbol const **)b_;
-  switch (op) {
-    case HT_HASH: return ht_default_hash((*a)->data, (*a)->count);
-    case HT_EQ: return (*a)->count != (*b)->count ? false : memcmp((*a)->data, (*b)->data, (*a)->count) == 0;
-  }
-  return 0;
-}
-
 Syx_Env *make_syx_env(Syx_Symbol *name, Syx_Env *parent) {
   Syx_Env *env = rc_malloc(sizeof(Syx_Env), .destructor = syx_env_destructor);
   assert(env);
@@ -198,7 +188,7 @@ Syx_Env *make_syx_env(Syx_Symbol *name, Syx_Env *parent) {
     env->name = name;
   }
   env->parent = rc_acquire(parent);
-  env->symbols = (Syx_Env_Symbols){.hasheq = ht_syx_symbol_hasheq};
+  env->symbols.hasheq = ht_syx_symbol_hasheq;
   return env;
 }
 
@@ -235,7 +225,7 @@ void syx_env_define(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value) {
   }
   switch (value->kind) {
     case SYX_VALUE_KIND_CLOSURE: {
-      if (value->closure->name) syx_value_closure_rename(value->closure, symbol);
+      if (!value->closure->name) syx_value_closure_rename(value->closure, symbol);
     } break;
     default:
   }
@@ -284,7 +274,8 @@ Syx_Value *syx_eval_closure_builtin(Syx_Eval_Ctx *ctx, Syx_Closure_Builtin *buil
   Syx_Value *evaluated = rc_acquire(syx_eval_map_list(ctx, arguments));
   syx_value_early_exit(evaluated);
   Syx_Symbol *name = syx_closure_from_builtin(builtin)->name;
-  syx_ctx_push_frame_f(ctx, SV_Fmt "()", SV_Arg(*name));
+  if (name) syx_ctx_push_frame_f(ctx, SV_Fmt "()", SV_Arg(*name));
+  else syx_ctx_push_frame(ctx, SVLIT("<anonim>()"));
   Syx_Value *result = (*builtin)(ctx, evaluated->pair);
   if (!result) result = syx_value_nil();
   rc_acquire(result);
@@ -361,8 +352,26 @@ Syx_Value *syx_eval_in_environment(Syx_Eval_Ctx *ctx, Syx_Symbol *env_name, Syx_
   return result;
 }
 
+Syx_Value *syx_eval_object(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Pair *arguments) {
+  Syx_Value *result = NULL;
+  while (arguments) {
+    if (!object) break;
+    Syx_Value *argument = syx_list_next_nullable(&arguments);
+    if (argument->kind != SYX_VALUE_KIND_PREFIXED) break;
+    if (argument->prefixed->kind != SYX_PREFIXED_KIND_COLON) break;
+    if (argument->prefixed->value->kind != SYX_VALUE_KIND_SYMBOL) break;
+    Syx_Symbol *field_name = argument->prefixed->value->symbol;
+    rc_release(result);
+    result = syx_object_get(ctx, object, field_name);
+    if (result->kind == SYX_VALUE_KIND_OBJECT) object = result->object;
+    else object = NULL;
+  }
+  if (arguments) SYX_EVAL_THROW(ctx, "field getter expected", result);
+  return rc_move(result);
+}
+
 Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  Syx_Value *head = rc_acquire(syx_eval(ctx, syx_list_next(arguments)));
+  Syx_Value *head = rc_acquire(syx_eval(ctx, syx_list_next(&arguments)));
   syx_value_early_exit(head);
   switch (head->kind) {
     case SYX_VALUE_KIND_CLOSURE: {
@@ -379,6 +388,7 @@ Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
         default: SYX_EVAL_THROW(ctx, "is not callable");
       }
     }
+    case SYX_VALUE_KIND_OBJECT: return syx_eval_object(ctx, head->object, arguments);
     default: SYX_EVAL_THROW(ctx, "is not callable");
   }
 }
@@ -446,6 +456,7 @@ Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to bool");
     case SYX_VALUE_KIND_NUMBER: return syx_value_bool(syx_number_get(value->number));
     case SYX_VALUE_KIND_STRING: SYX_EVAL_THROW(ctx, "string can't be converted to bool");
+    case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "object converted to bool");
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to bool");
     case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to bool");
     case SYX_VALUE_KIND_PREFIXED: SYX_EVAL_THROW(ctx, "prefixed value can't be converted to bool");
@@ -463,6 +474,7 @@ Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to number");
     case SYX_VALUE_KIND_NUMBER: return value;
     case SYX_VALUE_KIND_STRING: SYX_EVAL_THROW(ctx, "string can't be converted to number");
+    case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "object converted to number");
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to number");
     case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to number");
     case SYX_VALUE_KIND_PREFIXED: SYX_EVAL_THROW(ctx, "prefixed value can't be converted to number");
@@ -476,6 +488,7 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to string");
     case SYX_VALUE_KIND_NUMBER: SYX_EVAL_THROW(ctx, "number can't be converted to string");
     case SYX_VALUE_KIND_STRING: return value;
+    case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "object converted to string");
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to string");
     case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to string");
     case SYX_VALUE_KIND_PREFIXED: SYX_EVAL_THROW(ctx, "prefixed value can't be converted to string");

@@ -19,6 +19,7 @@ typedef struct Syx_Pair Syx_Pair;
 typedef struct Syx_Symbol Syx_Symbol;
 typedef struct Syx_Number Syx_Number;
 typedef struct Syx_String Syx_String;
+typedef struct Syx_Object Syx_Object;
 typedef struct Syx_Closure Syx_Closure;
 typedef struct Syx_Exit Syx_Exit;
 typedef struct Syx_Prefixed Syx_Prefixed;
@@ -29,6 +30,7 @@ typedef enum Syx_Value_Kind : unsigned int {
   SYX_VALUE_KIND_SYMBOL,
   SYX_VALUE_KIND_NUMBER,
   SYX_VALUE_KIND_STRING,
+  SYX_VALUE_KIND_OBJECT,
   SYX_VALUE_KIND_CLOSURE,
   SYX_VALUE_KIND_EXIT,
   SYX_VALUE_KIND_PREFIXED,
@@ -42,6 +44,7 @@ typedef struct Syx_Value {
     Syx_Symbol *symbol;
     Syx_Number *number;
     Syx_String *string;
+    Syx_Object *object;
     Syx_Closure *closure;
     Syx_Exit *exit;
     Syx_Prefixed *prefixed;
@@ -63,6 +66,8 @@ typedef struct Syx_Symbol {
   size_t count;
   bool guarded;
 } Syx_Symbol;
+
+uintptr_t ht_syx_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n);
 
 typedef enum Syx_Number_Kind : unsigned int {
   SYX_NUMBER_KIND_INTEGER,
@@ -121,6 +126,13 @@ typedef struct Syx_String {
   const char *data;
   size_t count;
 } Syx_String;
+
+typedef Ht(Syx_Symbol *, Syx_Value *) Syx_Symbols_Ht;
+
+typedef struct Syx_Object {
+  Syx_Symbols_Ht fields;
+  Syx_Object *proto;
+} Syx_Object;
 
 typedef Syx_Value *(*Syx_Closure_Special_Form)(Syx_Eval_Ctx *ctx, Syx_Pair *arguments);
 typedef Syx_Value *(*Syx_Closure_Builtin)(Syx_Eval_Ctx *ctx, Syx_Pair *arguments);
@@ -201,6 +213,7 @@ Syx_Value *make_syx_value_string(Syx_String string);
 Syx_Value *make_syx_value_string_n(char *data, size_t count);
 Syx_Value *make_syx_value_string_dup(const char *data, size_t count);
 Syx_Value *make_syx_value_string_cstr_dup(const char *data);
+Syx_Value *make_syx_value_object(Syx_Object *proto);
 Syx_Value *make_syx_value_closure(Syx_Symbol *name, Syx_Closure_Kind kind, size_t size);
 void syx_value_closure_rename(Syx_Closure *closure, Syx_Symbol *name);
 Syx_Value *make_syx_value_closure_specialf(Syx_Symbol *name, Syx_Closure_Special_Form specialf);
@@ -214,9 +227,10 @@ static inline Syx_Value *syx_value_from_pair(Syx_Pair *pair) { return pair ? (Sy
 static inline Syx_Value *syx_value_from_symbol(Syx_Symbol *symbol) { return (Syx_Value *)symbol - 1; }
 static inline Syx_Value *syx_value_from_number(Syx_Number *number) { return (Syx_Value *)number - 1; }
 static inline Syx_Value *syx_value_from_string(Syx_String *string) { return (Syx_Value *)string - 1; }
+static inline Syx_Value *syx_value_from_object(Syx_Object *object) { return (Syx_Value *)object - 1; }
 static inline Syx_Value *syx_value_from_closure(Syx_Closure *closure) { return (Syx_Value *)closure - 1; }
-static inline Syx_Closure *syx_closure_from_specialf(Syx_Closure_Special_Form *specialf) { return (Syx_Closure *)(specialf - offsetof(Syx_Closure, specialf)); }
-static inline Syx_Closure *syx_closure_from_builtin(Syx_Closure_Builtin *builtin) { return (Syx_Closure *)(builtin - offsetof(Syx_Closure, builtin)); }
+static inline Syx_Closure *syx_closure_from_specialf(Syx_Closure_Special_Form *specialf) { return (Syx_Closure *)((char *)specialf - offsetof(Syx_Closure, specialf)); }
+static inline Syx_Closure *syx_closure_from_builtin(Syx_Closure_Builtin *builtin) { return (Syx_Closure *)((char *)builtin - offsetof(Syx_Closure, builtin)); }
 static inline Syx_Closure *syx_closure_from_lambda(Syx_Closure_Lambda *lambda) { return (Syx_Closure *)lambda - 1; }
 static inline Syx_Value *syx_value_from_exit(Syx_Exit *exit) { return (Syx_Value *)exit - 1; }
 static inline Syx_Value *syx_value_from_prefixed(Syx_Prefixed *prefixed) { return (Syx_Value *)prefixed - 1; }
@@ -271,6 +285,8 @@ Syx_Value *syx_list_next(Syx_Pair **list);
 #include <nob.h>
 #define RC_IMPL
 #include <rc.h>
+#define GENERAL_UTILS_IMPL
+#include <general_utils.h>
 #define SYX_UTILS_IMPL
 #include <syx_new/syx_utils.h>
 
@@ -353,6 +369,7 @@ Syx_Value *make_syx_value_symbol(syx_string_view symbol) {
   rc_get(value)->methods.destructor = syx_value_symbol_destructor;
   value->symbol = (Syx_Symbol *)(value + 1);
   value->symbol->data = (const char *)(value->symbol + 1);
+  value->symbol->count = symbol.count;
   memcpy((char *)value->symbol->data, symbol.data, symbol.count);
   value->symbol->guarded = false;
   for (syx_string_view it = symbol; it.count; sv_chop_left(&it, 1)) {
@@ -431,6 +448,27 @@ Syx_Value *make_syx_value_string_dup(const char *data, size_t count) {
 
 inline Syx_Value *make_syx_value_string_cstr_dup(const char *data) {
   return make_syx_value_string_dup(data, strlen(data));
+}
+
+void syx_value_object_destructor(void *data) {
+  Syx_Value *value = data;
+  if (value->object->proto) rc_release(syx_value_from_object(value->object->proto));
+  Syx_Symbols_Ht *fields = &value->object->fields;
+  ht_foreach(value, fields) {
+    Syx_Symbol *symbol = ht_key(fields, value);
+    rc_release(syx_value_from_symbol(symbol));
+    rc_release(*value);
+  }
+}
+
+Syx_Value *make_syx_value_object(Syx_Object *proto) {
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_OBJECT, sizeof(Syx_Object));
+  rc_get(value)->methods.destructor = syx_value_object_destructor;
+  value->object = (Syx_Object *)(value + 1);
+  value->object->fields.hasheq = ht_syx_symbol_hasheq;
+  if (proto) rc_acquire(syx_value_from_object(proto));
+  value->object->proto = proto;
+  return value;
 }
 
 void syx_value_closure_destructor(void *data) {
@@ -589,6 +627,17 @@ Syx_Value *syx_list_next(Syx_Pair **list) {
   if (!*list) (*list) = syx_value_nil()->pair;
   if (!item) return syx_value_nil();
   return item;
+}
+
+uintptr_t ht_syx_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n) {
+  UNUSED(n);
+  Syx_Symbol const **a = (Syx_Symbol const **)a_;
+  Syx_Symbol const **b = (Syx_Symbol const **)b_;
+  switch (op) {
+    case HT_HASH: return ht_default_hash((*a)->data, (*a)->count);
+    case HT_EQ: return (*a)->count != (*b)->count ? false : memcmp((*a)->data, (*b)->data, (*a)->count) == 0;
+  }
+  return 0;
 }
 
 #endif // SYX_VALUE_IMPL_C

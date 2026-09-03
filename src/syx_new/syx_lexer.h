@@ -110,6 +110,14 @@ int syx_lexer_is_delimeter(int character) {
   }
 }
 
+int syx_lexer_is_symbol_delimeter(int character) {
+  if (syx_lexer_is_delimeter(character)) return true;
+  switch (character) {
+    case ':': return true;
+    default: return false;
+  }
+}
+
 int syx_lexer_is_invalid_delimeter(int character) {
   return character == '"';
 }
@@ -276,7 +284,7 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
       sv_chop_left(it, width);
       while (it->count) {
         width = 1;
-        if (syx_lexer_is_delimeter(*it->data)) break;
+        if (syx_lexer_is_symbol_delimeter(*it->data)) break;
         width = mbrtowc(&wc, it->data, it->count, &state);
         if (width == 0 || width == (size_t)-1 || width == (size_t)-2) {
           width = 0;
@@ -286,7 +294,7 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
         sv_chop_left(it, width);
       }
       token.count = it->data - token.data + width;
-      if (it->count && (!syx_lexer_is_delimeter(*it->data) || syx_lexer_is_invalid_delimeter(*it->data))) goto return_error;
+      if (it->count && (!syx_lexer_is_symbol_delimeter(*it->data) || syx_lexer_is_invalid_delimeter(*it->data))) goto return_error;
       token.count -= width;
       return token;
     }

@@ -23,7 +23,7 @@ Syx_Eval_Ctx *make_global_syx_eval_ctx();
 #include <syx_new/syx_eval_builtins.h>
 
 Syx_Env *make_global_syx_env() {
-  Syx_Env *env = make_syx_env(make_syx_value_symbol_strlit("builtins-global"), NULL);
+  Syx_Env *env = make_syx_env(make_syx_value_symbol_strlit("builtins-global")->symbol, NULL);
   syx_env_define_special_forms(env);
   syx_env_define_builtins(env);
   // syx_env_define_boxed(env);
@@ -44,7 +44,7 @@ Syx_Eval_Ctx *make_global_syx_eval_ctx() {
   return make_syx_eval_ctx((Syx_Eval_Ctx){
       .frames_stack = make_syx_frames_stack(),
       .global_env = make_global_syx_env(),
-      .env = make_syx_env(make_syx_value_symbol_strlit("global"), NULL),
+      .env = make_syx_env(make_syx_value_symbol_strlit("global")->symbol, NULL),
   });
 }
 

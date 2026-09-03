@@ -362,8 +362,8 @@ Syx_Value *parse_syx_symbol_value(Syx_Token token) {
 }
 
 Syx_Value *parse_syx_prefix(Syx_Token token, Syx_Tokens *tokens) {
-  SYX_ASSERT(token.kind == SYX_TOKEN_KIND_PREFIX && token.count > 1, "prefix expected");
-  uint32_t type = syx_parser_utf_string_to_codepoint(sv_from_parts(token.data + 1, token.count - 1));
+  SYX_ASSERT(token.kind == SYX_TOKEN_KIND_PREFIX, "prefix expected");
+  uint32_t type = syx_parser_utf_string_to_codepoint(sv_from_like(token));
   switch (type) {
     case '\'':
     case ',': {

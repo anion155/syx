@@ -98,6 +98,10 @@ Special form to trigger an immediate exit from the current function, carrying a 
 Execute a series of forms in specified environment.
 `($<environment> ...<forms>)`
 
+### object
+Creates object with of named fields.
+`(object ...:<symbol>,<form>)`
+
 ## Builtins List
 
 ### cons

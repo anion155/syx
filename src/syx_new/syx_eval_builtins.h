@@ -89,6 +89,8 @@ Syx_Value *syx_builtin_map(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 /** Concat arguments to string. */
 Syx_Value *syx_builtin_concat(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  UNUSED(ctx);
+  UNUSED(arguments);
   SYX_EVAL_TODO(ctx, "syx_builtin_concat");
   // String_Builder sb = {0};
   // syx_list_for_each(arguments, argument) {
@@ -177,6 +179,7 @@ bool syx__builtin_equivalent_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_
     case SYX_VALUE_KIND_SYMBOL: return false; // should work on left == right level
     case SYX_VALUE_KIND_NUMBER: return right->kind == SYX_VALUE_KIND_NUMBER && (syx_number_get(left->number) == syx_number_get(right->number));
     case SYX_VALUE_KIND_STRING: return right->kind == SYX_VALUE_KIND_STRING && sv_like_eq(*left->string, *right->string);
+    case SYX_VALUE_KIND_OBJECT: return false;  // should work on left == right level
     case SYX_VALUE_KIND_CLOSURE: return false; // should work on left == right level
     case SYX_VALUE_KIND_EXIT: UNREACHABLE("should never get exit value here");
     case SYX_VALUE_KIND_PREFIXED: return (
@@ -266,6 +269,7 @@ bool syx__builtin_identity_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Va
         left->number->kind == right->number->kind &&
         syx_number_get(left->number) == syx_number_get(right->number));
     case SYX_VALUE_KIND_STRING: return false;  // should work on left == right level
+    case SYX_VALUE_KIND_OBJECT: return false;  // should work on left == right level
     case SYX_VALUE_KIND_CLOSURE: return false; // should work on left == right level
     case SYX_VALUE_KIND_EXIT: UNREACHABLE("should never get exit value here");
     case SYX_VALUE_KIND_PREFIXED: return false; // should work on left == right level

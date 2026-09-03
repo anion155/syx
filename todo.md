@@ -1,4 +1,3 @@
-- value: object
 - value: native data
 
 - implement ffi declaration from language

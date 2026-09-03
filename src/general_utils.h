@@ -45,7 +45,7 @@ syx_string_view temp_view_vsprintf(const char *format, va_list ap) {
   assert(sv.data != NULL && "Extend the size of the temporary allocator");
 
   va_copy(args, ap);
-  vsnprintf(sv.data, sv.count + 1, format, args);
+  vsnprintf((char *)sv.data, sv.count + 1, format, args);
   va_end(args);
 
   return sv;

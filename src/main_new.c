@@ -44,6 +44,52 @@ syx_define_constant(Ht(const char *, bool *), ctx_options) {
   *ht_put(ctx_options, "e") = &script_ctx.opt_error;
 }
 
+void dump_value(Syx_Value *value) {
+  switch (value->kind) {
+    case SYX_VALUE_KIND_CONST: {
+      if (value == syx_value_bool_true()) {
+        printf("  constant: boolean true\n");
+      } else if (value == syx_value_bool_false()) {
+        printf("  constant: boolean false\n");
+      } else {
+        printf("  constant: unknown\n");
+      }
+    } break;
+    // case SYX_VALUE_KIND_PAIR: {
+    //   switch (value->number->kind) {
+    //     case SYX_NUMBER_KIND_INTEGER: printf("  number: integer: %d\n", value->number->integer); break;
+    //     case SYX_NUMBER_KIND_FRACTIONAL: printf("  number: fractional: %f\n", value->number->fractional); break;
+    //   }
+    // } break;
+    case SYX_VALUE_KIND_NUMBER: {
+      switch (value->number->kind) {
+        case SYX_NUMBER_KIND_INTEGER: printf("  number: integer: %d\n", value->number->integer); break;
+        case SYX_NUMBER_KIND_FRACTIONAL: printf("  number: fractional: %f\n", value->number->fractional); break;
+      }
+    } break;
+    case SYX_VALUE_KIND_OBJECT: {
+      printf("  object:\n");
+      Syx_Symbols_Ht *feilds = &value->object->fields;
+      ht_foreach(value, feilds) {
+        Syx_Symbol *symbol = ht_key(feilds, value);
+        printf("    " SV_Fmt ":\n", SV_Arg(*symbol));
+      }
+    } break;
+    case SYX_VALUE_KIND_EXIT: {
+      switch (value->exit->kind) {
+        case SYX_EXIT_KIND_RETURNED: printf("  exit: returned\n"); break;
+        case SYX_EXIT_KIND_THROWN: printf("  exit: thrown: '" SV_Fmt "'\n", SV_Arg(*value->exit->thrown->reason->string)); break;
+      }
+    } break;
+    default: printf("  NotImplementedYet: %u\n", value->kind);
+  }
+}
+void dump_values(Syx_Value *values) {
+  syx_list_for_each(values->pair, value) {
+    dump_value(value);
+  }
+}
+
 Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
   UNUSED(eval_ctx);
   // Syx_Tokens tokens = syx_lexer_tokenize(source);
@@ -51,24 +97,14 @@ Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
   //   printf("%s: '%.*s'\n", syx_token_kind_string(token->kind), (int)token->count, token->data);
   // }
 
-  Syx_Value *values = parse_syx(source, true);
-  syx_list_for_each(values->pair, value) {
-    switch (value->kind) {
-      case SYX_VALUE_KIND_NUMBER: {
-        switch (value->number->kind) {
-          case SYX_NUMBER_KIND_INTEGER: printf("number: integer: %d\n", value->number->integer); break;
-          case SYX_NUMBER_KIND_FRACTIONAL: printf("number: fractional: %f\n", value->number->fractional); break;
-        }
-      } break;
-      case SYX_VALUE_KIND_EXIT: {
-        switch (value->exit->kind) {
-          case SYX_EXIT_KIND_RETURNED: printf("exit: returned\n"); break;
-          case SYX_EXIT_KIND_THROWN: printf("exit: thrown: '" SV_Fmt "'\n", SV_Arg(*value->exit->thrown->reason->string)); break;
-        }
-      } break;
-      default: printf("NotImplementedYet: %u\n", value->kind);
-    }
-  }
+  Syx_Value *values = rc_acquire(parse_syx(source, true));
+  printf("input:\n");
+  dump_values(values);
+  Syx_Value *result = rc_acquire(syx_eval_forms_list(eval_ctx, values->pair));
+  rc_release(values);
+  printf("result:\n");
+  dump_value(result);
+  rc_release(result);
 
   // SyxV_Parser_Context ctx = {.source = source_sv};
   // Syx_Parser_Token token;
@@ -256,7 +292,7 @@ int main(int argc, char **argv) {
 
 defer:
   rc_release(script_ctx.eval_ctx);
-  // ht_free(ctx_options());
+  ht_free(ctx_options());
   // ht_free(FD_CONSTANTS());
   // ht_free(SYXV_CONSTANTS());
   // ht_free(SYXV_SYMBOLS());

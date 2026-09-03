@@ -128,7 +128,7 @@ Syx_Value *syx_special_form_unset(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 /** Create new variable bindings in parallel on new environment and execute a series of forms in that environment. */
 Syx_Value *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  Syx_Env *body_env = make_syx_env(make_syx_value_symbol_strlit("let"), ctx->env);
+  Syx_Env *body_env = make_syx_env(make_syx_value_symbol_strlit("let")->symbol, ctx->env);
   Syx_Eval_Ctx *body_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = body_env}));
   Syx_Value *bindings_src = syx_list_next(&arguments);
   if (bindings_src->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "List of definitions expected", body_ctx);
@@ -282,7 +282,7 @@ Syx_Value *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
         syx_value_early_exit(result, body, catch_symbol, apply_symbol, finally_symbol);
         continue;
       }
-      Syx_Env *handler_env = make_syx_env(make_syx_value_symbol_strlit("try-catch"), ctx->env);
+      Syx_Env *handler_env = make_syx_env(make_syx_value_symbol_strlit("try-catch")->symbol, ctx->env);
       Syx_Eval_Ctx *handler_ctx = inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = handler_env});
       syx_env_define(handler_ctx->env, error_name->symbol, body->exit->thrown->reason);
       if (result) rc_release(result);
@@ -314,6 +314,24 @@ Syx_Value *syx_special_form_return(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *value = rc_acquire(syx_eval(ctx, syx_list_next(&arguments)));
   syx_value_early_exit(value);
   return make_syx_value_exit_returned(rc_move(value));
+}
+
+/** Creates object with of named fields. */
+Syx_Value *syx_special_form_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  UNUSED(ctx);
+  UNUSED(arguments);
+  Syx_Value *value = make_syx_value_object(NULL);
+  while (arguments) {
+    Syx_Value *field_name = syx_list_next_nullable(&arguments);
+    if (!arguments) SYX_EVAL_THROW(ctx, "malformed object key-value pair");
+    if (field_name->kind != SYX_VALUE_KIND_PREFIXED) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'");
+    if (field_name->prefixed->kind != SYX_PREFIXED_KIND_COLON) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'");
+    field_name = field_name->prefixed->value;
+    if (field_name->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'");
+    Syx_Value *form = syx_list_next_nullable(&arguments);
+    syx_object_set(value->object, field_name->symbol, form);
+  }
+  return value;
 }
 
 // /** Instantiates a user-defined boxed types, allocates its dedicated block of native heap memory, and executes its associated constructor behavior. */
@@ -353,6 +371,7 @@ void syx_env_define_special_forms(Syx_Env *env) {
 
   syx_env_define_strlit(env, "return", make_syx_value_closure_specialf(NULL, syx_special_form_return));
 
+  syx_env_define_strlit(env, "object", make_syx_value_closure_specialf(NULL, syx_special_form_object));
   // syx_env_define_strlit(env, "new", make_syx_value_closure_specialf(NULL, syx_special_form_new));
 }
 
