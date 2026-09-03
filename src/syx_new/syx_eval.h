@@ -215,10 +215,12 @@ void syx_env_define(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value) {
     rc_release(*item);
     *item = rc_acquire(value);
   }
-  // TODO: rename anonymous closures
-  // if (value->kind == SYX_VALUE_KIND_CLOSURE && value->closure->name.data == NULL) {
-  //   value = syx_value_closure_rename(value, symbol, size_t additional_size);
-  // }
+  switch (value->kind) {
+    case SYX_VALUE_KIND_CLOSURE: {
+      if (value->closure->name) syx_value_closure_rename(value->closure, symbol);
+    } break;
+    default:
+  }
 }
 
 void syx_env_define_cstr(Syx_Env *env, const char *name, Syx_Value *value) {

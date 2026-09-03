@@ -134,7 +134,7 @@ typedef enum Syx_Closure_Kind : unsigned int {
 
 typedef struct Syx_Closure {
   Syx_Closure_Kind kind;
-  syx_string_view name;
+  Syx_Symbol *name;
 
   union {
     Syx_Closure_Special_Form specialf;
@@ -199,10 +199,11 @@ Syx_Value *make_syx_value_string(Syx_String string);
 Syx_Value *make_syx_value_string_n(char *data, size_t count);
 Syx_Value *make_syx_value_string_dup(const char *data, size_t count);
 Syx_Value *make_syx_value_string_cstr_dup(const char *data);
-Syx_Value *make_syx_value_closure(syx_string_view name, Syx_Closure_Kind kind, size_t size);
-Syx_Value *make_syx_value_closure_specialf(syx_string_view name, Syx_Closure_Special_Form specialf);
-Syx_Value *make_syx_value_closure_builtin(syx_string_view name, Syx_Closure_Builtin builtin);
-Syx_Value *make_syx_value_closure_lambda(syx_string_view name, Syx_Closure_Lambda lambda);
+Syx_Value *make_syx_value_closure(Syx_Symbol *name, Syx_Closure_Kind kind, size_t size);
+void syx_value_closure_rename(Syx_Closure *closure, Syx_Symbol *name);
+Syx_Value *make_syx_value_closure_specialf(Syx_Symbol *name, Syx_Closure_Special_Form specialf);
+Syx_Value *make_syx_value_closure_builtin(Syx_Symbol *name, Syx_Closure_Builtin builtin);
+Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda lambda);
 Syx_Value *make_syx_value_exit_returned(Syx_Value *returned);
 Syx_Value *make_syx_value_exit_thrown(Syx_Value *reason, Syx_Frame *stack_frame);
 Syx_Value *make_syx_value_prefixed(Syx_Prefixed_Kind kind, Syx_Value *inner_value);
@@ -419,35 +420,34 @@ inline Syx_Value *make_syx_value_string_cstr_dup(const char *data) {
   return make_syx_value_string_dup(data, strlen(data));
 }
 
-Syx_Value *make_syx_value_closure(syx_string_view name, Syx_Closure_Kind kind, size_t additional_size) {
-  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_CLOSURE, sizeof(Syx_Closure) + additional_size + sizeof(char) * name.count);
+void syx_value_closure_destructor(void *data) {
+  Syx_Value *value = data;
+  if (value->closure->name) rc_release(syx_value_from_symbol(value->closure->name));
+}
+
+Syx_Value *make_syx_value_closure(Syx_Symbol *name, Syx_Closure_Kind kind, size_t additional_size) {
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_CLOSURE, sizeof(Syx_Closure) + additional_size);
+  rc_get(value)->methods.destructor = syx_value_closure_destructor;
   value->closure = (Syx_Closure *)(value + 1);
-  value->closure->name.data = (const char *)((char *)(value->closure + 1) + additional_size);
-  value->closure->name.count = name.count;
-  memcpy((char *)value->closure->name.data, name.data, name.count);
   value->closure->kind = kind;
+  if (name) rc_acquire(syx_value_from_symbol(name));
+  value->closure->name = name;
   return value;
 }
 
-// Syx_Value *syx_value_closure_rename(Syx_Value *value, syx_string_view name) {
-//   assert(value->closure->name.data == NULL);
-//   Rc *rc = rc_get(value);
-//   Rc_Method_Destructor old_destructor = rc->methods.destructor;
-//   rc->methods.destructor = [](void *data) {
-//     if (old_destructor != NULL) old_destructor(data);
-//     free(value->closure->name.data);
-//   };
-//   value->closure->name.data = strndup(name.data, name.count);
-//   value->closure->name.count = name.count;
-// }
+void syx_value_closure_rename(Syx_Closure *closure, Syx_Symbol *name) {
+  rc_acquire(syx_value_from_symbol(name));
+  if (closure->name) rc_release(syx_value_from_symbol(closure->name));
+  closure->name = name;
+}
 
-Syx_Value *make_syx_value_closure_specialf(syx_string_view name, Syx_Closure_Special_Form specialf) {
+Syx_Value *make_syx_value_closure_specialf(Syx_Symbol *name, Syx_Closure_Special_Form specialf) {
   Syx_Value *value = make_syx_value_closure(name, SYX_CLOSURE_KIND_SPECIALF, 0);
   value->closure->specialf = specialf;
   return value;
 }
 
-Syx_Value *make_syx_value_closure_builtin(syx_string_view name, Syx_Closure_Builtin builtin) {
+Syx_Value *make_syx_value_closure_builtin(Syx_Symbol *name, Syx_Closure_Builtin builtin) {
   Syx_Value *value = make_syx_value_closure(name, SYX_CLOSURE_KIND_BUILTIN, 0);
   value->closure->builtin = builtin;
   return value;
@@ -458,6 +458,7 @@ void syx_value_closure_lambda_destructor(void *data) {
   rc_release(value->closure->lambda->env);
   rc_release(value->closure->lambda->defines);
   rc_release(value->closure->lambda->forms);
+  syx_value_closure_destructor(data);
 }
 
 void syx_value_closure_lambda_graph_visitor(Rc_Circulars *circulars, const void *data, const void *source) {
@@ -467,9 +468,10 @@ void syx_value_closure_lambda_graph_visitor(Rc_Circulars *circulars, const void 
   rc_graph_visitor(circulars, (void **)&lambda->env, source);
 }
 
-Syx_Value *make_syx_value_closure_lambda(syx_string_view name, Syx_Closure_Lambda lambda) {
+Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda lambda) {
   Syx_Value *value = make_syx_value_closure(name, SYX_CLOSURE_KIND_LAMBDA, sizeof(Syx_Closure_Lambda));
-  rc_get(value)->methods = (Rc_Methods){.destructor = syx_value_closure_lambda_destructor, .graph_visitor = syx_value_closure_lambda_graph_visitor};
+  rc_get(value)->methods.destructor = syx_value_closure_lambda_destructor;
+  rc_get(value)->methods.graph_visitor = syx_value_closure_lambda_graph_visitor;
   value->closure->lambda = (Syx_Closure_Lambda *)(value->closure + 1);
   value->closure->lambda->env = rc_acquire(lambda.env);
   value->closure->lambda->defines = rc_acquire(lambda.defines);
