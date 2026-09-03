@@ -193,8 +193,10 @@ uintptr_t ht_syx_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t 
 Syx_Env *make_syx_env(Syx_Symbol *name, Syx_Env *parent) {
   Syx_Env *env = rc_malloc(sizeof(Syx_Env), .destructor = syx_env_destructor);
   assert(env);
-  if (name) rc_acquire(syx_value_from_symbol(name));
-  env->name = name;
+  if (name) {
+    rc_acquire(syx_value_from_symbol(name));
+    env->name = name;
+  }
   env->parent = rc_acquire(parent);
   env->symbols = (Syx_Env_Symbols){.hasheq = ht_syx_symbol_hasheq};
   return env;
@@ -293,7 +295,7 @@ Syx_Value *syx_eval_closure_builtin(Syx_Eval_Ctx *ctx, Syx_Closure_Builtin *buil
 
 Syx_Value *syx_eval_closure_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda, Syx_Pair *arguments) {
   Syx_Symbol *name = syx_closure_from_lambda(lambda)->name;
-  Syx_Env *call_env = make_syx_env(make_syx_value_symbol_f("<" SV_Fmt ">", SV_Arg(*name)), lambda->env);
+  Syx_Env *call_env = make_syx_env(name, lambda->env);
   Syx_Eval_Ctx *call_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = call_env}));
   for (Syx_Value *arg_current,
        *arg_next = syx_value_from_pair(arguments),
@@ -348,6 +350,17 @@ Syx_Value *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, Syx_Pair *a
   return result;
 }
 
+Syx_Value *syx_eval_in_environment(Syx_Eval_Ctx *ctx, Syx_Symbol *env_name, Syx_Pair *arguments) {
+  Syx_Env *env = ctx->env;
+  while (env && env->name != env_name) env = env->parent;
+  if (!env) SYX_EVAL_THROW(ctx, "environment not found");
+  Syx_Eval_Ctx *eval_ctx = inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = env});
+  Syx_Value *result = rc_acquire(syx_eval_forms_list(eval_ctx, arguments, .initial = syx_value_nil()));
+  syx_value_early_exit(result, eval_ctx);
+  rc_release(eval_ctx);
+  return result;
+}
+
 Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *head = rc_acquire(syx_eval(ctx, syx_list_next(arguments)));
   syx_value_early_exit(head);
@@ -356,6 +369,15 @@ Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       Syx_Value *result = rc_acquire(syx_eval_closure(ctx, head->closure, arguments));
       rc_release(head);
       return rc_move(result);
+    }
+    case SYX_VALUE_KIND_PREFIXED: {
+      switch (head->prefixed->kind) {
+        case SYX_PREFIXED_KIND_DOLLAR: {
+          if (head->prefixed->value->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "is not callable");
+          return syx_eval_in_environment(ctx, head->prefixed->value->symbol, arguments);
+        }
+        default: SYX_EVAL_THROW(ctx, "is not callable");
+      }
     }
     default: SYX_EVAL_THROW(ctx, "is not callable");
   }

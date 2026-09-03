@@ -365,12 +365,15 @@ Syx_Value *parse_syx_prefix(Syx_Token token, Syx_Tokens *tokens) {
   SYX_ASSERT(token.kind == SYX_TOKEN_KIND_PREFIX && token.count > 1, "prefix expected");
   uint32_t type = syx_parser_utf_string_to_codepoint(sv_from_parts(token.data + 1, token.count - 1));
   switch (type) {
-    case '\'': return make_syx_value_prefixed(SYX_PREFIXED_KIND_QUOTE, parse_syx_value(tokens));
-    case ',': return make_syx_value_prefixed(SYX_PREFIXED_KIND_UNQUOTE, parse_syx_value(tokens));
-    case ':': {
+    case '\'':
+    case ',': {
+      return make_syx_value_prefixed((Syx_Prefixed_Kind)type, parse_syx_value(tokens));
+    }
+    case ':':
+    case '$': {
       Syx_Token symbol = tokens_chop_left(tokens);
       SYX_ASSERT(symbol.kind == SYX_TOKEN_KIND_SYMBOL, "symbol expected");
-      return make_syx_value_prefixed(SYX_PREFIXED_KIND_COLON, parse_syx_symbol_value(symbol));
+      return make_syx_value_prefixed((Syx_Prefixed_Kind)type, parse_syx_symbol_value(symbol));
     }
     default: SYX_THROW("unexpected prefix type");
   }

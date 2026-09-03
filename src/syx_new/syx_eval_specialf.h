@@ -128,7 +128,7 @@ Syx_Value *syx_special_form_unset(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 /** Create new variable bindings in parallel on new environment and execute a series of forms in that environment. */
 Syx_Value *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  Syx_Env *body_env = make_syx_env(make_syx_value_symbol_strlit("<let>"), ctx->env);
+  Syx_Env *body_env = make_syx_env(make_syx_value_symbol_strlit("let"), ctx->env);
   Syx_Eval_Ctx *body_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = body_env}));
   Syx_Value *bindings_src = syx_list_next(&arguments);
   if (bindings_src->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "List of definitions expected", body_ctx);
@@ -282,7 +282,7 @@ Syx_Value *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
         syx_value_early_exit(result, body, catch_symbol, apply_symbol, finally_symbol);
         continue;
       }
-      Syx_Env *handler_env = make_syx_env(make_syx_value_symbol_strlit("<try-catch>"), ctx->env);
+      Syx_Env *handler_env = make_syx_env(make_syx_value_symbol_strlit("try-catch"), ctx->env);
       Syx_Eval_Ctx *handler_ctx = inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = handler_env});
       syx_env_define(handler_ctx->env, error_name->symbol, body->exit->thrown->reason);
       if (result) rc_release(result);

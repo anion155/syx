@@ -94,6 +94,10 @@ Special form for intercepting throw values and ensuring cleanup logic is execute
 Special form to trigger an immediate exit from the current function, carrying a value.
 `(return <form>)`
 
+### forms in environment
+Execute a series of forms in specified environment.
+`($<environment> ...<forms>)`
+
 ## Builtins List
 
 ### cons

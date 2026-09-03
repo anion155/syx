@@ -126,7 +126,8 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
     }
     case '\'':
     case ',':
-    case ':': {
+    case ':':
+    case '$': {
       token.kind = SYX_TOKEN_KIND_PREFIX;
       it_chop_next();
       return token;

@@ -169,9 +169,10 @@ typedef struct Syx_Exit {
 } Syx_Exit;
 
 typedef enum Syx_Prefixed_Kind : unsigned int {
-  SYX_PREFIXED_KIND_QUOTE,
-  SYX_PREFIXED_KIND_UNQUOTE,
-  SYX_PREFIXED_KIND_COLON,
+  SYX_PREFIXED_KIND_QUOTE = '\'',
+  SYX_PREFIXED_KIND_UNQUOTE = ',',
+  SYX_PREFIXED_KIND_COLON = ':',
+  SYX_PREFIXED_KIND_DOLLAR = '$',
 } Syx_Prefixed_Kind;
 
 typedef struct Syx_Prefixed {
