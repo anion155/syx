@@ -88,7 +88,7 @@ It carries first argument (as reason) and evaluation stack reference.
 
 ### try/catch/finally
 Special form for intercepting throw values and ensuring cleanup logic is executed.
-`(try <body> ...[(catch <symbol>? ...<forms>)|(finally ...<forms>)])`
+`(try <body> ...[(catch (<symbol>)? ...<forms>)|(finally ...<forms>)])`
 
 ### return
 Special form to trigger an immediate exit from the current function, carrying a value.

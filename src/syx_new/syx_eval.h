@@ -254,13 +254,13 @@ Syx_Eval_Ctx *inherit_syx_eval_ctx(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt) {
       .env = opt.env ? opt.env : parent->env});
 }
 
-Syx_Value *syx_eval_specialf(Syx_Eval_Ctx *ctx, Syx_Closure_Special_Form *specialf, Syx_Pair *arguments) {
+Syx_Value *syx_eval_closure_specialf(Syx_Eval_Ctx *ctx, Syx_Closure_Special_Form *specialf, Syx_Pair *arguments) {
   Syx_Value *result = (*specialf)(ctx, arguments);
   if (!result) result = syx_value_nil();
   return result;
 }
 
-Syx_Value *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Closure_Builtin *builtin, Syx_Pair *arguments) {
+Syx_Value *syx_eval_closure_builtin(Syx_Eval_Ctx *ctx, Syx_Closure_Builtin *builtin, Syx_Pair *arguments) {
   Syx_Value *evaluated = rc_acquire(syx_eval_map_list(ctx, arguments));
   syx_value_early_exit(evaluated);
   syx_ctx_push_frame(ctx, syx_closure_from_builtin(builtin)->name);
@@ -272,7 +272,7 @@ Syx_Value *syx_eval_builtin(Syx_Eval_Ctx *ctx, Syx_Closure_Builtin *builtin, Syx
   return rc_move(result);
 }
 
-Syx_Value *syx_eval_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda, Syx_Pair *arguments) {
+Syx_Value *syx_eval_closure_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda, Syx_Pair *arguments) {
   Syx_Eval_Ctx *call_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = make_syx_env(lambda->env)}));
   for (Syx_Value *arg_current,
        *arg_next = syx_value_from_pair(arguments),
@@ -280,10 +280,10 @@ Syx_Value *syx_eval_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda, Syx_Pa
        *define = NULL,
        *defines_list = syx_value_from_pair(lambda->defines);
        syx_list_for_each_next(&arg_current, &arg_next, &arg, NULL);) {
-    if (arg->kind == SYX_VALUE_KIND_SPECIAL && arg->special->kind == SYX_SPECIAL_KIND_COLON) SYX_EVAL_TODO(ctx, "named para bindings");
-    SYX_EVAL_ASSERT(ctx, defines_list->kind == SYX_VALUE_KIND_PAIR, "list of defines expected");
+    if (arg->kind == SYX_VALUE_KIND_PREFIXED && arg->prefixed->kind == SYX_PREFIXED_KIND_COLON) SYX_EVAL_TODO(ctx, "named param bindings");
+    SYX_EVAL_ASSERT(ctx, defines_list->kind == SYX_VALUE_KIND_PAIR && defines_list->pair, "list of defines expected");
     define = defines_list->pair->left;
-    if (define->kind == SYX_VALUE_KIND_PAIR) define = define->pair->left;
+    if (define->kind == SYX_VALUE_KIND_PAIR && define->pair) define = define->pair->left;
     SYX_EVAL_ASSERT(ctx, define->kind == SYX_VALUE_KIND_SYMBOL, "argument name expected");
     defines_list = defines_list->pair->right;
     if (defines_list->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_TODO(ctx, "implement rest arguments");
@@ -293,9 +293,11 @@ Syx_Value *syx_eval_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda, Syx_Pa
   }
   syx_list_for_each(lambda->defines, define) {
     if (define->kind != SYX_VALUE_KIND_PAIR) continue;
+    SYX_EVAL_ASSERT(ctx, define->pair, "argument definition expected");
     SYX_EVAL_ASSERT(ctx, define->pair->left->kind == SYX_VALUE_KIND_SYMBOL, "argument name expected");
     Syx_Symbol *symbol = define->pair->left->symbol;
     SYX_EVAL_ASSERT(ctx, define->pair->right->kind == SYX_VALUE_KIND_PAIR, "default argument value expected");
+    if (!define->pair->right->pair) continue;
     Syx_Value *default_arg = define->pair->right->pair->left;
     Syx_Value **stored = ht_find(&call_ctx->env->symbols, symbol);
     if (stored != NULL) continue;
@@ -315,36 +317,53 @@ Syx_Value *syx_eval_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda, Syx_Pa
   return rc_move(result);
 }
 
-Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input) {
-  if (input->kind == SYX_VALUE_KIND_EXIT) return input;
-  if (input->kind == SYX_VALUE_KIND_SYMBOL) {
-    Syx_Value *item = syx_env_lookup_get(ctx, input->symbol);
-    SYX_EVAL_ASSERT(ctx, item, temp_sprintf("unbound symbol '" SV_Fmt "'", SV_Arg(*input->symbol)));
-    return item;
-  }
-  if (input->kind != SYX_VALUE_KIND_PAIR) return input;
-  Syx_Value *head = rc_acquire(syx_eval(ctx, input->pair->left));
-  SYX_EVAL_ASSERT(ctx, head->kind == SYX_VALUE_KIND_CLOSURE, "is not a procedure");
-  syx_value_early_exit(head);
-  Syx_Value *arguments = input->pair->right;
-  SYX_EVAL_ASSERT(ctx, arguments->kind == SYX_VALUE_KIND_PAIR || arguments->kind == SYX_VALUE_KIND_NIL, "unexpected pair's right value");
+Syx_Value *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, Syx_Pair *arguments) {
   Syx_Value *result;
-  switch (head->closure->kind) {
-    case SYX_CLOSURE_KIND_SPECIALF: result = syx_eval_specialf(ctx, &head->closure->specialf, arguments->pair); break;
-    case SYX_CLOSURE_KIND_BUILTIN: result = syx_eval_builtin(ctx, &head->closure->builtin, arguments->pair); break;
-    case SYX_CLOSURE_KIND_LAMBDA: result = syx_eval_lambda(ctx, head->closure->lambda, arguments->pair); break;
+  switch (closure->kind) {
+    case SYX_CLOSURE_KIND_SPECIALF: result = syx_eval_closure_specialf(ctx, &closure->specialf, arguments); break;
+    case SYX_CLOSURE_KIND_BUILTIN: result = syx_eval_closure_builtin(ctx, &closure->builtin, arguments); break;
+    case SYX_CLOSURE_KIND_LAMBDA: result = syx_eval_closure_lambda(ctx, closure->lambda, arguments); break;
   }
-  rc_acquire(result);
-  rc_release(head);
-  return rc_move(result);
+  return result;
+}
+
+Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  Syx_Value *head = rc_acquire(syx_eval(ctx, syx_list_next(arguments)));
+  syx_value_early_exit(head);
+  switch (head->kind) {
+    case SYX_VALUE_KIND_CLOSURE: {
+      Syx_Value *result = rc_acquire(syx_eval_closure(ctx, head->closure, arguments));
+      rc_release(head);
+      return rc_move(result);
+    }
+    default: SYX_EVAL_THROW(ctx, "is not callable");
+  }
+}
+
+Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input) {
+  switch (input->kind) {
+    case SYX_VALUE_KIND_EXIT: return input;
+    case SYX_VALUE_KIND_SYMBOL: {
+      Syx_Value *item = syx_env_lookup_get(ctx, input->symbol);
+      SYX_EVAL_ASSERT(ctx, item, temp_sprintf("unbound symbol '" SV_Fmt "'", SV_Arg(*input->symbol)));
+      return item;
+    }
+    case SYX_VALUE_KIND_PREFIXED: {
+      if (input->prefixed->kind != SYX_PREFIXED_KIND_QUOTE) return input->prefixed->value;
+      return input;
+    }
+    case SYX_VALUE_KIND_PAIR: {
+      if (!input->pair) return input;
+      return syx_eval_pair(ctx, input->pair);
+    }
+    default: return input;
+  }
 }
 
 Syx_Value *syx_eval_unquote(Syx_Eval_Ctx *ctx, Syx_Value *unevaluated) {
-  Syx_Value *unquote_symbol = rc_acquire(make_syx_value_symbol_cstr("unquote"));
-  if (unevaluated->kind != SYX_VALUE_KIND_PAIR) return unevaluated;
-  if (unevaluated->pair->left != unquote_symbol) return unevaluated;
-  if (unevaluated->pair->right->kind != SYX_VALUE_KIND_PAIR) return unevaluated;
-  return syx_eval(ctx, unevaluated->pair->right->pair->left);
+  if (unevaluated->kind != SYX_VALUE_KIND_PREFIXED) return unevaluated;
+  if (unevaluated->prefixed->kind != SYX_PREFIXED_KIND_UNQUOTE) return unevaluated;
+  return syx_eval(ctx, unevaluated->prefixed->value);
 }
 
 Syx_Value *syx_eval_map_list(Syx_Eval_Ctx *ctx, Syx_Pair *list) {
@@ -376,53 +395,48 @@ Syx_Value *syx_eval_forms_list_opt(Syx_Eval_Ctx *ctx, Syx_Pair *forms, Syx_Eval_
 
 Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value) {
   switch (value->kind) {
-    case SYX_VALUE_KIND_NIL: return syx_value_bool_false();
-    case SYX_VALUE_KIND_BOOL_TRUE: return value;
-    case SYX_VALUE_KIND_BOOL_FALSE: return value;
-    case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to bool");
-    case SYX_VALUE_KIND_PAIR: SYX_EVAL_THROW(ctx, "pair can't be converted to bool");
-    case SYX_VALUE_KIND_SPECIAL: SYX_EVAL_THROW(ctx, "special can't be converted to bool");
+    case SYX_VALUE_KIND_PAIR: return syx_value_bool(value->pair);
+    case SYX_VALUE_KIND_CONST: {
+      if (value == syx_value_bool_true() || value == syx_value_bool_false()) return value;
+      SYX_EVAL_THROW(ctx, "constant can't be converted to bool");
+    }
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to bool");
     case SYX_VALUE_KIND_NUMBER: return syx_value_bool(syx_number_get(value->number));
     case SYX_VALUE_KIND_STRING: SYX_EVAL_THROW(ctx, "string can't be converted to bool");
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to bool");
+    case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to bool");
+    case SYX_VALUE_KIND_PREFIXED: SYX_EVAL_THROW(ctx, "prefixed value can't be converted to bool");
   }
-  // case SYX_VALUE_KIND_OBJECT: return ;
-  // case SYX_VALUE_KIND_NATIVE: return ;
 }
 
 Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value) {
   switch (value->kind) {
-    case SYX_VALUE_KIND_NIL: return make_syx_value_number_integer(0);
-    case SYX_VALUE_KIND_BOOL_TRUE: return make_syx_value_number_integer(1);
-    case SYX_VALUE_KIND_BOOL_FALSE: return make_syx_value_number_integer(0);
-    case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to number");
     case SYX_VALUE_KIND_PAIR: SYX_EVAL_THROW(ctx, "pair can't be converted to number");
-    case SYX_VALUE_KIND_SPECIAL: SYX_EVAL_THROW(ctx, "special can't be converted to number");
+    case SYX_VALUE_KIND_CONST: {
+      if (value == syx_value_bool_true()) return make_syx_value_number_integer(1);
+      if (value == syx_value_bool_false()) return make_syx_value_number_integer(0);
+      SYX_EVAL_THROW(ctx, "constant can't be converted to number");
+    }
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to number");
     case SYX_VALUE_KIND_NUMBER: return value;
     case SYX_VALUE_KIND_STRING: SYX_EVAL_THROW(ctx, "string can't be converted to number");
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to number");
+    case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to number");
+    case SYX_VALUE_KIND_PREFIXED: SYX_EVAL_THROW(ctx, "prefixed value can't be converted to number");
   }
-  // case SYX_VALUE_KIND_OBJECT: return ;
-  // case SYX_VALUE_KIND_NATIVE: return ;
 }
 
 Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value) {
   switch (value->kind) {
-    case SYX_VALUE_KIND_NIL: SYX_EVAL_THROW(ctx, "nil can't be converted to string");
-    case SYX_VALUE_KIND_BOOL_TRUE: SYX_EVAL_THROW(ctx, "bool can't be converted to string");
-    case SYX_VALUE_KIND_BOOL_FALSE: SYX_EVAL_THROW(ctx, "bool can't be converted to string");
-    case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to string");
     case SYX_VALUE_KIND_PAIR: SYX_EVAL_THROW(ctx, "pair can't be converted to string");
-    case SYX_VALUE_KIND_SPECIAL: SYX_EVAL_THROW(ctx, "special can't be converted to string");
+    case SYX_VALUE_KIND_CONST: SYX_EVAL_THROW(ctx, "constant can't be converted to string");
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to string");
     case SYX_VALUE_KIND_NUMBER: SYX_EVAL_THROW(ctx, "number can't be converted to string");
     case SYX_VALUE_KIND_STRING: return value;
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to string");
+    case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to string");
+    case SYX_VALUE_KIND_PREFIXED: SYX_EVAL_THROW(ctx, "prefixed value can't be converted to string");
   }
-  // case SYX_VALUE_KIND_OBJECT: return ;
-  // case SYX_VALUE_KIND_NATIVE: return ;
 }
 
 #endif // SYX_EVAL_IMPL_C

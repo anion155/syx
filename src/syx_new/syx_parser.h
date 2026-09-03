@@ -361,6 +361,21 @@ Syx_Value *parse_syx_symbol_value(Syx_Token token) {
   }
 }
 
+Syx_Value *parse_syx_prefix(Syx_Token token, Syx_Tokens *tokens) {
+  SYX_ASSERT(token.kind == SYX_TOKEN_KIND_PREFIX && token.count > 1, "prefix expected");
+  uint32_t type = syx_parser_utf_string_to_codepoint(sv_from_parts(token.data + 1, token.count - 1));
+  switch (type) {
+    case '\'': return make_syx_value_prefixed(SYX_PREFIXED_KIND_QUOTE, parse_syx_value(tokens));
+    case ',': return make_syx_value_prefixed(SYX_PREFIXED_KIND_UNQUOTE, parse_syx_value(tokens));
+    case ':': {
+      Syx_Token symbol = tokens_chop_left(tokens);
+      SYX_ASSERT(symbol.kind == SYX_TOKEN_KIND_SYMBOL, "symbol expected");
+      return make_syx_value_prefixed(SYX_PREFIXED_KIND_COLON, parse_syx_symbol_value(symbol));
+    }
+    default: SYX_THROW("unexpected prefix type");
+  }
+}
+
 Syx_Value *parse_syx_dispatch(Syx_Token token, Syx_Tokens *tokens) {
   SYX_ASSERT(token.kind == SYX_TOKEN_KIND_DISPATCH && token.count > 1, "dispatch expected");
   uint32_t type = syx_parser_utf_string_to_codepoint(sv_from_parts(token.data + 1, token.count - 1));
@@ -390,6 +405,7 @@ Syx_Value *parse_syx_value(Syx_Tokens *tokens) {
     case SYX_TOKEN_KIND_NUMDECLIT: return parse_syx_number_decimal_value(first);
     case SYX_TOKEN_KIND_NUMHEXLIT: return parse_syx_number_hex_value(first);
     case SYX_TOKEN_KIND_SYMBOL: return parse_syx_symbol_value(first);
+    case SYX_TOKEN_KIND_PREFIX: return parse_syx_prefix(first, tokens);
     case SYX_TOKEN_KIND_DISPATCH: return parse_syx_dispatch(first, tokens);
     default: SYX_THROW("unexpected token");
   }

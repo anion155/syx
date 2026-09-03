@@ -1,3 +1,9 @@
+- value: closure name -> symbol
+- eval: env add name
+- eval: evaluate in specific env
+- value: object
+
+- implement ffi declaration from language
 - object values, like boxed
 - attach stack frame to error object on throw
 - compiler test runner
@@ -10,3 +16,4 @@
 - implement exports from module
 - implement parse error fancy message
 - implement runtime error fancy message
+- language based c bindings

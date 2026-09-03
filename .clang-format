@@ -6,7 +6,7 @@ SpaceBeforeParens: ControlStatements
 PointerAlignment: Right
 ColumnLimit: 0
 AllowShortFunctionsOnASingleLine: true
-SeparateDefinitionBlocks: Always
+SeparateDefinitionBlocks: Leave
 AllowShortIfStatementsOnASingleLine: AllIfsAndElse
 IndentCaseLabels: true
 AllowShortCaseLabelsOnASingleLine: true

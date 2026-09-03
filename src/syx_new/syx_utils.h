@@ -9,7 +9,7 @@
   } name##_w;                                        \
   name##_w w_##name = {0};                           \
   void make_##name(name##_t *name);                  \
-  name##_t *name() {                                 \
+  inline name##_t *name() {                          \
     if (w_##name.initialized) return &w_##name.data; \
     w_##name.initialized = 1;                        \
     make_##name(&w_##name.data);                     \

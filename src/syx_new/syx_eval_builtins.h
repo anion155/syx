@@ -36,14 +36,14 @@ Syx_Value *syx_builtin_list(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 /** Returns the left element of a pair. */
 Syx_Value *syx_builtin_car(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *list = syx_list_next(&arguments);
-  if (list->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "pair expected as car argument");
+  SYX_EVAL_ASSERT(ctx, list->kind == SYX_VALUE_KIND_PAIR && list->pair, "list expected as car argument");
   return list->pair->left;
 }
 
 /** Returns the right element of a pair. */
 Syx_Value *syx_builtin_cdr(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *list = syx_list_next(&arguments);
-  if (list->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "Pair expected as cdr argument");
+  SYX_EVAL_ASSERT(ctx, list->kind == SYX_VALUE_KIND_PAIR && list->pair, "list expected as cdr argument");
   return list->pair->right;
 }
 
@@ -54,23 +54,21 @@ Syx_Value *syx_builtin_apply(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value **it = &call->pair->right;
   syx_list_for_each(arguments, argument) {
     if ((*it)) SYX_EVAL_THROW(ctx, "only last argument allowed to be pair with both values");
-    if (argument->kind == SYX_VALUE_KIND_PAIR) {
-      (*it) = argument;
-      while ((*it)->kind == SYX_VALUE_KIND_PAIR) it = &(*it)->pair->right;
-      if ((*it)->kind == SYX_VALUE_KIND_NIL) {
+    if (argument->kind == SYX_VALUE_KIND_PAIR && argument->pair) {
+      (*it) = rc_acquire(argument);
+      while ((*it)->kind == SYX_VALUE_KIND_PAIR && (*it)->pair) it = &(*it)->pair->right;
+      if ((*it)->kind == SYX_VALUE_KIND_PAIR && !(*it)->pair) {
         rc_release((*it));
         (*it) = NULL;
       }
       continue;
     }
     (*it) = rc_acquire(make_syx_value_pair(NULL, NULL));
-    (*it)->pair->left = argument;
+    (*it)->pair->left = rc_acquire(argument);
     it = &(*it)->pair->right;
   }
   (*it) = rc_acquire(syx_value_nil());
-  Syx_Value *result = rc_acquire(syx_eval(ctx, call));
-  syx_value_early_exit(result);
-  return rc_move(result);
+  return syx_eval(ctx, call);
 }
 
 /** Applies a function to each element of a list and returns a new list of results. */
@@ -80,50 +78,56 @@ Syx_Value *syx_builtin_map(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   if (list->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "list expected");
   Syx_Value *results = NULL;
   syx_list_map(list->pair, item, &results) {
-    Syx_Value *call = rc_acquire(make_syx_value_pair(fn, make_syx_value_pair(*item, syx_value_nil())));
+    Syx_Value *call = rc_acquire(make_syx_value_list(fn, *item, NULL));
     *item = rc_acquire(syx_eval(ctx, call));
     syx_value_early_exit(*item, results, call);
     rc_release(call);
     rc_move(*item);
   }
-  return results;
+  return rc_move(results);
 }
 
-#define syx__builtin_operator(ctx, arguments, operator, nil) ({        \
-  Syx_Number value = {0};                                              \
-  Syx_Value *first = syx_list_next(&(arguments));                      \
-  switch (first->kind) {                                               \
-    case SYX_VALUE_KIND_NUMBER: value = *first->number; break;         \
-    case SYX_VALUE_KIND_NIL: nil; return make_syx_value_number(value); \
-    default: syx_convert_to((ctx), first, &value);                     \
-  }                                                                    \
-  syx_list_for_each((arguments), argument) {                           \
-    Syx_Number next = {0};                                             \
-    switch (argument->kind) {                                          \
-      case SYX_VALUE_KIND_NUMBER: next = *argument->number; break;     \
-      default: syx_convert_to((ctx), argument, &next);                 \
-    }                                                                  \
-    value = syx_number_operate(&value, operator, & next);              \
-  }                                                                    \
-  return make_syx_value_number(value);                                 \
-})
+/** Concat arguments to string. */
+Syx_Value *syx_builtin_concat(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  SYX_EVAL_TODO(ctx, "syx_builtin_concat");
+  // String_Builder sb = {0};
+  // syx_list_for_each(arguments, argument) {
+  //   sb_append_converted_syxv(&sb, ctx, argument);
+  // }
+  // sb_append(&sb, 0);
+  // Syx_Value *string = make_syxv_string_n(sb.items, sb.count - 1);
+  // sb_free(sb);
+  // return string;
+}
 
-// /** Concat arguments to string. */
-// Syx_Value *syx_builtin_concat(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-//   String_Builder sb = {0};
-//   syx_list_for_each(arguments, argument) {
-//     sb_append_converted_syxv(&sb, ctx, argument);
-//   }
-//   sb_append(&sb, 0);
-//   Syx_Value *string = make_syxv_string_n(sb.items, sb.count - 1);
-//   sb_free(sb);
-//   return string;
-// }
+#define syx__builtin_operator(ctx, arguments, operator, nil) ({    \
+  Syx_Number value = {0};                                          \
+  Syx_Value *first = syx_list_next(&(arguments));                  \
+  switch (first->kind) {                                           \
+    case SYX_VALUE_KIND_NUMBER: value = *first->number; break;     \
+    case SYX_VALUE_KIND_PAIR: {                                    \
+      if (!first->pair) {                                          \
+        nil;                                                       \
+        return make_syx_value_number(value);                       \
+      }                                                            \
+    }                                                              \
+    default: syx_convert_to((ctx), first, &value);                 \
+  }                                                                \
+  syx_list_for_each((arguments), argument) {                       \
+    Syx_Number next = {0};                                         \
+    switch (argument->kind) {                                      \
+      case SYX_VALUE_KIND_NUMBER: next = *argument->number; break; \
+      default: syx_convert_to((ctx), argument, &next);             \
+    }                                                              \
+    value = syx_number_operate(&value, operator, & next);          \
+  }                                                                \
+  return make_syx_value_number(value);                             \
+})
 
 /** Sum of all arguments. */
 Syx_Value *syx_builtin_summ(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  // Syx_Value *first = arguments ? arguments->left : NULL;
-  // if (first && first->kind == SYX_VALUE_KIND_STRING) return syx_builtin_concat(ctx, arguments);
+  Syx_Value *first = arguments ? arguments->left : NULL;
+  if (first && first->kind == SYX_VALUE_KIND_STRING) return syx_builtin_concat(ctx, arguments);
   syx__builtin_operator(ctx, arguments, +, (value.kind = SYX_NUMBER_KIND_INTEGER, value.integer = 0));
 }
 
@@ -165,25 +169,21 @@ Syx_Value *syx__builtin_compare(Syx_Eval_Ctx *ctx, Syx_Pair *arguments, Syx_Comp
 bool syx__builtin_equivalent_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Value *right) {
   if (left == right) return true;
   switch (left->kind) {
-    case SYX_VALUE_KIND_NIL: return right->kind == SYX_VALUE_KIND_NIL;
-    case SYX_VALUE_KIND_BOOL_TRUE: return right->kind == SYX_VALUE_KIND_BOOL_TRUE;
-    case SYX_VALUE_KIND_BOOL_FALSE: return right->kind == SYX_VALUE_KIND_BOOL_FALSE;
-    case SYX_VALUE_KIND_EXIT: UNREACHABLE("should never get exit value here");
-    case SYX_VALUE_KIND_PAIR: return (
-        right->kind == SYX_VALUE_KIND_PAIR &&
-        syx__builtin_equivalent_comparator(ctx, left->pair->left, right->pair->left) &&
-        syx__builtin_equivalent_comparator(ctx, left->pair->right, right->pair->right));
-    case SYX_VALUE_KIND_SPECIAL: return (
-        right->kind == SYX_VALUE_KIND_SPECIAL &&
-        left->special->kind == right->special->kind &&
-        syx__builtin_equivalent_comparator(ctx, left->special->value, right->special->value));
+    case SYX_VALUE_KIND_PAIR: return (right->kind == SYX_VALUE_KIND_PAIR &&
+                                      !left->pair == !right->pair &&
+                                      (!left->pair || (syx__builtin_equivalent_comparator(ctx, left->pair->left, right->pair->left) &&
+                                                       syx__builtin_equivalent_comparator(ctx, left->pair->right, right->pair->right))));
+    case SYX_VALUE_KIND_CONST: return false;  // should work on left == right level
     case SYX_VALUE_KIND_SYMBOL: return false; // should work on left == right level
     case SYX_VALUE_KIND_NUMBER: return right->kind == SYX_VALUE_KIND_NUMBER && (syx_number_get(left->number) == syx_number_get(right->number));
     case SYX_VALUE_KIND_STRING: return right->kind == SYX_VALUE_KIND_STRING && sv_like_eq(*left->string, *right->string);
     case SYX_VALUE_KIND_CLOSURE: return false; // should work on left == right level
+    case SYX_VALUE_KIND_EXIT: UNREACHABLE("should never get exit value here");
+    case SYX_VALUE_KIND_PREFIXED: return (
+        right->kind == SYX_VALUE_KIND_PREFIXED &&
+        left->prefixed->kind == right->prefixed->kind &&
+        syx__builtin_equivalent_comparator(ctx, left->prefixed->value, right->prefixed->value));
   }
-  // SYX_VALUE_KIND_OBJECT,
-  // SYX_VALUE_KIND_NATIVE,
 }
 
 /** Applies structural check between each consequence pairs. */
@@ -216,8 +216,6 @@ Syx_Value *syx_builtin_equivalent(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
     default: SYX_EVAL_THROW(ctx, "can not compare with " STRINGIFY(operator));           \
   }
 
-bool syx__builtin_lower_than_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Value *right);
-
 bool syx__builtin_lower_than_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Value *right) {
   syx__builtin_comparison_comparator(syx__builtin_lower_than_comparator, <);
 }
@@ -226,8 +224,6 @@ bool syx__builtin_lower_than_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_
 Syx_Value *syx_builtin_lower_than(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   return syx__builtin_compare(ctx, arguments, syx__builtin_lower_than_comparator);
 }
-
-bool syx__builtin_lower_or_equal_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Value *right);
 
 bool syx__builtin_lower_or_equal_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Value *right) {
   syx__builtin_comparison_comparator(syx__builtin_lower_or_equal_comparator, <=);
@@ -238,8 +234,6 @@ Syx_Value *syx_builtin_lower_or_equal(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   return syx__builtin_compare(ctx, arguments, syx__builtin_lower_or_equal_comparator);
 }
 
-bool syx__builtin_greater_than_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Value *right);
-
 bool syx__builtin_greater_than_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Value *right) {
   syx__builtin_comparison_comparator(syx__builtin_greater_than_comparator, >);
 }
@@ -248,8 +242,6 @@ bool syx__builtin_greater_than_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Sy
 Syx_Value *syx_builtin_greater_than(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   return syx__builtin_compare(ctx, arguments, syx__builtin_greater_than_comparator);
 }
-
-bool syx__builtin_greater_or_equal_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Value *right);
 
 bool syx__builtin_greater_or_equal_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Value *right) {
   syx__builtin_comparison_comparator(syx__builtin_greater_or_equal_comparator, >=);
@@ -262,28 +254,22 @@ Syx_Value *syx_builtin_greater_or_equal(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) 
 
 #undef syx__builtin_comparison_comparator
 
-bool syx__builtin_identity_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Value *right);
-
 bool syx__builtin_identity_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Value *right) {
   UNUSED(ctx);
   if (left == right) return true;
   switch (left->kind) {
-    case SYX_VALUE_KIND_NIL: return right->kind == SYX_VALUE_KIND_NIL;
-    case SYX_VALUE_KIND_BOOL_TRUE: return right->kind == SYX_VALUE_KIND_BOOL_TRUE;
-    case SYX_VALUE_KIND_BOOL_FALSE: return right->kind == SYX_VALUE_KIND_BOOL_FALSE;
-    case SYX_VALUE_KIND_EXIT: UNREACHABLE("should never get exit value here");
-    case SYX_VALUE_KIND_PAIR: return false;    // should work on left == right level
-    case SYX_VALUE_KIND_SPECIAL: return false; // should work on left == right level
-    case SYX_VALUE_KIND_SYMBOL: return right->kind == SYX_VALUE_KIND_SYMBOL && strcmp(left->symbol->data, right->symbol->data) == 0;
+    case SYX_VALUE_KIND_PAIR: return false;   // should work on left == right level
+    case SYX_VALUE_KIND_CONST: return false;  // should work on left == right level
+    case SYX_VALUE_KIND_SYMBOL: return false; // should work on left == right level
     case SYX_VALUE_KIND_NUMBER: return (
         right->kind == SYX_VALUE_KIND_NUMBER &&
         left->number->kind == right->number->kind &&
         syx_number_get(left->number) == syx_number_get(right->number));
     case SYX_VALUE_KIND_STRING: return false;  // should work on left == right level
     case SYX_VALUE_KIND_CLOSURE: return false; // should work on left == right level
+    case SYX_VALUE_KIND_EXIT: UNREACHABLE("should never get exit value here");
+    case SYX_VALUE_KIND_PREFIXED: return false; // should work on left == right level
   }
-  // SYX_VALUE_KIND_OBJECT,
-  // SYX_VALUE_KIND_NATIVE,
 }
 
 /** Applies identity check between each consequence pairs. */
@@ -296,32 +282,35 @@ Syx_Value *syx_builtin_identity(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   if (value == NULL) SYX_EVAL_THROW(ctx, "argument expected"); \
   return syx_value_bool((kind_checks))
 
-/** Type checks if first argument is nil. */
-Syx_Value *syx_builtin_is_nil(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_NIL); }
-
-/** Type checks if first argument is bool. */
-Syx_Value *syx_builtin_is_bool(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_BOOL_TRUE || value->kind == SYX_VALUE_KIND_BOOL_FALSE); }
-
 /** Type checks if first argument is pair. */
 Syx_Value *syx_builtin_is_pair(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_PAIR); }
+
+/** Type checks if first argument is nil. */
+Syx_Value *syx_builtin_is_nil(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_PAIR && !value->pair); }
+
+/** Type checks if first argument is full pair. */
+Syx_Value *syx_builtin_is_full_pair(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_PAIR && value->pair); }
 
 /** Type checks if first argument is list. */
 Syx_Value *syx_builtin_is_list(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *value = syx_list_next_nullable(&arguments);
   if (value == NULL) SYX_EVAL_THROW(ctx, "argument expected");
   Syx_Value *it = value;
-  while (it->kind == SYX_VALUE_KIND_PAIR) it = it->pair->right;
-  return syx_value_bool(it->kind == SYX_VALUE_KIND_NIL);
+  while (it->kind == SYX_VALUE_KIND_PAIR && it->pair) it = it->pair->right;
+  return syx_value_bool(it == syx_value_nil());
 }
 
-/** Type checks if first argument is special. */
-Syx_Value *syx_builtin_is_special(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_SPECIAL); }
+/** Type checks if first argument is const. */
+Syx_Value *syx_builtin_is_const(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_CONST); }
 
-/** Type checks if first argument is special quote. */
-Syx_Value *syx_builtin_is_special_quote(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_SPECIAL && value->special->kind == SYX_SPECIAL_KIND_QUOTE); }
+/** Type checks if first argument is bool true. */
+Syx_Value *syx_builtin_is_bool_true(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value == syx_value_bool_true()); }
 
-/** Type checks if first argument is special unquote. */
-Syx_Value *syx_builtin_is_special_unquote(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_SPECIAL && value->special->kind == SYX_SPECIAL_KIND_COLON); }
+/** Type checks if first argument is bool false. */
+Syx_Value *syx_builtin_is_bool_false(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value == syx_value_bool_false()); }
+
+/** Type checks if first argument is bool. */
+Syx_Value *syx_builtin_is_bool(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value == syx_value_bool_true() || value == syx_value_bool_false()); }
 
 /** Type checks if first argument is symbol. */
 Syx_Value *syx_builtin_is_symbol(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_SYMBOL); }
@@ -338,18 +327,6 @@ Syx_Value *syx_builtin_is_fractional(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { s
 /** Type checks if first argument is string. */
 Syx_Value *syx_builtin_is_string(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_STRING); }
 
-// /** Type checks if first argument is boxed value. */
-// Syx_Value *syx_builtin_is_boxed(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-//   Syx_Value *constructor = syx_list_next_nullable(&arguments);
-//   Syx_Value *value = syx_list_next_nullable(&arguments);
-//   if (value == NULL) (value = constructor, constructor = NULL);
-//   if (value == NULL) SYX_EVAL_THROW(ctx, "argument expected");
-//   if (value->kind != SYXV_KIND_BOXED) return syx_value_bool(false);
-//   if (constructor == NULL) return syx_value_bool(true);
-//   if (constructor->kind != SYXV_KIND_CONSTRUCTOR) SYX_EVAL_THROW(ctx, "constructor expected");
-//   return syx_value_bool(value->boxed->typeinfo == constructor->constructor.typeinfo);
-// }
-
 /** Type checks if first argument is closure. */
 Syx_Value *syx_builtin_is_closure(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_CLOSURE); }
 
@@ -362,33 +339,57 @@ Syx_Value *syx_builtin_is_builtin(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx_
 /** Type checks if first argument is lambda. */
 Syx_Value *syx_builtin_is_lambda(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_CLOSURE && value->closure->kind == SYX_CLOSURE_KIND_LAMBDA); }
 
+/** Type checks if first argument is prefixed. */
+Syx_Value *syx_builtin_is_prefixed(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_PREFIXED); }
+
+/** Type checks if first argument is quoted. */
+Syx_Value *syx_builtin_is_quoted(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_PREFIXED && value->prefixed->kind == SYX_PREFIXED_KIND_QUOTE); }
+
+/** Type checks if first argument is unquoted. */
+Syx_Value *syx_builtin_is_unquoted(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_PREFIXED && value->prefixed->kind == SYX_PREFIXED_KIND_UNQUOTE); }
+
+/** Type checks if first argument is coloned. */
+Syx_Value *syx_builtin_is_coloned(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_PREFIXED && value->prefixed->kind == SYX_PREFIXED_KIND_COLON); }
+
+// /** Type checks if first argument is boxed value. */
+// Syx_Value *syx_builtin_is_boxed(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+//   Syx_Value *constructor = syx_list_next_nullable(&arguments);
+//   Syx_Value *value = syx_list_next_nullable(&arguments);
+//   if (value == NULL) (value = constructor, constructor = NULL);
+//   if (value == NULL) SYX_EVAL_THROW(ctx, "argument expected");
+//   if (value->kind != SYXV_KIND_BOXED) return syx_value_bool(false);
+//   if (constructor == NULL) return syx_value_bool(true);
+//   if (constructor->kind != SYXV_KIND_CONSTRUCTOR) SYX_EVAL_THROW(ctx, "constructor expected");
+//   return syx_value_bool(value->boxed->typeinfo == constructor->constructor.typeinfo);
+// }
+
 #undef syx__builtin_type_guard
 
-typedef struct File_Constant {
-  int fd;
-  FILE *stream;
-} File_Constant;
+// typedef struct File_Constant {
+//   int fd;
+//   FILE *stream;
+// } File_Constant;
 
-syx_define_constant(Ht(Syx_Symbol *, File_Constant), FD_CONSTANTS) {
-  FD_CONSTANTS->hasheq = ht_syx_symbol_hasheq;
-  *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stdout")->symbol) = (File_Constant){.fd = STDOUT_FILENO, .stream = stdout};
-  *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stderr")->symbol) = (File_Constant){.fd = STDERR_FILENO, .stream = stderr};
-  *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stdin")->symbol) = (File_Constant){.fd = STDIN_FILENO, .stream = stdin};
-  ht_foreach(symbol, FD_CONSTANTS) {
-    rc_acquire(syx_value_from_symbol(ht_key(FD_CONSTANTS, symbol)));
-  }
-}
+// syx_define_constant(Ht(Syx_Symbol *, File_Constant), FD_CONSTANTS) {
+//   FD_CONSTANTS->hasheq = ht_syx_symbol_hasheq;
+//   *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stdout")->symbol) = (File_Constant){.fd = STDOUT_FILENO, .stream = stdout};
+//   *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stderr")->symbol) = (File_Constant){.fd = STDERR_FILENO, .stream = stderr};
+//   *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stdin")->symbol) = (File_Constant){.fd = STDIN_FILENO, .stream = stdin};
+//   ht_foreach(symbol, FD_CONSTANTS) {
+//     rc_acquire(syx_value_from_symbol(ht_key(FD_CONSTANTS, symbol)));
+//   }
+// }
 
-FILE *parse_optional_file_descriptor(Syx_Pair **arguments) {
-  FILE *f = stdout;
-  if ((*arguments)->left->kind != SYX_VALUE_KIND_SYMBOL) return f;
-  File_Constant *constant = ht_find(FD_CONSTANTS(), (*arguments)->left->symbol);
-  if (!constant) return f;
-  syx_list_next_nullable(arguments);
-  f = constant->stream;
-  // TODO: pass fd as value not as constant
-  return f;
-}
+// FILE *parse_optional_file_descriptor(Syx_Pair **arguments) {
+//   FILE *f = stdout;
+//   if ((*arguments)->left->kind != SYX_VALUE_KIND_SYMBOL) return f;
+//   File_Constant *constant = ht_find(FD_CONSTANTS(), (*arguments)->left->symbol);
+//   if (!constant) return f;
+//   syx_list_next_nullable(arguments);
+//   f = constant->stream;
+//   // TODO: pass fd as value not as constant
+//   return f;
+// }
 
 // /** Prints arguments to file. */
 // Syx_Value *syx_builtin_print(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
@@ -484,23 +485,28 @@ void syx_env_define_builtins(Syx_Env *env) {
   syx_env_define_cstr(env, ">=", make_syx_value_closure_builtin(SVLIT(">="), syx_builtin_greater_or_equal));
 
   syx_env_define_cstr(env, "eq?", make_syx_value_closure_builtin(SVLIT("eq?"), syx_builtin_identity));
-  syx_env_define_cstr(env, "nil?", make_syx_value_closure_builtin(SVLIT("nil?"), syx_builtin_is_nil));
-  syx_env_define_cstr(env, "bool?", make_syx_value_closure_builtin(SVLIT("bool?"), syx_builtin_is_bool));
+
   syx_env_define_cstr(env, "pair?", make_syx_value_closure_builtin(SVLIT("pair?"), syx_builtin_is_pair));
+  syx_env_define_cstr(env, "nil?", make_syx_value_closure_builtin(SVLIT("nil?"), syx_builtin_is_nil));
+  syx_env_define_cstr(env, "pair-full?", make_syx_value_closure_builtin(SVLIT("pair-full?"), syx_builtin_is_full_pair));
   syx_env_define_cstr(env, "list?", make_syx_value_closure_builtin(SVLIT("list?"), syx_builtin_is_list));
-  syx_env_define_cstr(env, "special?", make_syx_value_closure_builtin(SVLIT("special?"), syx_builtin_is_special));
-  syx_env_define_cstr(env, "special-quote?", make_syx_value_closure_builtin(SVLIT("special-quote?"), syx_builtin_is_special_quote));
-  syx_env_define_cstr(env, "special-unquote?", make_syx_value_closure_builtin(SVLIT("special-unquote?"), syx_builtin_is_special_unquote));
+  syx_env_define_cstr(env, "const?", make_syx_value_closure_builtin(SVLIT("const?"), syx_builtin_is_const));
+  syx_env_define_cstr(env, "true?", make_syx_value_closure_builtin(SVLIT("true?"), syx_builtin_is_bool_true));
+  syx_env_define_cstr(env, "false?", make_syx_value_closure_builtin(SVLIT("false?"), syx_builtin_is_bool_false));
+  syx_env_define_cstr(env, "bool?", make_syx_value_closure_builtin(SVLIT("bool?"), syx_builtin_is_bool));
   syx_env_define_cstr(env, "symbol?", make_syx_value_closure_builtin(SVLIT("symbol?"), syx_builtin_is_symbol));
   syx_env_define_cstr(env, "number?", make_syx_value_closure_builtin(SVLIT("number?"), syx_builtin_is_number));
   syx_env_define_cstr(env, "integer?", make_syx_value_closure_builtin(SVLIT("integer?"), syx_builtin_is_integer));
   syx_env_define_cstr(env, "fractional?", make_syx_value_closure_builtin(SVLIT("fractional?"), syx_builtin_is_fractional));
   syx_env_define_cstr(env, "string?", make_syx_value_closure_builtin(SVLIT("string?"), syx_builtin_is_string));
-  // syx_env_define_cstr(env, "boxed?", make_syx_value_closure_builtin(SVLIT("boxed?"), syx_builtin_is_boxed));
   syx_env_define_cstr(env, "closure?", make_syx_value_closure_builtin(SVLIT("closure?"), syx_builtin_is_closure));
   syx_env_define_cstr(env, "special-form?", make_syx_value_closure_builtin(SVLIT("special-form?"), syx_builtin_is_special_form));
   syx_env_define_cstr(env, "builtin?", make_syx_value_closure_builtin(SVLIT("builtin?"), syx_builtin_is_builtin));
   syx_env_define_cstr(env, "lambda?", make_syx_value_closure_builtin(SVLIT("lambda?"), syx_builtin_is_lambda));
+  syx_env_define_cstr(env, "prefixed?", make_syx_value_closure_builtin(SVLIT("prefixed?"), syx_builtin_is_prefixed));
+  syx_env_define_cstr(env, "quoted?", make_syx_value_closure_builtin(SVLIT("quoted?"), syx_builtin_is_quoted));
+  syx_env_define_cstr(env, "unquoted?", make_syx_value_closure_builtin(SVLIT("unquoted?"), syx_builtin_is_unquoted));
+  syx_env_define_cstr(env, "coloned?", make_syx_value_closure_builtin(SVLIT("coloned?"), syx_builtin_is_coloned));
 
   syx_env_define_cstr(env, "not", make_syx_value_closure_builtin(SVLIT("not"), syx_builtin_not));
 

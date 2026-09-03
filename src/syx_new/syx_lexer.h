@@ -15,6 +15,7 @@ typedef enum Syx_Token_Kind {
   SYX_TOKEN_KIND_NUMDECLIT = '9',
   SYX_TOKEN_KIND_NUMHEXLIT = 'F',
   SYX_TOKEN_KIND_SYMBOL = 'a',
+  SYX_TOKEN_KIND_PREFIX = '\'',
   SYX_TOKEN_KIND_DISPATCH = '#',
   SYX_TOKEN_KIND_ERROR = 0x100,
   SYX_TOKEN_KIND_EOF,
@@ -120,6 +121,13 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
     case '(':
     case ')': {
       token.kind = (Syx_Token_Kind)*it->data;
+      it_chop_next();
+      return token;
+    }
+    case '\'':
+    case ',':
+    case ':': {
+      token.kind = SYX_TOKEN_KIND_PREFIX;
       it_chop_next();
       return token;
     }
