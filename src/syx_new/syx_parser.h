@@ -8,7 +8,6 @@ Syx_Value *parse_syx(syx_string_view source, bool ignore_errors);
 
 #endif // SYX_PARSER_H
 
-#define SYX_PARSER_IMPL
 #if defined(SYX_PARSER_IMPL) && !defined(SYX_PARSER_IMPL_C)
 #define SYX_PARSER_IMPL_C
 

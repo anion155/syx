@@ -42,7 +42,6 @@ Syx_Tokens syx_lexer_tokenize(syx_string_view source);
 
 #endif // SYX_LEXER_H
 
-#define SYX_LEXER_IMPL
 #if defined(SYX_LEXER_IMPL) && !defined(SYX_LEXER_IMPL_C)
 #define SYX_LEXER_IMPL_C
 

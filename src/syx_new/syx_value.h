@@ -275,7 +275,6 @@ Syx_Value *syx_list_next(Syx_Pair **list);
 
 #endif // SYX_VALUE_H
 
-#define SYX_VALUE_IMPL
 #if defined(SYX_VALUE_IMPL) && !defined(SYX_VALUE_IMPL_C)
 #define SYX_VALUE_IMPL_C
 

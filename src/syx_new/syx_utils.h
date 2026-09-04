@@ -23,7 +23,6 @@ int syx_utils_hex_to_decimal(int c);
 
 #endif // SYX_UTILS_H
 
-#define SYX_UTILS_IMPL
 #if defined(SYX_UTILS_IMPL) && !defined(SYX_UTILS_IMPL_C)
 #define SYX_UTILS_IMPL_C
 

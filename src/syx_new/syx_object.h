@@ -11,7 +11,6 @@ void syx_object_delete(Syx_Object *object, Syx_Symbol *field_name);
 
 #endif // SYX_OBJECT_H
 
-#define SYX_OBJECT_IMPL
 #if defined(SYX_OBJECT_IMPL) && !defined(SYX_OBJECT_IMPL_C)
 #define SYX_OBJECT_IMPL_C
 

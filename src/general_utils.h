@@ -17,7 +17,6 @@ syx_string_view temp_view_sprintf(const char *format, ...) NOB_PRINTF_FORMAT(1, 
 
 #endif // GENERAL_UTILS_H
 
-#define GENERAL_UTILS_IMPL
 #if defined(GENERAL_UTILS_IMPL) && !defined(GENERAL_UTILS_IMPL_C)
 #define GENERAL_UTILS_IMPL_C
 

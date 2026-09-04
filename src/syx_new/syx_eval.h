@@ -95,7 +95,6 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value);
 
 #endif // SYX_EVAL_H
 
-#define SYX_EVAL_IMPL
 #if defined(SYX_EVAL_IMPL) && !defined(SYX_EVAL_IMPL_C)
 #define SYX_EVAL_IMPL_C
 
