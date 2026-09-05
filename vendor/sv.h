@@ -32,9 +32,9 @@ size_t sb__pad_align(String_Builder *sb, size_t size, char filler);
 #define sb_pad_align(sb, size, ...) sb__pad_align((sb), (size), WITH_DEFAULT('\0', __VA_ARGS__))
 
 #define sb_substr(sb, ...) da_slice((sb), String_View, __VA_ARGS__)
-#define sb_to_sv(sb) ({                                    \
-  typeof((sb)) _sb_ = (sb);                                \
-  (String_View){.data = _sb_->data, .count = _sb_->count}; \
+#define sb_to_sv(sb) ({                                  \
+  typeof((sb)) _sb_ = (sb);                              \
+  (String_View){.data = _sb_.data, .count = _sb_.count}; \
 })
 
 #define sb_copy_sv(sv) ({  \
@@ -59,28 +59,30 @@ size_t sb__pad_align(String_Builder *sb, size_t size, char filler);
 })
 
 #define sv_from_parts(data_, count_) ((String_View){.data = (data_), .count = (count_)})
+#define sv_from_like(value) _Generic(&(value), \
+    String_View *: (value),                    \
+    default: sv_from_parts((value).data, (value).count))
 #define sv_from_strlit(lit) ((String_View){.count = sizeof(lit) - 1, .data = (lit)})
 #define sv_from_cstr(str) sv_from_parts((str), strlen(str))
-#define sv_from(value) _Generic((value), String_View: (value), const char *: sv_from_cstr(value), default: sv_from_parts((value).data, (value).count))
 
 static inline bool sv__eq(String_View a, String_View b) {
   if (a.count != b.count) return false;
   return memcmp(a.data, b.data, a.count) == 0;
 }
-#define sv_eq(a, b) sv__eq(sv_from(a), sv_from(b))
+#define sv_eq(a, b) sv__eq(sv_from_like(a), sv_from_like(b))
 
 static inline bool sv__ends_with(String_View sv, String_View suffix) {
   if (sv.count < suffix.count) return false;
   const char *tail = sv.data + sv.count - suffix.count;
   return memcmp(tail, suffix.data, suffix.count) == 0;
 }
-#define sv_ends_with(sv, suffix) sv__ends_with(sv_from(sv), sv_from(suffix))
+#define sv_ends_with(sv, suffix) sv__ends_with(sv_from_like(sv), sv_from_like(suffix))
 
 static inline bool sv__starts_with(String_View sv, String_View prefix) {
   if (sv.count < prefix.count) return false;
   return memcmp(sv.data, prefix.data, prefix.count) == 0;
 }
-#define sv_starts_with(sv, prefix) sv__starts_with(sv_from(sv), sv_from(prefix))
+#define sv_starts_with(sv, prefix) sv__starts_with(sv_from_like(sv), sv_from_like(prefix))
 
 #define sv_find_macro(sb, item_var, predicate) da_find_macro((sb), item_var, predicate)
 #define sv_chop_while_macro(sb, item_var, predicate) da_slice_chop_while_macro((sb), item_var, predicate)
@@ -118,7 +120,7 @@ String_View sv__chop_while_i(String_View *sv, bool (*predicate)(char character, 
 #define sv_first_utf_length(sv) (utf8_character_lengths[(uint8_t)da_first((sv))])
 
 size_t sv__utf_length(String_View sv, size_t *bytes_overrun);
-#define sv_utf_length(sv, ...) sv__utf_length(sv_from(sv), WITH_DEFAULT(NULL, __VA_ARGS__))
+#define sv_utf_length(sv, ...) sv__utf_length(sv_from_like(sv), WITH_DEFAULT(NULL, __VA_ARGS__))
 
 #endif // SV_H
 
@@ -182,7 +184,7 @@ size_t sv__utf_length(String_View sv, size_t *bytes_overrun) {
   size_t count = 0;
   size_t bytes;
   while (sv.count) {
-    bytes = sv_first_utf_length(&sv);
+    bytes = sv_first_utf_length(sv);
     if (bytes_overrun && sv.count <= bytes) *bytes_overrun = bytes - sv.count;
     sv_chop_left(&sv, bytes);
     count += 1;
@@ -195,7 +197,7 @@ String_View sv_trim_left(String_View *sv) {
 }
 
 String_View sv_trim_right(String_View *sv) {
-  size_t index = sv_find_macro(sv, character, isspace(data[count - index - 1]));
+  size_t index = sv_find_macro(*sv, character, isspace(data[count - index - 1]));
   sv->count -= index;
   return (String_View){.data = sv->data + sv->count, .count = index};
 }
@@ -207,7 +209,7 @@ size_t sv_trim(String_View *sv) {
 }
 
 String_View sv_chop_by_delim(String_View *sv, char delimeter) {
-  size_t index = sv_find_macro(sv, character, *character != delimeter);
+  size_t index = sv_find_macro(*sv, character, *character != delimeter);
   if (index < sv->count) index += 1;
   String_View result = {.data = sv->data, .count = index};
   sv->data += index;

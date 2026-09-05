@@ -70,14 +70,14 @@
 
 #define da_first(da) ({   \
   typeof(da) _da_ = (da); \
-  assert(_da_->count);    \
-  _da_->data[0];          \
+  assert(_da_.count);     \
+  _da_.data[0];           \
 })
 
-#define da_last(da) ({         \
-  typeof(da) _da_ = (da);      \
-  assert(_da_->count);         \
-  _da_->data[_da_->count - 1]; \
+#define da_last(da) ({       \
+  typeof(da) _da_ = (da);    \
+  assert(_da_.count);        \
+  _da_.data[_da_.count - 1]; \
 })
 
 #define da_append(da, item) ({         \
@@ -106,11 +106,11 @@
   _added_;                                                     \
 })
 
-#define da_pop(da) ({                         \
-  typeof(da) _da__ = (da);                    \
-  typeof(*_da__->data) last = da_last(_da__); \
-  _da__->count -= 1;                          \
-  last;                                       \
+#define da_pop(da) ({                          \
+  typeof(da) _da__ = (da);                     \
+  typeof(*_da__->data) last = da_last(*_da__); \
+  _da__->count -= 1;                           \
+  last;                                        \
 })
 
 #define da_resize(da, new_size) ({ \
@@ -123,7 +123,7 @@
   typeof(da) _da_ = (da);                        \
   assert(index < _da_->count);                   \
   _da_->data[index] = _da_->data[--_da_->count]; \
-  (void)0;                                       \
+  _da_->count;                                   \
 })
 
 #define da_foreach(da, it)                                        \
@@ -133,39 +133,39 @@
 #define da_find_macro(da, item_var, predicate) ({ \
   typeof(da) _da__ = (da);                        \
   size_t index = 0;                               \
-  const typeof(*_da__->data) *data = _da__->data; \
+  const typeof(*_da__.data) *data = _da__.data;   \
   UNUSED(data);                                   \
-  size_t count = _da__->count;                    \
+  size_t count = _da__.count;                     \
   UNUSED(count);                                  \
-  const typeof(*_da__->data) *item_var;           \
+  const typeof(*_da__.data) *item_var;            \
   UNUSED(item_var);                               \
-  while (index < _da__->count) {                  \
-    item_var = &(_da__->data)[index];             \
+  while (index < _da__.count) {                   \
+    item_var = &(_da__.data)[index];              \
     if (!(predicate)) break;                      \
     index += 1;                                   \
   }                                               \
   index;                                          \
 })
 
-#define da_slice(da, Slice_Type, ...) ({                                                                \
-  typeof(da) _da_ = (da);                                                                               \
-  size_t start = WITH_DEFAULT(0, __VA_ARGS__);                                                          \
-  assert(_da_->count >= start);                                                                         \
-  size_t slice_count = EXPAND(WITH_DEFAULT, _da_->count - start __VA_OPT__(, ) REST_ARGS(__VA_ARGS__)); \
-  assert(_da_->count >= start + slice_count);                                                           \
-  (Slice_Type){.data = _da_->data + start, .count = slice_count};                                       \
+#define da_slice(da, Slice_Type, ...) ({                                                                     \
+  typeof(da) _da_ = (da);                                                                                    \
+  size_t start = WITH_DEFAULT(0, __VA_ARGS__);                                                               \
+  assert(_da_.count >= start);                                                                               \
+  size_t slice_count = EXPAND_MACRO(WITH_DEFAULT, _da_.count - start __VA_OPT__(, ) REST_ARGS(__VA_ARGS__)); \
+  assert(_da_.count >= start + slice_count);                                                                 \
+  (Slice_Type){.data = _da_.data + start, .count = slice_count};                                             \
 })
 
-#define da_slice_whole(da, Slice_Type) ({                 \
-  typeof(da) _da_ = (da);                                 \
-  (Slice_Type){.data = _da_->data, .count = _da_->count}; \
+#define da_slice_whole(da, Slice_Type) ({               \
+  typeof(da) _da_ = (da);                               \
+  (Slice_Type){.data = _da_.data, .count = _da_.count}; \
 })
 
 #define da_assert_is_slice(da) ({                                      \
   typeof(da) _da_ = (da);                                              \
   _Static_assert(                                                      \
-      _Generic(&_da_->data,                                            \
-          const typeof(*_da_->data) **: true,                          \
+      _Generic(&_da_.data,                                             \
+          const typeof(*_da_.data) **: true,                           \
           default: false),                                             \
       "expected pointer to a Da_Slice (not a full Da dynamic array)"); \
   (void)0;                                                             \
@@ -173,7 +173,7 @@
 
 #define da_slice_shift(da) ({                   \
   typeof(da) _da__ = (da);                      \
-  da_assert_is_slice(_da__);                    \
+  da_assert_is_slice(*_da__);                   \
   typeof(*_da__->data) first = da_first(_da__); \
   _da__->data += 1;                             \
   _da__->count -= 1;                            \
@@ -182,7 +182,7 @@
 
 #define da_slice_chop_left(da, ...) ({                       \
   typeof(da) _da__ = (da);                                   \
-  da_assert_is_slice(_da__);                                 \
+  da_assert_is_slice(*_da__);                                \
   size_t n = WITH_DEFAULT(1, __VA_ARGS__);                   \
   if (n > _da__->count) n = _da__->count;                    \
   typeof(*_da__) result = {.data = _da__->data, .count = n}; \
@@ -193,7 +193,7 @@
 
 #define da_slice_chop_right(da, ...) ({                                           \
   typeof(da) _da__ = (da);                                                        \
-  da_assert_is_slice(_da__);                                                      \
+  da_assert_is_slice(*_da__);                                                     \
   size_t n = WITH_DEFAULT(1, __VA_ARGS__);                                        \
   if (n > _da__->count) n = _da__->count;                                         \
   typeof(*_da__) result = {.data = _da__->data + (_da__->count - n), .count = n}; \
@@ -203,8 +203,8 @@
 
 #define da_slice_chop_while_macro(da, item_var, predicate) ({      \
   typeof(da) _da___ = (da);                                        \
-  da_assert_is_slice(_da___);                                      \
-  size_t index = da_find_macro(_da___, item_var, predicate);       \
+  da_assert_is_slice(*_da___);                                     \
+  size_t index = da_find_macro(*_da___, item_var, predicate);      \
   typeof(*_da___) result = {.data = _da___->data, .count = index}; \
   _da___->count -= index;                                          \
   _da___->data += index;                                           \
