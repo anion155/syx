@@ -205,7 +205,7 @@ bool command_playground_run() {
   nonob_cc_append_pkgconfig(&ctx.cmd, "libffi");
 #endif
   nob_cmd_append(&ctx.cmd, "-ggdb3");
-  nob_cc_inputs(&ctx.cmd, "-std=c23");
+  nob_cc_inputs(&ctx.cmd, "-std=gnu23");
   nob_cc_inputs(&ctx.cmd, temp_sprintf("%s/playground.c", ctx.s->src_path));
   nob_cc_output(&ctx.cmd, temp_sprintf("%s/playground", ctx.s->build_path));
   nonob_append_cmd_to_ccjson();

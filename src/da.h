@@ -54,18 +54,18 @@
   _da_->capacity;                                                                                  \
 })
 
-#define da_trim_realloc(da) ({                                                                     \
-  typeof(da) _da__ = (da);                                                                         \
-  if (_da__->capacity != _da__->count) {                                                           \
-    if (_da__->count == 0) {                                                                       \
-      da_free(_da__);                                                                              \
-    } else {                                                                                       \
-      _da__->capacity = _da__->count;                                                              \
-      _da__->data = (typeof(_da_->data))realloc(_da__->data, _da__->count * sizeof(*_da__->data)); \
-      assert(_da__->data != NULL && "Failed to reallocate dynamic array");                         \
-    }                                                                                              \
-  }                                                                                                \
-  _da__->capacity;                                                                                 \
+#define da_trim_realloc(da) ({                                                                      \
+  typeof(da) _da__ = (da);                                                                          \
+  if (_da__->capacity != _da__->count) {                                                            \
+    if (_da__->count == 0) {                                                                        \
+      da_free(_da__);                                                                               \
+    } else {                                                                                        \
+      _da__->capacity = _da__->count;                                                               \
+      _da__->data = (typeof(_da__->data))realloc(_da__->data, _da__->count * sizeof(*_da__->data)); \
+      assert(_da__->data != NULL && "Failed to reallocate dynamic array");                          \
+    }                                                                                               \
+  }                                                                                                 \
+  _da__->capacity;                                                                                  \
 })
 
 #define da_first(da) ({   \
@@ -85,21 +85,25 @@
   da_reserve(_da__, _da__->count + 1); \
   _da__->data[_da__->count] = (item);  \
   _da__->count += 1;                   \
+  1;                                   \
 })
 
 #define da_append_many_n(da, new_items, new_count) ({                                  \
   typeof(da) _da__ = (da);                                                             \
-  da_reserve(_da__, _da__->count + (new_count));                                       \
-  memcpy(_da__->data + _da__->count, (new_items), (new_count) * sizeof(*_da__->data)); \
-  _da__->count += (new_count);                                                         \
+  size_t _new_count_ = (new_count);                                                    \
+  da_reserve(_da__, _da__->count + _new_count_);                                       \
+  memcpy(_da__->data + _da__->count, (new_items), _new_count_ * sizeof(*_da__->data)); \
+  _da__->count += _new_count_;                                                         \
+  _new_count_;                                                                         \
 })
-#define da_append_many(da, ...) ({                                  \
-  typeof(da) _da___ = (da);                                         \
-  __VA_OPT__(                                                       \
-      typeof(*_da___->data) items[] = {__VA_ARGS__};                \
-      size_t count = sizeof(items) / sizeof(typeof(*_da___->data)); \
-      da_append_many_n(_da___, items, count);)                      \
-  _da___->count;                                                    \
+#define da_append_many(da, ...) ({                             \
+  typeof(da) _da___ = (da);                                    \
+  size_t _added_ = 0;                                          \
+  __VA_OPT__(                                                  \
+      typeof(*_da___->data) items[] = {__VA_ARGS__};           \
+      _added_ = sizeof(items) / sizeof(typeof(*_da___->data)); \
+      da_append_many_n(_da___, items, _added_);)               \
+  _added_;                                                     \
 })
 
 #define da_pop(da) ({                         \
@@ -124,7 +128,24 @@
 
 #define da_foreach(da, it)                                        \
   for (typeof(*(da)) *_da_##it = (da); _da_##it; _da_##it = NULL) \
-    for (typeof(*_da_##it->data) *it = _da_##it->data, *last = it + _da_##it->count; it < last; ++it)
+    for (typeof(*_da_##it->data) *it = _da_##it->data, *_last_##it = it + _da_##it->count; it < _last_##it; ++it)
+
+#define da_find_macro(da, item_var, predicate) ({ \
+  typeof(da) _da__ = (da);                        \
+  size_t index = 0;                               \
+  const typeof(*_da__->data) *data = _da__->data; \
+  UNUSED(data);                                   \
+  size_t count = _da__->count;                    \
+  UNUSED(count);                                  \
+  const typeof(*_da__->data) *item_var;           \
+  UNUSED(item_var);                               \
+  while (index < _da__->count) {                  \
+    item_var = &(_da__->data)[index];             \
+    if (!(predicate)) break;                      \
+    index += 1;                                   \
+  }                                               \
+  index;                                          \
+})
 
 #define da_slice(da, Slice_Type, ...) ({                                                                \
   typeof(da) _da_ = (da);                                                                               \
@@ -180,20 +201,14 @@
   result;                                                                         \
 })
 
-#define da_slice_chop_while(da, item_var, predicate) ({           \
-  typeof(da) _da__ = (da);                                        \
-  da_assert_is_slice(_da__);                                      \
-  size_t index = 0;                                               \
-  while (index < _da__->count) {                                  \
-    const typeof(*_da__->data) *item_var = &(_da__->data)[index]; \
-    UNUSED(item_var);                                             \
-    if (!(predicate)) break;                                      \
-    index += 1;                                                   \
-  }                                                               \
-  typeof(*_da__) result = {.data = _da__->data, .count = index};  \
-  _da__->count -= index;                                          \
-  _da__->data += index;                                           \
-  result;                                                         \
+#define da_slice_chop_while_macro(da, item_var, predicate) ({      \
+  typeof(da) _da___ = (da);                                        \
+  da_assert_is_slice(_da___);                                      \
+  size_t index = da_find_macro(_da___, item_var, predicate);       \
+  typeof(*_da___) result = {.data = _da___->data, .count = index}; \
+  _da___->count -= index;                                          \
+  _da___->data += index;                                           \
+  result;                                                          \
 })
 
 #endif // DA_H

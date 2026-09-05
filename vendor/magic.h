@@ -1,8 +1,12 @@
 #ifndef MAGIC_H_
 #define MAGIC_H_
 
+#define UNUSED(...) (void)(__VA_ARGS__)
+
 #define STRINGIFY(x) #x
 #define STRINGIFY2(x) STRINGIFY(x)
+
+#define EXPAND(MACRO, ...) MACRO(__VA_ARGS__)
 
 #define FIRST_ARG(a, ...) a
 #define REST_ARGS(a, ...) __VA_ARGS__
@@ -18,5 +22,21 @@
 #define TYPE_ASSERT(value, expected, ...) STATIC_ASSERT( \
     _Generic((value), expected: true, default: false),   \
     WITH_DEFAULT("Type mismatch", __VA_ARGS__))
+
+#if defined(__GNUC__) || defined(__clang__)
+#  ifdef __MINGW_PRINTF_FORMAT
+#    define PRINTF_ATTRIBUTE(STRING_INDEX, FIRST_TO_CHECK) __attribute__((format(__MINGW_PRINTF_FORMAT, STRING_INDEX, FIRST_TO_CHECK)))
+#  else
+#    define PRINTF_ATTRIBUTE(STRING_INDEX, FIRST_TO_CHECK) __attribute__((format(printf, STRING_INDEX, FIRST_TO_CHECK)))
+#  endif // __MINGW_PRINTF_FORMAT
+#  define PRINTF_FMT_PARAM
+#elif defined(_MSC_VER)
+#  include <sal.h>
+#  define PRINTF_ATTRIBUTE(STRING_INDEX, FIRST_TO_CHECK)
+#  define PRINTF_FMT_PARAM _Printf_format_string_
+#else
+#  define PRINTF_ATTRIBUTE(STRING_INDEX, FIRST_TO_CHECK)
+#  define PRINTF_FMT_PARAM
+#endif
 
 #endif // MAGIC_H_
