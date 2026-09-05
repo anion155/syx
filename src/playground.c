@@ -1,6 +1,7 @@
 #include <stdio.h>
 #define SV_IMPL
 #include <sv.h>
+#include <syx_new/syx_eval.h>
 
 int main(void) {
   String_Builder sb = {0};

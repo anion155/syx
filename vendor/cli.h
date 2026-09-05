@@ -1,7 +1,7 @@
 #ifndef CLI_H
 #define CLI_H
 
-#include <magic.h>
+#include <defines.h>
 #include <stdlib.h>
 
 #define CLI_ESC "\x1b["

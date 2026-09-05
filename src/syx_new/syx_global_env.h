@@ -1,10 +1,7 @@
 #ifndef SYX_GLOBAL_ENV_H
 #define SYX_GLOBAL_ENV_H
 
-#include <ht.h>
-#include <magic.h>
-#include <nob.h>
-#include <rc.h>
+#include <defines.h>
 #include <syx_new/syx_eval.h>
 
 Syx_Env *make_global_syx_env();

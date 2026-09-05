@@ -1,7 +1,6 @@
 #ifndef SYX_LEXER_H
 #define SYX_LEXER_H
 
-#include <nob.h>
 #include <syx_new/syx_utils.h>
 #include <syx_new/syx_value.h>
 
@@ -47,8 +46,6 @@ Syx_Tokens syx_lexer_tokenize(syx_string_view source);
 
 #include <wchar.h>
 
-#define NOB_IMPL
-#include <nob.h>
 #define SYX_UTILS_IMPL
 #include <syx_new/syx_utils.h>
 #define SYX_VALUE_IMPL

@@ -1,8 +1,8 @@
 #ifndef SYX_UTILS_H
 #define SYX_UTILS_H
 
+#include <defines.h>
 #include <ht.h>
-#include <magic.h>
 #include <nob.h>
 #include <rc.h>
 

@@ -1,9 +1,8 @@
 #ifndef SYX_EVAL_H
 #define SYX_EVAL_H
 
+#include <defines.h>
 #include <ht.h>
-#include <magic.h>
-#include <nob.h>
 #include <rc.h>
 
 #include "syx_value.h"

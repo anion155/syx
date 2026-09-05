@@ -11,7 +11,7 @@ char *nanoid(const char *prefix, size_t size);
 #if defined(NANOID_IMPL) && !defined(NANOID_IMPL_C)
 #define NANOID_IMPL_C
 
-#include "./magic.h"
+#include "./defines.h"
 #include "./nob.h"
 #include "./stdlib.h"
 

@@ -2,7 +2,7 @@
 #define DA_H
 
 #include <assert.h>
-#include <magic.h>
+#include <defines.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>

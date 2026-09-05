@@ -1,10 +1,10 @@
 #ifndef NONOB_H
 #define NONOB_H
 
+#include "./defines.h"
 #include "./flag.h"
 #include "./ht.h"
 #include "./jim.h"
-#include "./magic.h"
 #include "./nob.h"
 
 typedef struct NoNob_Command NoNob_Command;

@@ -1,9 +1,6 @@
 #ifndef SYX_VALUE_H
 #define SYX_VALUE_H
 
-#include <ht.h>
-#include <nob.h>
-#include <rc.h>
 #include <stdint.h>
 #include <syx_new/syx_utils.h>
 
@@ -280,8 +277,6 @@ Syx_Value *syx_list_next(Syx_Pair **list);
 
 #define HT_IMPL
 #include <ht.h>
-#define NOB_IMPL
-#include <nob.h>
 #define RC_IMPL
 #include <rc.h>
 #define GENERAL_UTILS_IMPL

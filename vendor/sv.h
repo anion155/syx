@@ -37,6 +37,11 @@ size_t sb__pad_align(String_Builder *sb, size_t size, char filler);
   (String_View){.data = _sb_->data, .count = _sb_->count}; \
 })
 
+#define sb_copy_sv(sv) ({  \
+  String_Builder sb = {0}; \
+  sb_append_sv(&sb, (sv)); \
+  sb;                      \
+})
 #define sb_copy_n(data, count) ({        \
   String_Builder sb = {0};               \
   sb_append_buf_n(&sb, (data), (count)); \

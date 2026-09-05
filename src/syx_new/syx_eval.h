@@ -1,9 +1,8 @@
 #ifndef SYX_EVAL_H
 #define SYX_EVAL_H
 
-#include <general_utils.h>
-#include <ht.h>
-#include <rc.h>
+#include <da.h>
+#include <sv.h>
 #include <syx_new/syx_value.h>
 
 typedef struct Syx_Frame {
@@ -70,27 +69,27 @@ Syx_Value *syx_eval_forms_list_opt(Syx_Eval_Ctx *ctx, Syx_Pair *forms, Syx_Eval_
 Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value);
 Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value);
 Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value);
-#define syx_convert_to(ctx, value, storage, ...) ({                     \
-  Syx_Value *__value = rc_acquire((value));                             \
-  syx_value_early_exit(__value __VA_OPT__(, ) __VA_ARGS__);             \
-  Syx_Value *converted = _Generic(storage,                              \
-      bool *: syx_convert_to_bool,                                      \
-      Syx_Number *: syx_convert_to_number,                              \
-      syx_integer_t *: syx_convert_to_number,                           \
-      syx_fractional_t *: syx_convert_to_number,                        \
-      syx_string_view *: syx_convert_to_string,                         \
-      syx_string *: syx_convert_to_string)((ctx), __value);             \
-  rc_acquire(converted);                                                \
-  syx_value_early_exit(converted, __value __VA_OPT__(, ) __VA_ARGS__);  \
-  rc_release(__value);                                                  \
-  *(storage) = _Generic(storage,                                        \
-      bool *: syx_boolean_get(converted),                               \
-      Syx_Number *: *converted->number,                                 \
-      syx_integer_t *: syx_number_get(converted->number),               \
-      syx_fractional_t *: syx_number_get(converted->number),            \
-      syx_string_view *: sv_from_like(*converted->string),              \
-      syx_string *: sb_copy_from_sv(sv_from_like(*converted->string))); \
-  rc_release(converted);                                                \
+#define syx_convert_to(ctx, value, storage, ...) ({                    \
+  Syx_Value *__value = rc_acquire((value));                            \
+  syx_value_early_exit(__value __VA_OPT__(, ) __VA_ARGS__);            \
+  Syx_Value *converted = _Generic(storage,                             \
+      bool *: syx_convert_to_bool,                                     \
+      Syx_Number *: syx_convert_to_number,                             \
+      syx_integer_t *: syx_convert_to_number,                          \
+      syx_fractional_t *: syx_convert_to_number,                       \
+      syx_string_view *: syx_convert_to_string);                       \
+      syx_string *: syx_convert_to_string)((ctx), __value);            \
+  rc_acquire(converted);                                               \
+  syx_value_early_exit(converted, __value __VA_OPT__(, ) __VA_ARGS__); \
+  rc_release(__value);                                                 \
+  *(storage) = _Generic(storage,                                       \
+      bool *: syx_boolean_get(converted),                              \
+      Syx_Number *: *converted->number,                                \
+      syx_integer_t *: syx_number_get(converted->number),              \
+      syx_fractional_t *: syx_number_get(converted->number),           \
+      syx_string_view *: sv_from_like(*converted->string),             \
+      syx_string *: sb_copy_sv(sv_from_like(*converted->string)));     \
+  rc_release(converted);                                               \
 })
 
 #endif // SYX_EVAL_H

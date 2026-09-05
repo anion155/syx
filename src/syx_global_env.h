@@ -1,8 +1,8 @@
 #ifndef SYX_GLOBAL_ENV_H
 #define SYX_GLOBAL_ENV_H
 
+#include <defines.h>
 #include <ht.h>
-#include <magic.h>
 #include <nob.h>
 #include <rc.h>
 

@@ -9,6 +9,9 @@
 #  include <readline/readline.h>
 #endif
 
+#include <cli.h>
+
+#define NOB_UNSTRIP_PREFIX
 #define NOB_IMPL
 #include <nob.h>
 #define FLAG_IMPL
@@ -16,7 +19,6 @@
 #define HT_IMPL
 #include <ht.h>
 #define RC_IMPL
-#include <cli.h>
 #include <rc.h>
 
 #define SYX_VALUE_IMPL
@@ -27,6 +29,9 @@
 #include <syx_new/syx_global_env.h>
 #define SYX_PARSER_IMPL
 #include <syx_new/syx_parser.h>
+
+#define SV_IMPL
+#include <sv.h>
 
 typedef struct Syx_Script_Context {
   Syx_Eval_Ctx *eval_ctx;

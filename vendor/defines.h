@@ -1,5 +1,5 @@
-#ifndef MAGIC_H_
-#define MAGIC_H_
+#ifndef DEFINES_H_
+#define DEFINES_H_
 
 #define UNUSED(...) (void)(__VA_ARGS__)
 
@@ -39,4 +39,4 @@
 #  define PRINTF_FMT_PARAM
 #endif
 
-#endif // MAGIC_H_
+#endif // DEFINES_H_

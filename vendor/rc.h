@@ -1,8 +1,9 @@
 #ifndef RC_H
 #define RC_H
 
+#include <abort.h>
 #include <assert.h>
-#include <magic.h>
+#include <defines.h>
 #include <stddef.h>
 
 typedef struct Rc_Circulars Rc_Circulars;
@@ -67,6 +68,9 @@ void rc_graph_visitor(Rc_Circulars *circulars, void **data, const void *source);
 
 #if defined(RC_IMPL) && !defined(RC_IMPL_C)
 #define RC_IMPL_C
+
+#define ABORT_IMPL
+#include <abort.h>
 
 inline Rc *rc_get(const void *data) {
   return (Rc *)data - 1;
