@@ -6,7 +6,9 @@
 #define STRINGIFY(x) #x
 #define STRINGIFY2(x) STRINGIFY(x)
 
-#define EXPAND(MACRO, ...) MACRO(__VA_ARGS__)
+#define EXPAND(...) __VA_ARGS__
+#define EXPAND_WITH_COMMA(...) __VA_OPT__(, ) __VA_ARGS__
+#define EXPAND_MACRO(MACRO, ...) MACRO(__VA_ARGS__)
 
 #define FIRST_ARG(a, ...) a
 #define REST_ARGS(a, ...) __VA_ARGS__

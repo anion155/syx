@@ -12,8 +12,6 @@ Syx_Eval_Ctx *make_global_syx_eval_ctx();
 #if defined(SYX_GLOBAL_ENV_IMPL) && !defined(SYX_GLOBAL_ENV_IMPL_C)
 #define SYX_GLOBAL_ENV_IMPL_C
 
-#define SYX_EVAL_IMPL
-#include <syx_new/syx_eval.h>
 #define SYX_EVAL_SPECIALF_IMPL
 #include <syx_new/syx_eval_specialf.h>
 #define SYX_EVAL_BUILTINS_IMPL

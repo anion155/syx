@@ -1,13 +1,20 @@
 #ifndef GENERAL_UTILS_H
 #define GENERAL_UTILS_H
 
+#include <defines.h>
+#define NOB_UNSTRIP_PREFIX
+#include <nob.h>
+
 syx_string_view temp_view_vsprintf(const char *format, va_list ap);
-syx_string_view temp_view_sprintf(const char *format, ...) NOB_PRINTF_FORMAT(1, 2);
+syx_string_view temp_view_sprintf(PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(1, 2);
 
 #endif // GENERAL_UTILS_H
 
 #if defined(GENERAL_UTILS_IMPL) && !defined(GENERAL_UTILS_IMPL_C)
 #define GENERAL_UTILS_IMPL_C
+
+#define NOB_IMPL
+#include <nob.h>
 
 syx_string_view temp_view_vsprintf(const char *format, va_list ap) {
   syx_string_view sv = {0};

@@ -3,6 +3,7 @@
 
 #include <abort.h>
 #include <assert.h>
+#include <da.h>
 #include <defines.h>
 #include <stddef.h>
 
@@ -57,7 +58,7 @@ void rc__weak_free(void (*free)(void *data), void **weak_data);
 size_t rc_count(const void *data);
 
 struct Rc_Circulars {
-  void ***items;
+  void ***data;
   size_t count;
   size_t capacity;
 };
@@ -136,10 +137,10 @@ void rc_release(void *data) {
     Rc_Circulars circulars = {0};
     rc->methods.graph_visitor(&circulars, data, data);
     if (header->strong == circulars.count) {
-      da_foreach(void **, link, &circulars) **link = NULL;
+      da_foreach(&circulars, link) **link = NULL;
       for (size_t index = 0; index < circulars.count; index++) rc_release(data);
     }
-    da_free(circulars);
+    da_free(&circulars);
   }
 }
 

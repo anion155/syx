@@ -1,7 +1,22 @@
 #include <stdio.h>
-#define SV_IMPL
-#include <sv.h>
+#define SYX_LEXER_IMPL
+#include <syx_new/syx_lexer.h>
+#define SYX_VALUE_IMPL
+#include <syx_new/syx_value.h>
+#define SYX_PARSER_IMPL
+#include <syx_new/syx_parser.h>
+#define SYX_UTILS_IMPL
+#include <syx_new/syx_utils.h>
+#define SYX_EVAL_BUILTINS_IMPL
+#include <syx_new/syx_eval_builtins.h>
+#define SYX_EVAL_SPECIALF_IMPL
+#include <syx_new/syx_eval_specialf.h>
+#define SYX_GLOBAL_ENV_IMPL
+#include <syx_new/syx_global_env.h>
+#define SYX_EVAL_IMPL
 #include <syx_new/syx_eval.h>
+#define SYX_OBJECT_IMPL
+#include <syx_new/syx_object.h>
 
 int main(void) {
   String_Builder sb = {0};
@@ -11,26 +26,6 @@ int main(void) {
     da_append(&sb, 'A');
   }
   printf("1. Initial:      count=%zu, capacity=%zu\n", sb.count, sb.capacity);
-
-  // Step 2: Trim and null-terminate
-  sb_null_terminate(&sb);
-  printf("2. Terminated:   count=%zu, capacity=%zu (Allocated memory: %zu bytes)\n",
-         sb.count, sb.capacity, sb.capacity);
-
-  // Step 3: Append 1 character ('B')
-  da_append(&sb, 'B');
-  printf("3. Append 'B':   count=%zu, capacity=%zu\n", sb.count, sb.capacity);
-
-  // Step 4: Append 1 character ('C')
-  da_append(&sb, 'C');
-  printf("4. Append 'C':   count=%zu, capacity=%zu (Allocated memory: 258 bytes!)\n",
-         sb.count, sb.capacity);
-
-  // Step 5: Null-terminate again
-  printf("5. Attempting sb_null_terminate...\n");
-  sb_null_terminate(&sb);
-
-  printf("Success! count=%zu, capacity=%zu\n", sb.count, sb.capacity);
 
   free(sb.data);
   return 0;

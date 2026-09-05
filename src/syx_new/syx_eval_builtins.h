@@ -80,7 +80,7 @@ Syx_Value *syx_builtin_map(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   syx_list_map(list->pair, item, &results) {
     Syx_Value *call = rc_acquire(make_syx_value_list(fn, *item, NULL));
     *item = rc_acquire(syx_eval(ctx, call));
-    syx_value_early_exit(*item, results, call);
+    syx_value_early_exit(*item, (results, call));
     rc_release(call);
     rc_move(*item);
   }
@@ -178,7 +178,7 @@ bool syx__builtin_equivalent_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_
     case SYX_VALUE_KIND_CONST: return false;  // should work on left == right level
     case SYX_VALUE_KIND_SYMBOL: return false; // should work on left == right level
     case SYX_VALUE_KIND_NUMBER: return right->kind == SYX_VALUE_KIND_NUMBER && (syx_number_get(left->number) == syx_number_get(right->number));
-    case SYX_VALUE_KIND_STRING: return right->kind == SYX_VALUE_KIND_STRING && sv_like_eq(*left->string, *right->string);
+    case SYX_VALUE_KIND_STRING: return right->kind == SYX_VALUE_KIND_STRING && sv_eq(*left->string, *right->string);
     case SYX_VALUE_KIND_OBJECT: return false;  // should work on left == right level
     case SYX_VALUE_KIND_CLOSURE: return false; // should work on left == right level
     case SYX_VALUE_KIND_EXIT: UNREACHABLE("should never get exit value here");

@@ -20,46 +20,42 @@ Syx_Value *parse_syx(syx_string_view source, bool ignore_errors);
 #define GENERAL_UTILS_IMPL
 #include <general_utils.h>
 
-#define tokens_chop_left(tokens) ({                                      \
-  size_t count = (tokens)->count;                                        \
-  (tokens)->items += MIN(1, count);                                      \
-  (tokens)->count -= MIN(1, count);                                      \
-  count ? (tokens)->items[-1] : (Syx_Token){.kind = SYX_TOKEN_KIND_EOF}; \
-})
-
 Syx_Value *parse_syx_value(Syx_Tokens *tokens);
 
 Syx_Value *parse_syx_list_values(Syx_Tokens *tokens, Syx_Token_Kind closing_token) {
-  if (da_first(tokens).kind == closing_token) {
-    tokens_chop_left(tokens);
+  if (da_first(*tokens).kind == closing_token) {
+    da_slice_chop_left(tokens);
     return syx_value_nil();
   }
   Syx_Value *list = NULL;
   Syx_Value **pair_value = &list;
   while (tokens->count) {
-    Syx_Token first = da_first(tokens);
-    if (first.kind == SYX_TOKEN_KIND_SYMBOL && sv_like_eq(first, SVLIT("."))) {
+    Syx_Token first = da_first(*tokens);
+    if (first.kind == SYX_TOKEN_KIND_SYMBOL && sv_eq(first, sv_from_strlit("."))) {
       Syx_Value *value = rc_acquire(parse_syx_value(tokens));
-      syx_value_early_exit(value, list);
+      syx_value_early_exit(value, (list));
       *pair_value = value;
-      SYX_ASSERT(da_first(tokens).kind == closing_token, "expected end token", NULL, list);
+      SYX_ASSERT(da_first(*tokens).kind == closing_token, "expected end token", (), (list));
       goto without_nil;
     }
     Syx_Value *value = rc_acquire(parse_syx_value(tokens));
-    syx_value_early_exit(value, list);
+    syx_value_early_exit(value, (list));
     *pair_value = rc_acquire(make_syx_value_pair(value, NULL));
     pair_value = &(*pair_value)->pair->right;
-    if (da_first(tokens).kind == closing_token) break;
+    if (da_first(*tokens).kind == closing_token) break;
   }
   *pair_value = rc_acquire(syx_value_nil());
 without_nil:
-  SYX_ASSERT(da_first(tokens).kind == closing_token, "expected end token", NULL, list);
-  tokens_chop_left(tokens);
+  SYX_ASSERT(da_first(*tokens).kind == closing_token, "expected end token", (), (list));
+  da_slice_chop_left(tokens);
   return list;
 }
 
 uint16_t syx_parser_utf_4_chars_to_codepoint(char chars[4]) {
-  return (syx_utils_hex_to_decimal(chars[0]) << 12) | (syx_utils_hex_to_decimal(chars[1]) << 8) | (syx_utils_hex_to_decimal(chars[2]) << 4) | syx_utils_hex_to_decimal(chars[3]);
+  return (syx_utils_hex_to_decimal(chars[0]) << 12) |
+         (syx_utils_hex_to_decimal(chars[1]) << 8) |
+         (syx_utils_hex_to_decimal(chars[2]) << 4) |
+         syx_utils_hex_to_decimal(chars[3]);
 }
 
 bool syx_parser_utf_codepoint_to_string(uint32_t codepoint, syx_string *string) {
@@ -203,8 +199,8 @@ Syx_Value *parse_syx_string_value(Syx_Token token) {
   }
 #undef handle_error
 #undef utf_bytes_from_string
-  Syx_Value *value = make_syx_value_string_dup(literal.items, literal.count);
-  sb_free(literal);
+  Syx_Value *value = make_syx_value_string_dup(literal.data, literal.count);
+  sb_free(&literal);
   return value;
 }
 
@@ -370,7 +366,7 @@ Syx_Value *parse_syx_prefix(Syx_Token token, Syx_Tokens *tokens) {
     }
     case ':':
     case '$': {
-      Syx_Token symbol = tokens_chop_left(tokens);
+      Syx_Token symbol = da_first(da_slice_chop_left(tokens));
       SYX_ASSERT(symbol.kind == SYX_TOKEN_KIND_SYMBOL, "symbol expected");
       return make_syx_value_prefixed((Syx_Prefixed_Kind)type, parse_syx_symbol_value(symbol));
     }
@@ -387,7 +383,7 @@ Syx_Value *parse_syx_dispatch(Syx_Token token, Syx_Tokens *tokens) {
     case 'f': return syx_value_bool_false();
     case 'R': {
       SYX_ASSERT(tokens->count >= 1, "expected string literal");
-      token = tokens_chop_left(tokens);
+      token = da_first(da_slice_chop_left(tokens));
       SYX_ASSERT(token.kind == SYX_TOKEN_KIND_STRLIT, "expected string literal");
       return make_syx_value_string_dup(token.data, token.count);
     }
@@ -401,8 +397,8 @@ Syx_Value *parse_syx_dispatch(Syx_Token token, Syx_Tokens *tokens) {
 }
 
 Syx_Value *parse_syx_value(Syx_Tokens *tokens) {
-  if (!tokens->count) SYX_THROW("expected value");
-  Syx_Token first = tokens_chop_left(tokens);
+  SYX_ASSERT(tokens->count, "expected value");
+  Syx_Token first = da_first(da_slice_chop_left(tokens));
   switch (first.kind) {
     case SYX_TOKEN_KIND_NULL: return parse_syx_value(tokens);
     case SYX_TOKEN_KIND_LPAREN: return parse_syx_list_values(tokens, SYX_TOKEN_KIND_RPAREN);
@@ -420,14 +416,14 @@ Syx_Value *parse_syx_value(Syx_Tokens *tokens) {
 
 Syx_Value *parse_syx(syx_string_view source, bool ignore_errors) {
   Syx_Tokens tokens = syx_lexer_tokenize(source);
-  if (!tokens.count) SYX_THROW("Failed to parse syx script");
-  if (tokens.items[tokens.count - 1].kind != SYX_TOKEN_KIND_EOF) SYX_THROW("Failed to parse syx script");
+  SYX_ASSERT(tokens.count, "Failed to parse syx script");
+  SYX_ASSERT(tokens.data[tokens.count - 1].kind == SYX_TOKEN_KIND_EOF, "Failed to parse syx script");
   tokens.count -= 1;
   Syx_Value *list = NULL;
   Syx_Value **pair_value = &list;
   for (Syx_Tokens it = tokens; it.count;) {
     Syx_Value *value = rc_acquire(parse_syx_value(&it));
-    if (!ignore_errors) syx_value_early_exit(value, list);
+    if (!ignore_errors) syx_value_early_exit(value, (list));
     *pair_value = rc_acquire(make_syx_value_pair(value, NULL));
     pair_value = &(*pair_value)->pair->right;
   }

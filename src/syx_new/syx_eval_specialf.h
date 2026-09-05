@@ -2,6 +2,7 @@
 #define SYX_EVAL_SPECIALF_H
 
 #include <syx_new/syx_eval.h>
+#include <syx_new/syx_object.h>
 
 void syx_env_define_special_forms(Syx_Env *env);
 
@@ -73,7 +74,7 @@ Syx_Value *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *target = rc_acquire(syx_eval_unquote(ctx, syx_list_next(&arguments)));
   syx_value_early_exit(target);
   Syx_Value *value = rc_acquire(syx_eval(ctx, syx_list_next(&arguments)));
-  syx_value_early_exit(value, target);
+  syx_value_early_exit(value, (target));
   // if (target->lvalue) {
   //   Syx_Value *result = target->lvalue->callback(ctx, target, target->lvalue->data, value);
   //   if (!result) result = syx_value_nil();
@@ -94,7 +95,7 @@ Syx_Value *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
     rc_release(target);
     return syx_value_nil();
   }
-  SYX_EVAL_THROW(ctx, "unsupported set expression", target);
+  SYX_EVAL_THROW(ctx, "unsupported set expression", (), (target));
 }
 
 /** Checks if environment has binding. */
@@ -131,14 +132,14 @@ Syx_Value *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Env *body_env = make_syx_env(make_syx_value_symbol_strlit("let")->symbol, ctx->env);
   Syx_Eval_Ctx *body_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = body_env}));
   Syx_Value *bindings_src = syx_list_next(&arguments);
-  if (bindings_src->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "List of definitions expected", body_ctx);
+  if (bindings_src->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "List of definitions expected", (), (body_ctx));
   syx_list_for_each(bindings_src->pair, binding) {
-    if (binding->kind != SYX_VALUE_KIND_PAIR || !binding->pair) SYX_EVAL_THROW(ctx, "malformed let definition, list expected", body_ctx);
+    if (binding->kind != SYX_VALUE_KIND_PAIR || !binding->pair) SYX_EVAL_THROW(ctx, "malformed let definition, list expected", (), (body_ctx));
     Syx_Value *name = binding->pair->left;
-    if (name->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "malformed let definition, symbol as name expected", body_ctx);
-    if (binding->pair->right != SYX_VALUE_KIND_PAIR || !binding->pair->right->pair) SYX_EVAL_THROW(ctx, "malformed let definition, list expected", body_ctx);
+    if (name->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "malformed let definition, symbol as name expected", (), (body_ctx));
+    if (binding->pair->right != SYX_VALUE_KIND_PAIR || !binding->pair->right->pair) SYX_EVAL_THROW(ctx, "malformed let definition, list expected", (), (body_ctx));
     Syx_Value *value = rc_acquire(syx_eval(ctx, binding->pair->right->pair->left));
-    syx_value_early_exit(value, body_ctx);
+    syx_value_early_exit(value, (body_ctx));
     syx_env_define(body_ctx->env, name->symbol, rc_move(value));
   }
   Syx_Value *result = rc_acquire(syx_eval_forms_list(body_ctx, arguments));
@@ -196,7 +197,7 @@ Syx_Value *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
     if (result) rc_release(result);
     result = rc_acquire(syx_eval(ctx, branch->pair->left));
     bool cond = {0};
-    syx_convert_to(ctx, result, &cond, result, else_symbol, apply_symbol);
+    syx_convert_to(ctx, result, &cond, (result, else_symbol, apply_symbol));
     if (!cond) continue;
     branch = branch->pair->right;
     if (branch->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "malformed cond branch, forms list expected");
@@ -210,7 +211,7 @@ Syx_Value *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       Syx_Value *fn = branch->pair->left;
       Syx_Value *call = rc_acquire(make_syx_value_list(fn, result, NULL));
       Syx_Value *call_result = rc_acquire(syx_eval(ctx, call));
-      syx_value_early_exit(call_result, call, result, else_symbol, apply_symbol);
+      syx_value_early_exit(call_result, (call, result, else_symbol, apply_symbol));
       rc_release_all(call, result, else_symbol, apply_symbol);
       return rc_move(call_result);
     }
@@ -239,13 +240,13 @@ Syx_Value *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *result = NULL;
   syx_list_for_each(arguments, branch) {
     if (branch->kind != SYX_VALUE_KIND_PAIR || !branch->pair) {
-      SYX_EVAL_THROW(ctx, "malformed try handlers, list expected", body, catch_symbol, apply_symbol, finally_symbol, result);
+      SYX_EVAL_THROW(ctx, "malformed try handlers, list expected", (), (body, catch_symbol, apply_symbol, finally_symbol, result));
     }
     if (branch->pair->left == catch_symbol) {
       if (body->kind != SYX_VALUE_KIND_EXIT || body->exit->kind != SYX_EXIT_KIND_THROWN) continue;
       branch = branch->pair->right;
       if (branch->kind != SYX_VALUE_KIND_PAIR) {
-        SYX_EVAL_THROW(ctx, "malformed try's catch, list expected", body, catch_symbol, apply_symbol, finally_symbol, result);
+        SYX_EVAL_THROW(ctx, "malformed try's catch, list expected", (), (body, catch_symbol, apply_symbol, finally_symbol, result));
       }
       if (!branch->pair) {
         if (result) rc_release(result);
@@ -255,12 +256,12 @@ Syx_Value *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       if (branch->pair->left == apply_symbol) {
         branch = branch->pair->right;
         if (branch->kind != SYX_VALUE_KIND_PAIR || !branch->pair) {
-          SYX_EVAL_THROW(ctx, "malformed try's apply catch, apply function expected", body, catch_symbol, apply_symbol, finally_symbol, result);
+          SYX_EVAL_THROW(ctx, "malformed try's apply catch, apply function expected", (), (body, catch_symbol, apply_symbol, finally_symbol, result));
         }
         Syx_Value *fn = branch->pair->left;
         Syx_Value *call = rc_acquire(make_syx_value_list(fn, result, NULL));
         Syx_Value *call_result = rc_acquire(syx_eval(ctx, call));
-        syx_value_early_exit(call_result, body, catch_symbol, apply_symbol, finally_symbol, result, call);
+        syx_value_early_exit(call_result, (body, catch_symbol, apply_symbol, finally_symbol, result, call));
         rc_release_all(body, catch_symbol, apply_symbol, finally_symbol, result, call);
         result = call_result;
         continue;
@@ -270,16 +271,16 @@ Syx_Value *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
         error_name = branch->pair->left->pair->left;
         branch = branch->pair->right;
         if (error_name->kind != SYX_VALUE_KIND_SYMBOL) {
-          SYX_EVAL_THROW(ctx, "malformed try's catch handler, error name symbol expected", body, catch_symbol, apply_symbol, finally_symbol, result);
+          SYX_EVAL_THROW(ctx, "malformed try's catch handler, error name symbol expected", (), (body, catch_symbol, apply_symbol, finally_symbol, result));
         }
       }
       if (branch->kind != SYX_VALUE_KIND_PAIR) {
-        SYX_EVAL_THROW(ctx, "malformed try's catch handler, list expected", body, catch_symbol, apply_symbol, finally_symbol, result);
+        SYX_EVAL_THROW(ctx, "malformed try's catch handler, list expected", (), (body, catch_symbol, apply_symbol, finally_symbol, result));
       }
       if (!error_name) {
         if (result) rc_release(result);
         result = rc_acquire(syx_eval_forms_list(ctx, branch->pair, .initial = syx_value_nil()));
-        syx_value_early_exit(result, body, catch_symbol, apply_symbol, finally_symbol);
+        syx_value_early_exit(result, (body, catch_symbol, apply_symbol, finally_symbol));
         continue;
       }
       Syx_Env *handler_env = make_syx_env(make_syx_value_symbol_strlit("try-catch")->symbol, ctx->env);
@@ -287,21 +288,21 @@ Syx_Value *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       syx_env_define(handler_ctx->env, error_name->symbol, body->exit->thrown->reason);
       if (result) rc_release(result);
       result = rc_acquire(syx_eval_forms_list(handler_ctx, branch->pair, .initial = syx_value_nil()));
-      syx_value_early_exit(result, body, catch_symbol, apply_symbol, finally_symbol, handler_ctx);
+      syx_value_early_exit(result, (body, catch_symbol, apply_symbol, finally_symbol, handler_ctx));
       rc_release(handler_ctx);
       continue;
     }
     if (branch->pair->left == finally_symbol) {
       branch = branch->pair->right;
       if (branch->kind != SYX_VALUE_KIND_PAIR) {
-        SYX_EVAL_THROW(ctx, "malformed try's finally handler, list expected", body, catch_symbol, apply_symbol, finally_symbol);
+        SYX_EVAL_THROW(ctx, "malformed try's finally handler, list expected", (), (body, catch_symbol, apply_symbol, finally_symbol));
       }
       Syx_Value *finally_result = rc_acquire(syx_eval_forms_list(ctx, branch->pair));
-      syx_value_early_exit(finally_result, body, catch_symbol, apply_symbol, finally_symbol, result);
+      syx_value_early_exit(finally_result, (body, catch_symbol, apply_symbol, finally_symbol, result));
       rc_release(finally_result);
       continue;
     }
-    SYX_EVAL_THROW(ctx, "malformed try's handlers list", body, catch_symbol, apply_symbol, finally_symbol);
+    SYX_EVAL_THROW(ctx, "malformed try's handlers list", (), (body, catch_symbol, apply_symbol, finally_symbol));
   }
   rc_release_all(catch_symbol, apply_symbol, finally_symbol);
   if (!result) return rc_move(body);
@@ -322,20 +323,20 @@ Syx_Value *syx_special_form_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *proto_symbol = rc_acquire(make_syx_value_symbol_strlit("proto"));
   while (arguments) {
     Syx_Value *field_name = syx_list_next_nullable(&arguments);
-    if (!arguments) SYX_EVAL_THROW(ctx, "malformed object key-value pair", value, proto_symbol);
-    if (field_name->kind != SYX_VALUE_KIND_PREFIXED) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", value, proto_symbol);
-    if (field_name->prefixed->kind != SYX_PREFIXED_KIND_COLON) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", value, proto_symbol);
+    if (!arguments) SYX_EVAL_THROW(ctx, "malformed object key-value pair", (), (value, proto_symbol));
+    if (field_name->kind != SYX_VALUE_KIND_PREFIXED) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", (), (value, proto_symbol));
+    if (field_name->prefixed->kind != SYX_PREFIXED_KIND_COLON) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", (), (value, proto_symbol));
     field_name = field_name->prefixed->value;
     if (field_name == proto_symbol) {
       Syx_Value *proto_form = syx_list_next_nullable(&arguments);
       Syx_Value *proto = rc_acquire(syx_eval(ctx, proto_form));
-      syx_value_early_exit(proto, value, proto_symbol);
-      if (proto->kind != SYX_VALUE_KIND_OBJECT) SYX_EVAL_THROW(ctx, "expected object as prototype", value, proto_symbol, proto);
+      syx_value_early_exit(proto, (value, proto_symbol));
+      if (proto->kind != SYX_VALUE_KIND_OBJECT) SYX_EVAL_THROW(ctx, "expected object as prototype", (), (value, proto_symbol, proto));
       if (value->object->proto) rc_release(syx_value_from_object(value->object->proto));
       value->object->proto = proto->object;
       continue;
     }
-    if (field_name->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", value, proto_symbol);
+    if (field_name->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", (), (value, proto_symbol));
     Syx_Value *form = syx_list_next_nullable(&arguments);
     syx_object_set(value->object, field_name->symbol, form);
   }
@@ -349,7 +350,7 @@ Syx_Value *syx_special_form_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 //   syx_value_early_exit(head);
 //   if (head->kind != SYXV_KIND_CONSTRUCTOR) SYX_EVAL_THROW(ctx, "constructor expected here");
 //   Syx_Value *evaluated = syx_eval_list(ctx, arguments);
-//   syx_value_early_exit(evaluated, head);
+//   syx_value_early_exit(evaluated, (head));
 //   rc_acquire(evaluated);
 //   Syx_Value *result = rc_acquire(syx_eval_boxed_construct(ctx, head->constructor.typeinfo, evaluated));
 //   rc_release(head);

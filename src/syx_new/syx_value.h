@@ -1,11 +1,15 @@
 #ifndef SYX_VALUE_H
 #define SYX_VALUE_H
 
+#include <defines.h>
+#include <ht.h>
+#include <rc.h>
 #include <stdint.h>
+#include <sv.h>
 #include <syx_new/syx_utils.h>
 
-typedef Nob_String_View syx_string_view;
-typedef Nob_String_Builder syx_string;
+typedef String_View syx_string_view;
+typedef String_Builder syx_string;
 
 typedef struct Syx_Frame Syx_Frame;
 typedef struct Syx_Eval_Ctx Syx_Eval_Ctx;
@@ -197,7 +201,7 @@ Syx_Value *make_syx_value__list(size_t count, Syx_Value **items);
 Syx_Value *make_syx_value_symbol(syx_string_view symbol);
 #define make_syx_value_symbol_strlit(symbol) make_syx_value_symbol((String_View){.data = (symbol), .count = sizeof(symbol) - 1})
 Syx_Value *make_syx_value_symbol_n(const char *symbol, size_t count);
-Syx_Value *make_syx_value_symbol_f(const char *format, ...) NOB_PRINTF_FORMAT(1, 2);
+Syx_Value *make_syx_value_symbol_f(PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(1, 2);
 Syx_Value *make_syx_value_symbol_cstr(const char *symbol);
 Syx_Value *syx_value_bool_false();
 Syx_Value *syx_value_bool_true();
@@ -210,6 +214,7 @@ Syx_Value *make_syx_value_string(Syx_String string);
 Syx_Value *make_syx_value_string_n(char *data, size_t count);
 Syx_Value *make_syx_value_string_dup(const char *data, size_t count);
 Syx_Value *make_syx_value_string_cstr_dup(const char *data);
+Syx_Value *make_syx_value_stringf(PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(1, 2);
 Syx_Value *make_syx_value_object(Syx_Object *proto);
 Syx_Value *make_syx_value_closure(Syx_Symbol *name, Syx_Closure_Kind kind, size_t size);
 void syx_value_closure_rename(Syx_Closure *closure, Syx_Symbol *name);
@@ -249,26 +254,23 @@ bool syx_list_map_next(Syx_Value **source_it, Syx_Value ***target_it, Syx_Value 
 Syx_Value *syx_list_next_nullable(Syx_Pair **list);
 Syx_Value *syx_list_next(Syx_Pair **list);
 
-#define syx_value_early_exit(value, ...)                 \
-  do {                                                   \
-    Syx_Value *_value = (value);                         \
-    if (_value && _value->kind == SYX_VALUE_KIND_EXIT) { \
-      rc_release_all(__VA_ARGS__);                       \
-      return rc_move(_value);                            \
-    }                                                    \
-  } while (0)
+#define syx_value_early_exit(value, ...) ({               \
+  Syx_Value *_value_ = (value);                           \
+  if (_value_ && _value_->kind == SYX_VALUE_KIND_EXIT) {  \
+    rc_release_all(EXPAND WITH_DEFAULT((), __VA_ARGS__)); \
+    return rc_move(_value_);                              \
+  }                                                       \
+})
 
-#define SYX_THROW(message, ...)                                                            \
-  do {                                                                                     \
-    rc_release_all(REST_ARGS(__VA_ARGS__));                                                \
-    Syx_Value *reason = make_syx_value_string_cstr_dup(message);                           \
-    return make_syx_value_exit_thrown(reason, WITH_DEFAULT(NULL, FIRST_ARG(__VA_ARGS__))); \
-  } while (0)
-#define SYX_ASSERT(condition, message, ...)            \
-  do {                                                 \
-    if (!(condition)) SYX_THROW(message, __VA_ARGS__); \
-  } while (0)
+#define SYX_THROW(message, ...) ({                                                                                        \
+  rc_release_all(EXPAND WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )));                                                     \
+  Syx_Value *reason = make_syx_value_stringf(message EXPAND(EXPAND_WITH_COMMA WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)))); \
+  return make_syx_value_exit_thrown(reason, WITH_DEFAULT(NULL, THIRD_ARG(__VA_ARGS__, , )));                              \
+})
 #define SYX_TODO(message, ...) SYX_THROW("TODO: " message __VA_OPT__(, ) __VA_ARGS__)
+#define SYX_ASSERT(condition, message, ...) ({       \
+  if (!(condition)) SYX_THROW(message, __VA_ARGS__); \
+})
 
 #endif // SYX_VALUE_H
 
@@ -442,6 +444,25 @@ Syx_Value *make_syx_value_string_dup(const char *data, size_t count) {
 
 inline Syx_Value *make_syx_value_string_cstr_dup(const char *data) {
   return make_syx_value_string_dup(data, strlen(data));
+}
+
+Syx_Value *make_syx_value_stringf(const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+  size_t count = vsnprintf(NULL, 0, format, args);
+  va_end(args);
+  assert(count >= 0);
+
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_STRING, sizeof(Syx_String) + sizeof(char) * count);
+  value->string = (Syx_String *)(value + 1);
+  value->string->data = (const char *)(value->string + 1);
+  value->string->count = count;
+
+  va_start(args, format);
+  vsnprintf((char *)value->string->data, count, format, args);
+  va_end(args);
+
+  return value;
 }
 
 void syx_value_object_destructor(void *data) {

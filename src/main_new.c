@@ -254,24 +254,24 @@ int main(int argc, char **argv) {
 
   int result = 0;
   if (commands->count) {
-    String_Builder sb = {0};
-    da_foreach(const char *, command, commands) sb_append_cstr(&sb, *command);
-    sb_append(&sb, 0);
-    int run_result = run_syx(sb_to_sv(sb));
+    Nob_String_Builder sb = {0};
+    nob_da_foreach(const char *, command, commands) nob_sb_append_cstr(&sb, *command);
+    nob_sb_append(&sb, 0);
+    int run_result = run_syx((String_View){.data = sb.items, .count = sb.count});
     if (run_result >= 0) nob_return_defer(run_result);
   } else if (*opt_stdin) {
-    String_Builder sb = {0};
+    Nob_String_Builder sb = {0};
     if (!nob_read_entire_stdin(&sb)) UNREACHABLE("Failed to read stdin");
-    sb_append(&sb, 0);
-    int run_result = run_syx(sb_to_sv(sb));
-    sb_free(sb);
+    nob_sb_append(&sb, 0);
+    int run_result = run_syx((String_View){.data = sb.items, .count = sb.count});
+    nob_sb_free(sb);
     if (run_result >= 0) nob_return_defer(run_result);
   } else if (argc == 1) {
-    String_Builder sb = {0};
+    Nob_String_Builder sb = {0};
     if (!nob_read_entire_file(argv[0], &sb)) UNREACHABLE("Failed to read file");
-    sb_append(&sb, 0);
-    int run_result = run_syx(sb_to_sv(sb));
-    sb_free(sb);
+    nob_sb_append(&sb, 0);
+    int run_result = run_syx((String_View){.data = sb.items, .count = sb.count});
+    nob_sb_free(sb);
     if (run_result >= 0) nob_return_defer(run_result);
   } else {
     printf("Syx Language REPL\n");

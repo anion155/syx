@@ -30,9 +30,11 @@ typedef struct Syx_Token {
   Syx_Token_Kind kind;
 } Syx_Token;
 
+typedef Da(Syx_Token, Syx_Tokens_Da) Syx_Tokens_Da;
+
 typedef struct Syx_Tokens {
   syx_string_view source;
-  Syx_Token *items;
+  const Syx_Token *data;
   size_t count;
   size_t capacity;
 } Syx_Tokens;
@@ -308,23 +310,20 @@ return_error:
 }
 
 Syx_Tokens syx_lexer_tokenize(syx_string_view source) {
-  Syx_Tokens tokens = {.source = source};
-  for (syx_string_view it = tokens.source; it.count;) {
+  Syx_Tokens_Da tokens = {};
+  for (syx_string_view it = source; it.count;) {
     while (it.count && syx_lexer_is_whitespace(*it.data)) sv_chop_left(&it, nob_bytes_for_utf8(it));
     Syx_Token token = syx_lexer_get_next_token(&it);
     switch (token.kind) {
       case SYX_TOKEN_KIND_NULL: continue;
-      case SYX_TOKEN_KIND_ERROR: {
-        da_append(&tokens, token);
-        return tokens;
-      }
-      default: {
-        da_append(&tokens, token);
-      }
+      case SYX_TOKEN_KIND_ERROR: da_append(&tokens, token); goto result;
+      default: da_append(&tokens, token);
     }
   }
   da_append(&tokens, ((Syx_Token){.data = source.data + source.count, .count = 0, .kind = SYX_TOKEN_KIND_EOF}));
-  return tokens;
+  da_trim_realloc(&tokens);
+result:
+  return (Syx_Tokens){.source = source, .data = tokens.data, .capacity = tokens.capacity, .count = tokens.count};
 }
 
 #endif // SYX_LEXER_IMPL_C
