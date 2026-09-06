@@ -95,13 +95,11 @@ size_t stringify___append_floating_special(Stringify_State *state, bool sign, ui
   if (exponent == ((1u << RYU_F2S_FLOAT_EXPONENT_BITS) - 1u)) {
     if (mantissa) return state->count += sb_append_strlit(state->sb, "NaN");
     if (sign) state->count += sb_append(state->sb, '-');
-    state->count += sb_append_strlit(state->sb, "Infinity");
-    return state->count;
+    return state->count += sb_append_strlit(state->sb, "Infinity");
   }
   if ((exponent == 0 && mantissa == 0)) {
     if (sign) state->count += sb_append(state->sb, '-');
-    state->count += sb_append_strlit(state->sb, "0.0");
-    return state->count;
+    return state->count += sb_append_strlit(state->sb, "0.0");
   }
   return 0;
 }
@@ -110,12 +108,12 @@ size_t stringify___append_floating_special(Stringify_State *state, bool sign, ui
   if (count) return count;                                                             \
 })
 
-void sb__append_floating(Stringify_State *state, floating_decimal_64 v) {
+void sb__append_floating(Stringify_State *state, floating_decimal v) {
   if (!v.exponent) {
     state->count += sb_append_integer(state->sb, v.mantissa);
   } else if (v.exponent < 0) {
     size_t exponent = -v.exponent;
-    size_t count = ryu_d2s_decimalLength17(v.mantissa);
+    size_t count = ryu_decimalLength17(v.mantissa);
     if (exponent >= count) state->count += sb_append(state->sb, '0');
     state->count += sb_append_integer(state->sb, v.mantissa);
     state->count += sb_append(state->sb, '.');
@@ -132,26 +130,26 @@ void sb__append_floating(Stringify_State *state, floating_decimal_64 v) {
 
 size_t sb_append_float(String_Builder *string, float value) {
   Stringify_State state = make_stringify_state(string, 16);
-  uint32_t bits = float_to_bits(value);
-  bool ieeeSign = ((bits >> (RYU_F2S_FLOAT_MANTISSA_BITS + RYU_F2S_FLOAT_EXPONENT_BITS)) & 1) != 0;
-  uint32_t ieeeMantissa = bits & ((1u << RYU_F2S_FLOAT_MANTISSA_BITS) - 1);
-  uint32_t ieeeExponent = (bits >> RYU_F2S_FLOAT_MANTISSA_BITS) & ((1u << RYU_F2S_FLOAT_EXPONENT_BITS) - 1);
-  sb__append_floating_special(&state, ieeeSign, ieeeExponent, ieeeMantissa);
-  floating_decimal_32 v = ryu_f2s_f2d(ieeeMantissa, ieeeExponent);
-  if (ieeeSign) state.count += sb_append(state.sb, '-');
-  sb__append_floating(&state, (floating_decimal_64){.mantissa = v.mantissa, .exponent = v.exponent});
+  uint32_t bits = ryu_float_to_bits(value);
+  bool sign = ((bits >> (RYU_F2S_FLOAT_MANTISSA_BITS + RYU_F2S_FLOAT_EXPONENT_BITS)) & 1) != 0;
+  uint32_t mantissa = bits & ((1u << RYU_F2S_FLOAT_MANTISSA_BITS) - 1);
+  uint32_t exponent = (bits >> RYU_F2S_FLOAT_MANTISSA_BITS) & ((1u << RYU_F2S_FLOAT_EXPONENT_BITS) - 1);
+  sb__append_floating_special(&state, sign, exponent, mantissa);
+  floating_decimal v = ryu_f2d(mantissa, exponent);
+  if (sign) state.count += sb_append(state.sb, '-');
+  sb__append_floating(&state, v);
   return state.count;
 }
 
 size_t sb_append_double(String_Builder *string, double value) {
   Stringify_State state = make_stringify_state(string, 25);
-  uint64_t bits = double_to_bits(value);
-  bool ieeeSign = ((bits >> (RYU_D2S_DOUBLE_MANTISSA_BITS + RYU_D2S_DOUBLE_EXPONENT_BITS)) & 1) != 0;
-  uint64_t ieeeMantissa = bits & ((1ull << RYU_D2S_DOUBLE_MANTISSA_BITS) - 1);
-  uint32_t ieeeExponent = (uint32_t)((bits >> RYU_D2S_DOUBLE_MANTISSA_BITS) & ((1u << RYU_D2S_DOUBLE_EXPONENT_BITS) - 1));
-  sb__append_floating_special(&state, ieeeSign, ieeeExponent, ieeeMantissa);
-  floating_decimal_64 v = ryu_d2s_d2d_optimized(ieeeMantissa, ieeeExponent);
-  if (ieeeSign) state.count += sb_append(state.sb, '-');
+  uint64_t bits = ryu_double_to_bits(value);
+  bool sign = ((bits >> (RYU_D2S_DOUBLE_MANTISSA_BITS + RYU_D2S_DOUBLE_EXPONENT_BITS)) & 1) != 0;
+  uint64_t mantissa = bits & ((1ull << RYU_D2S_DOUBLE_MANTISSA_BITS) - 1);
+  uint32_t exponent = (uint32_t)((bits >> RYU_D2S_DOUBLE_MANTISSA_BITS) & ((1u << RYU_D2S_DOUBLE_EXPONENT_BITS) - 1));
+  sb__append_floating_special(&state, sign, exponent, mantissa);
+  floating_decimal v = ryu_d2d(mantissa, exponent);
+  if (sign) state.count += sb_append(state.sb, '-');
   sb__append_floating(&state, v);
   return state.count;
 }

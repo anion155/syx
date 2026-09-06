@@ -478,7 +478,7 @@ size_t str_append_integer(syx_string_t *string, syx_integer_t value) {
 
 size_t str__append_fractional(syx_string_t *string, syx_fractional_t value, ssize_t precision) {
   if (precision == 0) return str_append_integer(string, (syx_integer_t)(value + (value < 0 ? -0.5 : 0.5)));
-  floating_decimal_64 v = d2s_parse(value);
+  floating_decimal v = d2s_parse(value);
   __str_init(33 + (precision < 25 ? 25 : precision));
   if (value < 0) __str_append('-');
   __str_append_with(str_append_integer, v.mantissa);
