@@ -10,6 +10,13 @@
       "request": "launch",
       "program": "${workspaceFolder}/build/syx",
       "preLaunchTask": "nob build debug"
+    },
+    {
+      "type": "lldb",
+      "name": "Debug playground",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/playground",
+      "preLaunchTask": "nob playground"
     }
   ]
 }

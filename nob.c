@@ -16,6 +16,7 @@ struct NoNob_Context_Storage {
   bool run_leaks_sanitize;
   bool run_watch;
   bool playground_debug;
+  bool playground_dry;
 };
 
 #define NONOB_IMPL
@@ -189,6 +190,7 @@ bool command_clean_run() {
 
 void command_playground_init(NoNob_Command *command) {
   flag_c_bool_var(command->flags, &ctx.s->playground_debug, "g", false, "Run with lldb");
+  flag_c_bool_var(command->flags, &ctx.s->playground_dry, "dry", false, "Do not run, only build");
 }
 
 bool command_playground_run() {
@@ -215,7 +217,7 @@ bool command_playground_run() {
     nob_cmd_append(&ctx.cmd, "lldb");
     nob_cmd_append(&ctx.cmd, temp_sprintf("%s/playground", ctx.s->build_path));
     if (!nob_cmd_run(&ctx.cmd)) return false;
-  } else {
+  } else if (!ctx.s->playground_dry) {
     nob_cmd_append(&ctx.cmd, temp_sprintf("%s/playground", ctx.s->build_path));
     if (!nob_cmd_run(&ctx.cmd)) {
       nob_cmd_append(&ctx.cmd, "lldb");

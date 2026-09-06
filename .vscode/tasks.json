@@ -14,6 +14,18 @@
         "showReuseMessage": false,
         "close": true
       }
+    },
+    {
+      "label": "nob playground",
+      "type": "shell",
+      "command": "${workspaceFolder}/nob playground -dry",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "revealProblems": "always",
+        "showReuseMessage": false,
+        "close": true
+      }
     }
   ]
 }
