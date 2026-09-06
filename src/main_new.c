@@ -254,25 +254,25 @@ int main(int argc, char **argv) {
 
   int result = 0;
   if (commands->count) {
-    Nob_String_Builder sb = {0};
-    nob_da_foreach(const char *, command, commands) nob_sb_append_cstr(&sb, *command);
-    nob_sb_append(&sb, 0);
-    int run_result = run_syx((String_View){.data = sb.items, .count = sb.count});
-    if (run_result >= 0) nob_return_defer(run_result);
+    String_Builder sb = {0};
+    nob_da_foreach(const char *, command, commands) sb_append_cstr(&sb, *command);
+    sb_append(&sb, 0);
+    int run_result = run_syx(sv_from_like(sb));
+    if (run_result >= 0) return run_result;
   } else if (*opt_stdin) {
-    Nob_String_Builder sb = {0};
-    if (!nob_read_entire_stdin(&sb)) UNREACHABLE("Failed to read stdin");
-    nob_sb_append(&sb, 0);
-    int run_result = run_syx((String_View){.data = sb.items, .count = sb.count});
-    nob_sb_free(sb);
-    if (run_result >= 0) nob_return_defer(run_result);
+    String_Builder sb = {0};
+    if (!nob_read_entire_stdin((Nob_String_Builder *)&sb)) UNREACHABLE("Failed to read stdin");
+    sb_append(&sb, 0);
+    int run_result = run_syx(sv_from_like(sb));
+    sb_free(&sb);
+    if (run_result >= 0) return run_result;
   } else if (argc == 1) {
-    Nob_String_Builder sb = {0};
-    if (!nob_read_entire_file(argv[0], &sb)) UNREACHABLE("Failed to read file");
-    nob_sb_append(&sb, 0);
-    int run_result = run_syx((String_View){.data = sb.items, .count = sb.count});
-    nob_sb_free(sb);
-    if (run_result >= 0) nob_return_defer(run_result);
+    String_Builder sb = {0};
+    if (!nob_read_entire_file(argv[0], (Nob_String_Builder *)&sb)) UNREACHABLE("Failed to read file");
+    sb_append(&sb, 0);
+    int run_result = run_syx(sv_from_like(sb));
+    sb_free(&sb);
+    if (run_result >= 0) return run_result;
   } else {
     printf("Syx Language REPL\n");
     read_history(HIST_FILE);
@@ -285,15 +285,10 @@ int main(int argc, char **argv) {
       }
       int run_result = run_syx(sv_from_cstr(line));
       free(line);
-      if (run_result >= 0) nob_return_defer(run_result);
+      if (run_result >= 0) return run_result;
     }
   }
 
-defer:
-  rc_release(script_ctx.eval_ctx);
-  ht_free(ctx_options());
-  // ht_free(FD_CONSTANTS());
-  // ht_free(SYXV_CONSTANTS());
-  // ht_free(SYXV_SYMBOLS());
   return result;
+  UNUSED(ctx_options);
 }

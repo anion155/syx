@@ -17,6 +17,7 @@ String_Builder *sb_null_terminate(String_Builder *sb);
 
 #define sb_first(sb) da_first((sb))
 #define sb_last(sb) da_last((sb))
+#define sb_at(sb, index) da_at((sb), (index))
 
 #define sb_append(sb, character) da_append((sb), (character))
 #define sb_append_buf_n(sb, buffer, count) da_append_many_n((sb), (buffer), (count))
@@ -32,10 +33,6 @@ size_t sb__pad_align(String_Builder *sb, size_t size, char filler);
 #define sb_pad_align(sb, size, ...) sb__pad_align((sb), (size), WITH_DEFAULT('\0', __VA_ARGS__))
 
 #define sb_substr(sb, ...) da_slice((sb), String_View, __VA_ARGS__)
-#define sb_to_sv(sb) ({                                  \
-  typeof((sb)) _sb_ = (sb);                              \
-  (String_View){.data = _sb_.data, .count = _sb_.count}; \
-})
 
 #define sb_copy_sv(sv) ({  \
   String_Builder sb = {0}; \

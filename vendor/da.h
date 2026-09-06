@@ -14,15 +14,15 @@
 
 #define Da(Value, ...) \
   struct __VA_ARGS__ { \
+    Value *data;       \
     size_t count;      \
     size_t capacity;   \
-    Value *data;       \
   }
 
 #define Da_Slice(Value, ...) \
   struct __VA_ARGS__ {       \
-    size_t count;            \
     const Value *data;       \
+    size_t count;            \
   }
 
 #define da_free(da) ({    \
@@ -78,6 +78,13 @@
   typeof(da) _da_ = (da);    \
   assert(_da_.count);        \
   _da_.data[_da_.count - 1]; \
+})
+
+#define da_at(da, index) ({                   \
+  typeof(da) _da_ = (da);                     \
+  size_t _index_ = (index);                   \
+  assert(_da_.count && _da_.count > _index_); \
+  _da_.data[_index_];                         \
 })
 
 #define da_append(da, item) ({         \
