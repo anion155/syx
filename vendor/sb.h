@@ -38,9 +38,10 @@ static inline size_t sb_append_cstr(String_Builder *sb, const char *cstr) {
 
 #define sb_append_strlit(sb, str) sb_append_buf((sb), (str), sizeof(str) - 1)
 
-static inline size_t sb_append_sv(String_Builder *sb, String_View sv) {
+static inline size_t sb__append_sv(String_Builder *sb, String_View sv) {
   return sb_append_buf((sb), sv.data, sv.count);
 }
+#define sb_append_sv(sb, sv) sb__append_sv((sb), sv_from_like((sv)))
 
 static inline size_t sb_append_repeat(String_Builder *sb, char character, size_t count) {
   if (!sb) return count;

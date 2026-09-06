@@ -73,9 +73,8 @@ Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
   Syx_Value *result = NULL;
   syx_list_for_each(expressions->pair, expression) {
     if (script_ctx.opt_xtrace) {
-      TODO("opt_xtrace");
       printf(CLI_DIM ">");
-      // printf_with(str_append_syxv, expression);
+      printf_stringify(sb_append_syx_value, expression);
       printf("\n" CLI_RESET);
     }
     if (result) rc_release(result);
@@ -97,14 +96,12 @@ Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
       }
     }
     if (script_ctx.opt_xtrace) {
-      TODO("opt_xtrace");
-      // printf_with(str_append_syxv, result);
+      printf_stringify(sb_append_syx_value, result);
       printf("\n");
     }
   }
-  if (!script_ctx.opt_xtrace && script_ctx.opt_print && result && result->kind != SYX_VALUE_KIND_EXIT && result->exit->kind != SYX_EXIT_KIND_THROWN) {
-    TODO("opt_print");
-    // printf_with(str_append_syxv, result);
+  if (!script_ctx.opt_xtrace && script_ctx.opt_print && result && !(result->kind == SYX_VALUE_KIND_EXIT && result->exit->kind == SYX_EXIT_KIND_THROWN)) {
+    printf_stringify(sb_append_syx_value, result);
     printf("\n");
   }
   if (!result) return syx_value_nil();

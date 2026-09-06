@@ -5,6 +5,7 @@
 #include <ht.h>
 #include <rc.h>
 #include <sb.h>
+#include <sb_number.h>
 #include <stdint.h>
 #include <syx_new/syx_utils.h>
 
@@ -281,6 +282,8 @@ Syx_Value *syx_list_next(Syx_Pair **list);
 #include <ht.h>
 #define RC_IMPL
 #include <rc.h>
+#define SB_NUMBER_IMPL
+#include <sb_number.h>
 #define SYX_UTILS_IMPL
 #include <syx_new/syx_utils.h>
 
@@ -595,7 +598,7 @@ bool syx_list_for_each_next(Syx_Value **current, Syx_Value **next, Syx_Value **v
     return false;
   }
   if (!(*next)->pair) {
-    if (cdr != NULL) (*cdr) = *next;
+    if (cdr != NULL) (*cdr) = NULL;
     return false;
   }
   (*value) = (*next)->pair->left;
@@ -651,6 +654,92 @@ uintptr_t ht_syx_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t 
     case HT_EQ: return (*a)->count != (*b)->count ? false : memcmp((*a)->data, (*b)->data, (*a)->count) == 0;
   }
   return 0;
+}
+
+size_t sb_append_syx_symbol(syx_string *sb, Syx_Symbol *symbol) {
+  Stringify_State state = make_stringify_state(sb, 256);
+  if (symbol->guarded) stringify_append(&state, sb_append, '|');
+  stringify_append(&state, sb_append_sv, *symbol);
+  if (symbol->guarded) stringify_append(&state, sb_append, '|');
+  return state.count;
+}
+size_t sb_append_syx_value(syx_string *sb, Syx_Value *value) {
+  Stringify_State state = make_stringify_state(sb, 256);
+  switch (value->kind) {
+    case SYX_VALUE_KIND_PAIR: {
+      stringify_append(&state, sb_append, '(');
+      if (value->pair) {
+        Syx_Pair *pair = value->pair;
+        stringify_append(&state, sb_append_syx_value, syx_list_next(&pair));
+        Syx_Value *last = NULL;
+        syx_list_for_each(pair, item, &last) {
+          stringify_append(&state, sb_append, ' ');
+          stringify_append(&state, sb_append_syx_value, syx_list_next(&pair));
+        }
+        if (last) {
+          stringify_append(&state, sb_append_strlit, " . ");
+          stringify_append(&state, sb_append_syx_value, last);
+        }
+      }
+      stringify_append(&state, sb_append, ')');
+    } break;
+    case SYX_VALUE_KIND_CONST: {
+      if (value == syx_value_bool_true()) {
+        stringify_append(&state, sb_append_strlit, "#t");
+      } else if (value == syx_value_bool_false()) {
+        stringify_append(&state, sb_append_strlit, "#f");
+      } else {
+        UNREACHABLE("unknown constant");
+      }
+    } break;
+    case SYX_VALUE_KIND_SYMBOL: {
+      stringify_append(&state, sb_append_syx_symbol, value->symbol);
+    } break;
+    case SYX_VALUE_KIND_NUMBER: {
+      switch (value->number->kind) {
+        case SYX_NUMBER_KIND_INTEGER: stringify_append(&state, sb_append_integer, value->number->integer); break;
+        case SYX_NUMBER_KIND_FRACTIONAL: stringify_append(&state, sb_append_floating, value->number->fractional); break;
+      }
+    } break;
+    case SYX_VALUE_KIND_STRING: {
+      stringify_append(&state, sb_append, '"');
+      stringify_append(&state, sb_append_sv, *value->string);
+      stringify_append(&state, sb_append, '"');
+    } break;
+    case SYX_VALUE_KIND_OBJECT: {
+      TODO("sb_append_syx_value: SYX_VALUE_KIND_OBJECT");
+    } break;
+    case SYX_VALUE_KIND_CLOSURE: {
+      stringify_append(&state, sb_append_strlit, "<fn ");
+      if (value->closure->name) stringify_append(&state, sb_append_syx_symbol, value->closure->name);
+      stringify_append(&state, sb_append, '>');
+      //   __str_append_with(str_append_syxv, value->closure.defines);
+      //   SyxV *it = value->closure.forms;
+      //   while (it->kind == SYXV_KIND_PAIR) {
+      //     __str_append(' ');
+      //     __str_append_with(str_append_syxv, it->pair.left);
+      //     it = it->pair.right;
+      //   }
+    } break;
+    case SYX_VALUE_KIND_EXIT: {
+      UNREACHABLE("thrown value can't be converted to string");
+    } break;
+    case SYX_VALUE_KIND_PREFIXED: {
+      stringify_append(&state, sb_append, value->prefixed->kind);
+      stringify_append(&state, sb_append_syx_value, value->prefixed->value);
+    } break;
+  }
+  // case SYXV_KIND_BOXED: {
+  //   __str_append_with(str_append_syx_boxed, value->boxed);
+  // } break;
+  // case SYXV_KIND_BOXED_METHOD: {
+  //   __str_append_with(str_append_boxed_method, value->boxed_method);
+  // } break;
+  // case SYXV_KIND_CONSTRUCTOR: {
+  //   __str_append_cstr("new ");
+  //   __str_append_with(str_append_syx_type_info, value->constructor.typeinfo);
+  // } break;
+  return state.count;
 }
 
 #endif // SYX_VALUE_IMPL_C

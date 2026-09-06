@@ -399,8 +399,10 @@ Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input) {
       return item;
     }
     case SYX_VALUE_KIND_PREFIXED: {
-      if (input->prefixed->kind != SYX_PREFIXED_KIND_QUOTE) return input->prefixed->value;
-      return input;
+      switch (input->prefixed->kind) {
+        case SYX_PREFIXED_KIND_QUOTE: return input->prefixed->value;
+        default: return input;
+      }
     }
     case SYX_VALUE_KIND_PAIR: {
       if (!input->pair) return input;
