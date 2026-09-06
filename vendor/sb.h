@@ -1,5 +1,5 @@
-#ifndef SV_H
-#define SV_H
+#ifndef SB_H
+#define SB_H
 
 #include <ctype.h>
 #include <da.h>
@@ -19,19 +19,42 @@ String_Builder *sb_null_terminate(String_Builder *sb);
 #define sb_last(sb) da_last((sb))
 #define sb_at(sb, index) da_at((sb), (index))
 
-#define sb_append(sb, character) da_append((sb), (character))
-#define sb_append_buf_n(sb, buffer, count) da_append_many_n((sb), (buffer), (count))
+static inline size_t sb_append(String_Builder *sb, char character) {
+  if (sb) da_append(sb, character);
+  return 1;
+}
+
+static inline size_t sb_append_buf(String_Builder *sb, const char *buffer, size_t count) {
+  if (sb) da_append_many_n(sb, buffer, count);
+  return count;
+}
+
 ssize_t sb_vappendf(String_Builder *sb, const char *fmt, va_list ap);
 ssize_t sb_appendf(String_Builder *sb, PRINTF_FMT_PARAM const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
-static inline ssize_t sb_append_cstr(String_Builder *sb, const char *cstr) { return da_append_many_n(sb, cstr, strlen(cstr)); }
-#define sb_append_strlit(sb, str) da_append_many_n(sb, str, sizeof(str) - 1)
-static inline size_t sb_append_sv(String_Builder *sb, String_View sv) { return da_append_many_n(sb, sv.data, sv.count); }
-size_t sb_append_repeat(String_Builder *sb, char character, size_t count);
-#define sb_append_null(sb) da_append((sb), '\0')
+
+static inline size_t sb_append_cstr(String_Builder *sb, const char *cstr) {
+  return sb_append_buf(sb, cstr, strlen(cstr));
+}
+
+#define sb_append_strlit(sb, str) sb_append_buf((sb), (str), sizeof(str) - 1)
+
+static inline size_t sb_append_sv(String_Builder *sb, String_View sv) {
+  return sb_append_buf((sb), sv.data, sv.count);
+}
+
+static inline size_t sb_append_repeat(String_Builder *sb, char character, size_t count) {
+  if (!sb) return count;
+  da_reserve(sb, sb->count + count);
+  memset(sb->data + sb->count, character, count);
+  return sb->count += count;
+}
+
+#define sb_append_null(sb) sb_append((sb), '\0')
+
 // sb_append_int(sb, val) / sb_append_float(sb, val): Lightweight inline append functions for primitives to avoid the overhead of full vsnprintf parsing.
 
-size_t sb__pad_align(String_Builder *sb, size_t size, char filler);
-#define sb_pad_align(sb, size, ...) sb__pad_align((sb), (size), WITH_DEFAULT('\0', __VA_ARGS__))
+size_t sb__append_pad_align(String_Builder *sb, size_t size, char filler);
+#define sb_append_pad_align(sb, size, ...) sb__append_pad_align((sb), (size), WITH_DEFAULT('\0', __VA_ARGS__))
 
 #define sb_substr(sb, ...) da_slice((sb), String_View, __VA_ARGS__)
 
@@ -40,14 +63,14 @@ size_t sb__pad_align(String_Builder *sb, size_t size, char filler);
   sb_append_sv(&sb, (sv)); \
   sb;                      \
 })
-#define sb_copy_n(data, count) ({        \
-  String_Builder sb = {0};               \
-  sb_append_buf_n(&sb, (data), (count)); \
-  sb;                                    \
+#define sb_copy_n(data, count) ({      \
+  String_Builder sb = {0};             \
+  sb_append_buf(&sb, (data), (count)); \
+  sb;                                  \
 })
-#define sb_copy_strlit(lit) ({  \
+#define sb_copy_strlit(str) ({  \
   String_Builder sb = {0};      \
-  sb_append_strlit(&sb, (lit)); \
+  sb_append_strlit(&sb, (str)); \
   sb;                           \
 })
 #define sb_copy_cstr(str) ({  \
@@ -56,11 +79,41 @@ size_t sb__pad_align(String_Builder *sb, size_t size, char filler);
   sb;                         \
 })
 
+typedef struct Stringify_State {
+  String_Builder *sb;
+  size_t count;
+  size_t start;
+} Stringify_State;
+
+Stringify_State make_stringify_state(String_Builder *sb, size_t capacity) {
+  if (sb) da_reserve_exact(sb, sb->count + capacity);
+  return (Stringify_State){.sb = sb, .count = 0, .start = sb ? sb->count : 0};
+}
+#define stringify_ptr(state, ...) ({                                                      \
+  Stringify_State *_state_ = (state);                                                     \
+  _state_->sb ? _state_->sb->data + _state_->start + WITH_DEFAULT(0, __VA_ARGS__) : NULL; \
+})
+
+#define stringify(stringifier, ...) ({         \
+  String_Builder sb = {0};                     \
+  stringifier(&sb __VA_OPT__(, ) __VA_ARGS__); \
+  sb_null_terminate(&sb);                      \
+  sb;                                          \
+})
+
+#define fprintf_stringify(f, stringifier, ...) ({ \
+  String_Builder sb = {0};                        \
+  stringifier(&sb __VA_OPT__(, ) __VA_ARGS__);    \
+  fprintf((f), "%.*s", (int)sb.count, sb.data);   \
+  sb_free(&sb);                                   \
+})
+#define printf_stringify(stringifier, ...) fprintf_stringify(stdout, stringifier __VA_OPT__(, ) __VA_ARGS__)
+
 #define sv_from_parts(data_, count_) ((String_View){.data = (data_), .count = (count_)})
 #define sv_from_like(value) _Generic(&(value), \
     String_View *: (value),                    \
     default: sv_from_parts((value).data, (value).count))
-#define sv_from_strlit(lit) ((String_View){.count = sizeof(lit) - 1, .data = (lit)})
+#define sv_from_strlit(str) ((String_View){.count = sizeof(str) - 1, .data = (str)})
 #define sv_from_cstr(str) sv_from_parts((str), strlen(str))
 
 static inline bool sv__eq(String_View a, String_View b) {
@@ -120,10 +173,13 @@ String_View sv__chop_while_i(String_View *sv, bool (*predicate)(char character, 
 size_t sv__utf_length(String_View sv, size_t *bytes_overrun);
 #define sv_utf_length(sv, ...) sv__utf_length(sv_from_like(sv), WITH_DEFAULT(NULL, __VA_ARGS__))
 
-#endif // SV_H
+#define SV_FMT "%.*s"
+#define sv_fmt_arg(sv) (int)(sv).count, (sv).data
 
-#if defined(SV_IMPL) && !defined(SV_IMPL_C)
-#define SV_IMPL_C
+#endif // SB_H
+
+#if defined(SB_IMPL) && !defined(SB_IMPL_C)
+#define SB_IMPL_C
 
 #define UTF_IMPL
 #include <utf.h>
@@ -144,7 +200,7 @@ ssize_t sb_vappendf(String_Builder *sb, const char *fmt, va_list ap) {
   va_copy(args, ap);
   int length = vsnprintf(NULL, 0, fmt, args);
   va_end(args);
-  if (length > 0) {
+  if (sb && length > 0) {
     da_reserve(sb, sb->count + length + 1);
     va_copy(args, ap);
     vsnprintf(sb->data + sb->count, length + 1, fmt, args);
@@ -162,14 +218,7 @@ ssize_t sb_appendf(String_Builder *sb, const char *fmt, ...) {
   return length;
 }
 
-size_t sb_append_repeat(String_Builder *sb, char character, size_t count) {
-  da_reserve(sb, sb->count + count);
-  memset(sb->data + sb->count, character, count);
-  sb->count += count;
-  return count;
-}
-
-size_t sb__pad_align(String_Builder *sb, size_t size, char filler) {
+size_t sb__append_pad_align(String_Builder *sb, size_t size, char filler) {
   size_t rem = sb->count % size;
   if (rem == 0) return 0;
   da_reserve(sb, sb->count + rem);
@@ -237,4 +286,4 @@ String_View sv_chop_by_sv(String_View *sv, String_View delimeter) {
   return result;
 }
 
-#endif // SV_IMPL_C
+#endif // SB_IMPL_C
