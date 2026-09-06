@@ -4,6 +4,14 @@
 
 int main(void) {
   String_Builder sb;
+  sb = stringify(sb_append_floating, (float)0.3);
+  printf("result='" SV_FMT "'\n", sv_fmt_arg(sb));
+  sb = stringify(sb_append_floating, (float)0.256);
+  printf("result='" SV_FMT "'\n", sv_fmt_arg(sb));
+  sb = stringify(sb_append_floating, (float)100000);
+  printf("result='" SV_FMT "'\n", sv_fmt_arg(sb));
+  sb = stringify(sb_append_floating, (double)0.3);
+  printf("result='" SV_FMT "'\n", sv_fmt_arg(sb));
   sb = stringify(sb_append_floating, (double)0.256);
   printf("result='" SV_FMT "'\n", sv_fmt_arg(sb));
   sb = stringify(sb_append_floating, (double)100000);

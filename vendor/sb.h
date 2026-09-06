@@ -89,18 +89,20 @@ Stringify_State make_stringify_state(String_Builder *sb, size_t capacity) {
   if (sb) da_reserve_exact(sb, sb->count + capacity);
   return (Stringify_State){.sb = sb, .count = 0, .start = sb ? sb->count : 0};
 }
+#define stringify_append(state, appender, ...) ({                     \
+  Stringify_State *_state_ = (state);                                 \
+  _state_->count += appender(_state_->sb __VA_OPT__(, ) __VA_ARGS__); \
+})
 #define stringify_ptr(state, ...) ({                                                      \
   Stringify_State *_state_ = (state);                                                     \
   _state_->sb ? _state_->sb->data + _state_->start + WITH_DEFAULT(0, __VA_ARGS__) : NULL; \
 })
-
 #define stringify(stringifier, ...) ({         \
   String_Builder sb = {0};                     \
   stringifier(&sb __VA_OPT__(, ) __VA_ARGS__); \
   sb_null_terminate(&sb);                      \
   sb;                                          \
 })
-
 #define fprintf_stringify(f, stringifier, ...) ({ \
   String_Builder sb = {0};                        \
   stringifier(&sb __VA_OPT__(, ) __VA_ARGS__);    \

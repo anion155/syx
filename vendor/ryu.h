@@ -33,10 +33,15 @@
 
 #include <inttypes.h>
 
-typedef struct floating_decimal {
+typedef struct floating_decimal_float {
   uint64_t mantissa;
   int32_t exponent;
-} floating_decimal;
+} floating_decimal_float;
+
+typedef struct floating_decimal_double {
+  uint64_t mantissa;
+  int32_t exponent;
+} floating_decimal_double;
 
 #endif // RYU_H
 
@@ -74,7 +79,7 @@ typedef struct floating_decimal {
 #endif
 
 // Returns the number of decimal digits in v, which must not contain more than 9 digits.
-static inline uint32_t ryu_decimalLength9(const uint32_t v) {
+static inline uint32_t ryu_decimalLength_float(const uint32_t v) {
   // Function precondition: v is not a 10-digit number.
   // (f2s: 9 digits are sufficient for round-tripping.)
   // (d2fixed: We print 9-digit blocks.)
@@ -707,11 +712,13 @@ static const uint64_t RYU_DOUBLE_POW5_SPLIT[RYU_DOUBLE_POW5_TABLE_SIZE][2] = {
 #  include <stdio.h>
 #endif
 
-#define RYU_D2S_DOUBLE_MANTISSA_BITS 52
-#define RYU_D2S_DOUBLE_EXPONENT_BITS 11
-#define RYU_D2S_DOUBLE_BIAS 1023
+#define RYU_DOUBLE_MANTISSA_STORAGE uint64_t
+#define RYU_DOUBLE_MANTISSA_BASE 1ull
+#define RYU_DOUBLE_MANTISSA_BITS 52
+#define RYU_DOUBLE_EXPONENT_BITS 11
+#define RYU_DOUBLE_BIAS 1023
 
-static inline uint32_t ryu_decimalLength17(const uint64_t v) {
+static inline uint32_t ryu_decimalLength_double(const uint64_t v) {
   // This is slightly faster than a loop.
   // The average output length is 16.38 digits, so we check high-to-low.
   // Function precondition: v is not an 18, 19, or 20-digit number.
@@ -768,43 +775,39 @@ static inline uint32_t ryu_decimalLength17(const uint64_t v) {
   return 1;
 }
 
-static inline floating_decimal ryu_d2d(const uint64_t ieeeMantissa, const uint32_t ieeeExponent) {
-  {
-    const uint64_t m2 = (1ull << RYU_D2S_DOUBLE_MANTISSA_BITS) | ieeeMantissa;
-    const int32_t e2 = (int32_t)ieeeExponent - RYU_D2S_DOUBLE_BIAS - RYU_D2S_DOUBLE_MANTISSA_BITS;
+static inline floating_decimal_double ryu_double_parse(const uint64_t ieeeMantissa, const uint32_t ieeeExponent) {
+  uint64_t m2 = (1ull << RYU_DOUBLE_MANTISSA_BITS) | ieeeMantissa;
+  int32_t e2 = (int32_t)ieeeExponent - RYU_DOUBLE_BIAS - RYU_DOUBLE_MANTISSA_BITS;
 
-    // f = m2 * 2^e2 >= 2^53 is an integer.
-    // Ignore this case for now.
-    if (e2 <= 0 &&
-        // f < 1.
-        e2 >= -52 && ({
-                       // Since 2^52 <= m2 < 2^53 and 0 <= -e2 <= 52: 1 <= f = m2 / 2^-e2 < 2^53.
-                       // Test if the lower -e2 bits of the significand are 0, i.e. whether the fraction is 0.
-                       const uint64_t mask = (1ull << -e2) - 1;
-                       const uint64_t fraction = m2 & mask;
-                       fraction;
-                     }) == 0) {
-      floating_decimal v = {.mantissa = m2 >> -e2};
-      for (;;) {
-        uint64_t q = ryu_div10(v.mantissa);
-        uint32_t r = ((uint32_t)v.mantissa) - 10 * ((uint32_t)q);
-        if (r != 0) break;
-        v.mantissa = q;
-        ++v.exponent;
-      }
-      return v;
+  // f = m2 * 2^e2 >= 2^53 is an integer.
+  // Ignore this case for now.
+  if (e2 <= 0 &&
+      // f < 1.
+      e2 >= -52 && ({
+                     // Since 2^52 <= m2 < 2^53 and 0 <= -e2 <= 52: 1 <= f = m2 / 2^-e2 < 2^53.
+                     // Test if the lower -e2 bits of the significand are 0, i.e. whether the fraction is 0.
+                     const uint64_t mask = (1ull << -e2) - 1;
+                     const uint64_t fraction = m2 & mask;
+                     fraction;
+                   }) == 0) {
+    floating_decimal_double v = {.mantissa = m2 >> -e2};
+    for (;;) {
+      uint64_t q = ryu_div10(v.mantissa);
+      uint32_t r = ((uint32_t)v.mantissa) - 10 * ((uint32_t)q);
+      if (r != 0) break;
+      v.mantissa = q;
+      ++v.exponent;
     }
+    return v;
   }
 
-  int32_t e2;
-  uint64_t m2;
   if (ieeeExponent == 0) {
     // We subtract 2 so that the bounds computation has 2 additional bits.
-    e2 = 1 - RYU_D2S_DOUBLE_BIAS - RYU_D2S_DOUBLE_MANTISSA_BITS - 2;
+    e2 = 1 - RYU_DOUBLE_BIAS - RYU_DOUBLE_MANTISSA_BITS - 2;
     m2 = ieeeMantissa;
   } else {
-    e2 = (int32_t)ieeeExponent - RYU_D2S_DOUBLE_BIAS - RYU_D2S_DOUBLE_MANTISSA_BITS - 2;
-    m2 = (1ull << RYU_D2S_DOUBLE_MANTISSA_BITS) | ieeeMantissa;
+    e2 = (int32_t)ieeeExponent - RYU_DOUBLE_BIAS - RYU_DOUBLE_MANTISSA_BITS - 2;
+    m2 = (1ull << RYU_DOUBLE_MANTISSA_BITS) | ieeeMantissa;
   }
   const bool even = (m2 & 1) == 0;
   const bool acceptBounds = even;
@@ -1012,7 +1015,7 @@ static inline floating_decimal ryu_d2d(const uint64_t ieeeMantissa, const uint32
   printf("EXP=%d\n", exp);
 #endif
 
-  floating_decimal fd;
+  floating_decimal_double fd;
   fd.exponent = exp;
   fd.mantissa = output;
   return fd;
@@ -1171,20 +1174,22 @@ static inline uint32_t ryu_mulPow5divPow2(const uint32_t m, const uint32_t i, co
 #  include <stdio.h>
 #endif
 
-#define RYU_F2S_FLOAT_MANTISSA_BITS 23
-#define RYU_F2S_FLOAT_EXPONENT_BITS 8
-#define RYU_F2S_FLOAT_BIAS 127
+#define RYU_FLOAT_MANTISSA_STORAGE uint32_t
+#define RYU_FLOAT_MANTISSA_BASE 1u
+#define RYU_FLOAT_MANTISSA_BITS 23
+#define RYU_FLOAT_EXPONENT_BITS 8
+#define RYU_FLOAT_BIAS 127
 
-static inline floating_decimal ryu_f2d(const uint32_t ieeeMantissa, const uint32_t ieeeExponent) {
+static inline floating_decimal_float ryu_float_parse(const uint32_t ieeeMantissa, const uint32_t ieeeExponent) {
   int32_t e2;
   uint32_t m2;
   if (ieeeExponent == 0) {
     // We subtract 2 so that the bounds computation has 2 additional bits.
-    e2 = 1 - RYU_F2S_FLOAT_BIAS - RYU_F2S_FLOAT_MANTISSA_BITS - 2;
+    e2 = 1 - RYU_FLOAT_BIAS - RYU_FLOAT_MANTISSA_BITS - 2;
     m2 = ieeeMantissa;
   } else {
-    e2 = (int32_t)ieeeExponent - RYU_F2S_FLOAT_BIAS - RYU_F2S_FLOAT_MANTISSA_BITS - 2;
-    m2 = (1u << RYU_F2S_FLOAT_MANTISSA_BITS) | ieeeMantissa;
+    e2 = (int32_t)ieeeExponent - RYU_FLOAT_BIAS - RYU_FLOAT_MANTISSA_BITS - 2;
+    m2 = (1u << RYU_FLOAT_MANTISSA_BITS) | ieeeMantissa;
   }
   const bool even = (m2 & 1) == 0;
   const bool acceptBounds = even;
@@ -1349,7 +1354,7 @@ static inline floating_decimal ryu_f2d(const uint32_t ieeeMantissa, const uint32
   printf("EXP=%d\n", exp);
 #endif
 
-  floating_decimal fd;
+  floating_decimal_float fd;
   fd.exponent = exp;
   fd.mantissa = output;
   return fd;
