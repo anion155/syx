@@ -97,6 +97,7 @@ Stringify_State make_stringify_state(String_Builder *sb, size_t capacity) {
   Stringify_State *_state_ = (state);                                                     \
   _state_->sb ? _state_->sb->data + _state_->start + WITH_DEFAULT(0, __VA_ARGS__) : NULL; \
 })
+
 #define stringify(stringifier, ...) ({         \
   String_Builder sb = {0};                     \
   stringifier(&sb __VA_OPT__(, ) __VA_ARGS__); \

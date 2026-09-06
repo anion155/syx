@@ -49,99 +49,66 @@ syx_define_constant(Ht(const char *, bool *), ctx_options) {
   *ht_put(ctx_options, "e") = &script_ctx.opt_error;
 }
 
-void dump_value(Syx_Value *value) {
-  switch (value->kind) {
-    case SYX_VALUE_KIND_CONST: {
-      if (value == syx_value_bool_true()) {
-        printf("  constant: boolean true\n");
-      } else if (value == syx_value_bool_false()) {
-        printf("  constant: boolean false\n");
-      } else {
-        printf("  constant: unknown\n");
-      }
-    } break;
-    case SYX_VALUE_KIND_PAIR: {
-      syx_list_for_each(value->pair, value) {
-        dump_value(value);
-      }
-    } break;
-    case SYX_VALUE_KIND_NUMBER: {
-      switch (value->number->kind) {
-        case SYX_NUMBER_KIND_INTEGER: printf("  number: integer: %d\n", value->number->integer); break;
-        case SYX_NUMBER_KIND_FRACTIONAL: printf("  number: fractional: %f\n", value->number->fractional); break;
-      }
-    } break;
-    case SYX_VALUE_KIND_OBJECT: {
-      printf("  object:\n");
-      Syx_Symbols_Ht *feilds = &value->object->fields;
-      ht_foreach(value, feilds) {
-        Syx_Symbol *symbol = ht_key(feilds, value);
-        printf("    " SV_Fmt ":\n", SV_Arg(*symbol));
-      }
-    } break;
-    case SYX_VALUE_KIND_EXIT: {
-      switch (value->exit->kind) {
-        case SYX_EXIT_KIND_RETURNED: printf("  exit: returned\n"); break;
-        case SYX_EXIT_KIND_THROWN: printf("  exit: thrown: '" SV_Fmt "'\n", SV_Arg(*value->exit->thrown->reason->string)); break;
-      }
-    } break;
-    default: printf("  NotImplementedYet: %u\n", value->kind);
-  }
-}
-
 Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
-  UNUSED(eval_ctx);
-  // Syx_Tokens tokens = syx_lexer_tokenize(source);
-  // da_foreach(Syx_Token, token, &tokens) {
-  //   printf("%s: '%.*s'\n", syx_token_kind_string(token->kind), (int)token->count, token->data);
-  // }
-
-  Syx_Value *values = rc_acquire(parse_syx(source, true));
-  printf("input:\n");
-  dump_value(values);
-  Syx_Value *result = rc_acquire(syx_eval_forms_list(eval_ctx, values->pair));
-  rc_release(values);
-  printf("result:\n");
-  dump_value(result);
-  rc_release(result);
-
-  // SyxV_Parser_Context ctx = {.source = source_sv};
-  // Syx_Parser_Token token;
-  return NULL;
   // do {
   //   token = syx_parser_next_token(&ctx);
   //   printf("kind = %d; line = %zu; column = %zu; count = %zu; text = '%.*s'\n", token.kind, token.line, token.column, token.count, (int)token.count, token.data);
   // } while (token.kind != SYX_PARSER_TOKEN_KIND_EOF);
-  // TODO("syx_parse_and_eval");
-  // SyxV *expressions = parse_multiple_syxv(source_sv);
-  // if (!syx_parser_report_error(expressions)) return make_syxv_nil();
-  // SyxV *result = NULL;
-  // syxv_list_for_each(expression, expressions) {
-  //   if (script_ctx.opt_xtrace) {
-  //     printf(CLI_DIM ">");
-  //     printf_with(str_append_syxv, expression);
-  //     printf("\n" CLI_RESET);
-  //   }
-  //   if (result) rc_release(result);
-  //   result = rc_acquire(syx_eval(ctx, expression));
-  //   if (result->kind == SYXV_KIND_RETURN_VALUE) {
-  //     SyxV *value = rc_acquire(result->return_value);
-  //     rc_release(result);
-  //     return rc_move(value);
-  //   }
-  //   if (!syx_eval_report_error(ctx, result)) {
-  //     if (script_ctx.opt_error) return rc_move(result);
-  //   } else if (script_ctx.opt_xtrace) {
-  //     printf_with(str_append_syxv, result);
-  //     printf("\n");
-  //   }
-  // }
-  // if (!script_ctx.opt_xtrace && script_ctx.opt_print && result && result->kind != SYXV_KIND_THROWN) {
-  //   printf_with(str_append_syxv, result);
-  //   printf("\n");
-  // }
-  // if (!result) return make_syxv_nil();
-  // return rc_move(result);
+  Syx_Value *expressions = rc_acquire(parse_syx(source, true));
+  syx_list_for_each(expressions->pair, expression) {
+    if (expression->kind == SYX_VALUE_KIND_EXIT) {
+      syx_list_for_each(expressions->pair, expression) {
+        if (expression->kind == SYX_VALUE_KIND_EXIT) {
+          printf(CLI_BG_RED CLI_FG_WHITE "Parser exception:" CLI_RESET CLI_DIM " ");
+          switch (expression->exit->kind) {
+            case SYX_EXIT_KIND_RETURNED: printf("unexpected return value"); break;
+            case SYX_EXIT_KIND_THROWN: printf(SV_FMT, sv_fmt_arg(*expression->exit->thrown->reason->string)); break;
+          }
+          printf("\n" CLI_RESET);
+        }
+      }
+      return syx_value_nil();
+    }
+  }
+  Syx_Value *result = NULL;
+  syx_list_for_each(expressions->pair, expression) {
+    if (script_ctx.opt_xtrace) {
+      TODO("opt_xtrace");
+      printf(CLI_DIM ">");
+      // printf_with(str_append_syxv, expression);
+      printf("\n" CLI_RESET);
+    }
+    if (result) rc_release(result);
+    result = rc_acquire(syx_eval(eval_ctx, expression));
+    if (result->kind == SYX_VALUE_KIND_EXIT) {
+      switch (result->exit->kind) {
+        case SYX_EXIT_KIND_RETURNED: {
+          Syx_Value *value = rc_acquire(result->exit->returned);
+          rc_release(result);
+          return rc_move(value);
+        }
+        case SYX_EXIT_KIND_THROWN: {
+          printf(CLI_BG_RED CLI_FG_WHITE "Unhandled exception:" CLI_RESET CLI_DIM " ");
+          printf(SV_FMT, sv_fmt_arg(*result->exit->thrown->reason->string));
+          printf("\n" CLI_RESET);
+          if (script_ctx.opt_error) return rc_move(result);
+          continue;
+        }
+      }
+    }
+    if (script_ctx.opt_xtrace) {
+      TODO("opt_xtrace");
+      // printf_with(str_append_syxv, result);
+      printf("\n");
+    }
+  }
+  if (!script_ctx.opt_xtrace && script_ctx.opt_print && result && result->kind != SYX_VALUE_KIND_EXIT && result->exit->kind != SYX_EXIT_KIND_THROWN) {
+    TODO("opt_print");
+    // printf_with(str_append_syxv, result);
+    printf("\n");
+  }
+  if (!result) return syx_value_nil();
+  return rc_move(result);
 }
 
 int run_syx(String_View source_sv) {
@@ -151,18 +118,12 @@ int run_syx(String_View source_sv) {
     return -1;
   }
   syx_integer_t code = 0;
-  if (result->kind == SYX_VALUE_KIND_NUMBER) {
-    switch (result->number->kind) {
-      case SYX_NUMBER_KIND_INTEGER: code = result->number->integer; break;
-      case SYX_NUMBER_KIND_FRACTIONAL: code = result->number->fractional; break;
-    }
-  }
-  // SyxV *converted = rc_acquire(syx_convert_to_number(script_ctx.eval_ctx, result));
-  // if (converted->kind == SYXV_KIND_NUMBER) code = syx_number_integer_value(converted->number);
-  // else if (converted->kind == SYXV_KIND_THROWN) code = 1;
-  // else code = 0;
+  Syx_Value *converted = rc_acquire(syx_convert_to_number(script_ctx.eval_ctx, result));
+  if (converted->kind == SYX_VALUE_KIND_NUMBER) code = syx_number_get(converted->number);
+  else if (converted->kind == SYX_VALUE_KIND_EXIT && converted->exit->kind == SYX_EXIT_KIND_THROWN) code = 1;
+  else code = 0;
   rc_release(result);
-  // rc_release(converted);
+  rc_release(converted);
   return code;
 }
 

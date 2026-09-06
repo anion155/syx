@@ -457,7 +457,7 @@ Syx_Value *make_syx_value_stringf(const char *format, ...) {
   value->string->count = count;
 
   va_start(args, format);
-  vsnprintf((char *)value->string->data, count, format, args);
+  vsnprintf((char *)value->string->data, count + 1, format, args);
   va_end(args);
 
   return value;
