@@ -102,8 +102,6 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value);
 #include <ht.h>
 #define RC_IMPL
 #include <rc.h>
-#define GENERAL_UTILS_IMPL
-#include <general_utils.h>
 #define SYX_VALUE_IMPL
 #include <syx_new/syx_value.h>
 #define SYX_OBJECT_IMPL
@@ -142,13 +140,13 @@ void syx_frames_stack_push(Syx_Frames_Stack *frames_stack, syx_string_view trace
 }
 
 void syx_frames_stack_push_f(Syx_Frames_Stack *frames_stack, const char *format, ...) {
-  size_t checkpoint = nob_temp_save();
+  String_Builder sb = {0};
   va_list args;
   va_start(args, format);
-  syx_string_view sv = temp_view_vsprintf(format, args);
+  sb_vappendf(&sb, format, args);
   va_end(args);
-  syx_frames_stack_push(frames_stack, sv);
-  nob_temp_rewind(checkpoint);
+  syx_frames_stack_push(frames_stack, sv_from_like(sb));
+  sb_free(&sb);
 }
 
 void syx_frames_stack__pop(Syx_Frames_Stack *frames_stack, Syx_Value **to_save, size_t count) {

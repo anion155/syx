@@ -1,5 +1,5 @@
 --- vendor/patches/nob.h	2026-09-02 22:34:26
-+++ vendor/nob.h	2026-09-02 22:33:59
++++ vendor/nob.h	2026-09-06 09:36:26
 @@ -206,9 +206,9 @@
  NOBDEF void nob__panicf(const char *file, int line, const char *label, const char *format, ...);
  

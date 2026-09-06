@@ -21,6 +21,7 @@ String_Builder *sb_null_terminate(String_Builder *sb);
 
 #define sb_append(sb, character) da_append((sb), (character))
 #define sb_append_buf_n(sb, buffer, count) da_append_many_n((sb), (buffer), (count))
+ssize_t sb_vappendf(String_Builder *sb, const char *fmt, va_list ap);
 ssize_t sb_appendf(String_Builder *sb, PRINTF_FMT_PARAM const char *fmt, ...) PRINTF_ATTRIBUTE(2, 3);
 static inline ssize_t sb_append_cstr(String_Builder *sb, const char *cstr) { return da_append_many_n(sb, cstr, strlen(cstr)); }
 #define sb_append_strlit(sb, str) da_append_many_n(sb, str, sizeof(str) - 1)
@@ -138,18 +139,26 @@ String_Builder *sb_null_terminate(String_Builder *sb) {
   return sb;
 }
 
-ssize_t sb_appendf(String_Builder *sb, const char *fmt, ...) {
+ssize_t sb_vappendf(String_Builder *sb, const char *fmt, va_list ap) {
   va_list args;
-  va_start(args, fmt);
+  va_copy(args, ap);
   int length = vsnprintf(NULL, 0, fmt, args);
   va_end(args);
   if (length > 0) {
     da_reserve(sb, sb->count + length + 1);
-    va_start(args, fmt);
+    va_copy(args, ap);
     vsnprintf(sb->data + sb->count, length + 1, fmt, args);
     va_end(args);
     sb->count += length;
   }
+  return length;
+}
+
+ssize_t sb_appendf(String_Builder *sb, const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  ssize_t length = sb_vappendf(sb, fmt, args);
+  va_end(args);
   return length;
 }
 

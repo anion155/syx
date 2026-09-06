@@ -281,8 +281,6 @@ Syx_Value *syx_list_next(Syx_Pair **list);
 #include <ht.h>
 #define RC_IMPL
 #include <rc.h>
-#define GENERAL_UTILS_IMPL
-#include <general_utils.h>
 #define SYX_UTILS_IMPL
 #include <syx_new/syx_utils.h>
 
@@ -381,13 +379,13 @@ inline Syx_Value *make_syx_value_symbol_n(const char *symbol, size_t count) {
 }
 
 Syx_Value *make_syx_value_symbol_f(const char *format, ...) {
-  size_t checkpoint = nob_temp_save();
+  String_Builder sb = {0};
   va_list args;
   va_start(args, format);
-  syx_string_view sv = temp_view_vsprintf(format, args);
+  sb_vappendf(&sb, format, args);
+  Syx_Value *value = make_syx_value_symbol(sv_from_like(sb));
   va_end(args);
-  Syx_Value *value = make_syx_value_symbol(sv);
-  nob_temp_rewind(checkpoint);
+  sb_free(&sb);
   return value;
 }
 

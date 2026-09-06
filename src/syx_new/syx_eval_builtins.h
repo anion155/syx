@@ -14,9 +14,6 @@ void syx_env_define_builtins(Syx_Env *env);
 #include <math.h>
 #include <stdio.h>
 
-#define GENERAL_UTILS_IMPL
-#include <general_utils.h>
-
 /** Builtins */
 
 /** Takes exactly 2 arguments and returns a pair (left . right). */

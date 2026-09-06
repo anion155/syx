@@ -17,8 +17,6 @@ Syx_Value *parse_syx(syx_string_view source, bool ignore_errors);
 #include <sv.h>
 #define SYX_LEXER_IMPL
 #include <syx_new/syx_lexer.h>
-#define GENERAL_UTILS_IMPL
-#include <general_utils.h>
 
 Syx_Value *parse_syx_value(Syx_Tokens *tokens);
 
@@ -80,7 +78,7 @@ bool syx_parser_utf_codepoint_to_string(uint32_t codepoint, syx_string *string) 
 }
 
 uint32_t syx_parser_utf_string_to_codepoint(syx_string_view string) {
-  if (string.count < nob_bytes_for_utf8(string)) return 0;
+  if (string.count < sv_first_utf_length(string)) return 0;
 #define get(index, mask, ...) ((__VA_OPT__((uint32_t)(uint8_t)) string.data[index] & mask) __VA_OPT__(<< __VA_ARGS__))
   if (get(0, 0b10000000) == 0) {
     return string.data[0];
@@ -192,7 +190,7 @@ Syx_Value *parse_syx_string_value(Syx_Token token) {
       }
       continue;
     }
-    size_t width = nob__bytes_for_utf8[(uint8_t)token.data[tindex]];
+    size_t width = sv_first_utf_length(token);
     for (size_t lindex = 0; lindex < width; lindex += 1) {
       sb_append(&literal, token.data[tindex + lindex]);
     }

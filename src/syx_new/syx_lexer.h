@@ -25,18 +25,18 @@ typedef enum Syx_Token_Kind {
 const char *syx_token_kind_string(Syx_Token_Kind kind);
 
 typedef struct Syx_Token {
-  size_t count;
   const char *data;
+  size_t count;
   Syx_Token_Kind kind;
 } Syx_Token;
 
 typedef Da(Syx_Token, Syx_Tokens_Da) Syx_Tokens_Da;
 
 typedef struct Syx_Tokens {
-  syx_string_view source;
   const Syx_Token *data;
   size_t count;
   size_t capacity;
+  syx_string_view source;
 } Syx_Tokens;
 
 Syx_Tokens syx_lexer_tokenize(syx_string_view source);
@@ -125,8 +125,8 @@ int syx_lexer_is_invalid_delimeter(int character) {
 }
 
 Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
-  Syx_Token token = {.data = it->data, .count = nob_bytes_for_utf8(*it)};
-#define it_chop_next() sv_chop_left(it, it->count ? nob_bytes_for_utf8(*it) : 0)
+  Syx_Token token = {.data = it->data, .count = sv_first_utf_length(*it)};
+#define it_chop_next() sv_chop_left(it, it->count ? sv_first_utf_length(*it) : 0)
   switch (*it->data) {
     case '(':
     case ')':
@@ -171,7 +171,7 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
       if (!it->count || *it->data != '|') goto return_error;
       it_chop_next();
       if (it->count) {
-        size_t error_width = nob_bytes_for_utf8(*it);
+        size_t error_width = sv_first_utf_length(*it);
         token.count += error_width;
         if (!syx_lexer_is_delimeter(*it->data)) goto return_error;
         token.count -= error_width;
@@ -182,7 +182,7 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
       token.kind = SYX_TOKEN_KIND_DISPATCH;
       it_chop_next();
       if (it->count < 1) goto return_error;
-      token.count += nob_bytes_for_utf8(*it);
+      token.count += sv_first_utf_length(*it);
       it_chop_next();
       return token;
     }
@@ -251,7 +251,7 @@ Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
     if (*it->data == '_') goto return_error;
     token.count = it->data - token.data;
     if (token.count && *(it->data - 1) == '_') goto return_error;
-    size_t error_width = it->count ? nob_bytes_for_utf8(*it) : 0;
+    size_t error_width = it->count ? sv_first_utf_length(*it) : 0;
     token.count += error_width;
     if (it->count && !syx_lexer_is_delimeter(*it->data)) goto return_error;
     token.count -= error_width;
@@ -312,7 +312,7 @@ return_error:
 Syx_Tokens syx_lexer_tokenize(syx_string_view source) {
   Syx_Tokens_Da tokens = {};
   for (syx_string_view it = source; it.count;) {
-    while (it.count && syx_lexer_is_whitespace(*it.data)) sv_chop_left(&it, nob_bytes_for_utf8(it));
+    while (it.count && syx_lexer_is_whitespace(*it.data)) sv_chop_left(&it, sv_first_utf_length(it));
     Syx_Token token = syx_lexer_get_next_token(&it);
     switch (token.kind) {
       case SYX_TOKEN_KIND_NULL: continue;
