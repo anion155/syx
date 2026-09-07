@@ -41,6 +41,7 @@ typedef enum Syx_Primitive_Type_Kind : unsigned int {
   SYX_PRIMITIVE_TYPE_KIND_ULLONG, // unsigned long long
   SYX_PRIMITIVE_TYPE_KIND_FLOAT,  // float
   SYX_PRIMITIVE_TYPE_KIND_DOUBLE, // double
+  SYX_PRIMITIVE_TYPE_KIND_SIZE,   // size_t
 } Syx_Primitive_Type_Kind;
 
 typedef struct Syx_Type_Structure Syx_Type_Structure;
@@ -92,20 +93,22 @@ typedef struct Syx_Type_Function {
   bool vaargs;
 } Syx_Type_Function;
 
-Syx_Type *make_syx_type_pointer(size_t size, size_t alignment, Syx_Symbol *name, Syx_Type *target);
-Syx_Type *make_syx_type_structure(size_t size, size_t alignment, Syx_Symbol *name, Syx_Type_Structure structure);
+Syx_Type *make_syx_type_pointer(Syx_Symbol *name, Syx_Type *target);
+Syx_Type *make_syx_type_structure(Syx_Symbol *name, Syx_Type_Structure structure);
 Syx_Type_Structure_Fields make__syx_type_structure_fields(const Syx_Type_Structure_Field *items, size_t count);
-#define make_syx_type_structure_fields(...) ({                                                  \
-  Syx_Type_Structure_Field *fields[] = {__VA_ARGS__};                                           \
-  make__syx_type_structure_fields(fields, sizeof(fields) / sizeof(Syx_Type_Structure_Field *)); \
+#define make_syx_type_structure_fields(...) ({                                                \
+  Syx_Type_Structure_Field fields[] = {__VA_ARGS__};                                          \
+  make__syx_type_structure_fields(fields, sizeof(fields) / sizeof(Syx_Type_Structure_Field)); \
 })
-Syx_Type *make_syx_type_function(size_t size, size_t alignment, Syx_Symbol *name, Syx_Type_Function func);
+Syx_Type *make_syx_type_function(Syx_Symbol *name, Syx_Type_Function func);
 
 ffi_status syx_type_function_ffi_prep(Syx_Type_Function *func);
 void *syx_type_function_ffi_call(Syx_Type_Function *func, void (*func_ptr)(void), void **arg_values);
 
 size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type);
 
+typedef Ht(const char *, Syx_Type *, SYX_KNOWN_TYPES_t) SYX_KNOWN_TYPES_t;
+syx_predefine_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES);
 void syx_env_define_types(Syx_Env *env);
 
 #endif // SYX_TYPE_INFO_H
@@ -142,54 +145,6 @@ Syx_Type *make_syx_type_primitive(Syx_Primitive_Type_Kind kind, size_t size, siz
   return type;
 }
 
-syx_define_constant(Ht(const char *, Syx_Type *), SYX_TYPES) {
-  SYX_TYPES->hasheq = ht_cstr_hasheq;
-  *ht_put(SYX_TYPES, "c_void") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void);
-  *ht_put(SYX_TYPES, "c_char") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_CHAR, sizeof(char), alignof(char), NULL,
-#if CHAR_MIN < 0
-                                                         &ffi_type_schar
-#else
-                                                         &ffi_type_uchar
-#endif
-  );
-  *ht_put(SYX_TYPES, "c_i8") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I8, sizeof(int8_t), alignof(int8_t), NULL, &ffi_type_sint8);
-  *ht_put(SYX_TYPES, "c_i16") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I16, sizeof(int16_t), alignof(int16_t), NULL, &ffi_type_sint16);
-  *ht_put(SYX_TYPES, "c_i32") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I32, sizeof(int32_t), alignof(int32_t), NULL, &ffi_type_sint32);
-  *ht_put(SYX_TYPES, "c_i64") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I64, sizeof(int64_t), alignof(int64_t), NULL, &ffi_type_sint64);
-  ffi_type *ffi_type_sint128 = malloc(sizeof(ffi_type) + sizeof(ffi_type *) * 3);
-  ffi_type_sint128->type = FFI_TYPE_STRUCT;
-  ffi_type_sint128->size = 0;
-  ffi_type_sint128->alignment = 0;
-  ffi_type_sint128->elements = (ffi_type **)(ffi_type_sint128 + 1);
-  ffi_type_sint128->elements[0] = &ffi_type_sint64;
-  ffi_type_sint128->elements[1] = &ffi_type_sint64;
-  ffi_type_sint128->elements[2] = NULL;
-  *ht_put(SYX_TYPES, "c_i128") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I128, sizeof(__int128), alignof(__int128), NULL, ffi_type_sint128);
-  *ht_put(SYX_TYPES, "c_u8") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U8, sizeof(uint8_t), alignof(uint8_t), NULL, &ffi_type_uint8);
-  *ht_put(SYX_TYPES, "c_u16") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U16, sizeof(uint16_t), alignof(uint16_t), NULL, &ffi_type_uint16);
-  *ht_put(SYX_TYPES, "c_u32") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U32, sizeof(uint32_t), alignof(uint32_t), NULL, &ffi_type_uint32);
-  *ht_put(SYX_TYPES, "c_u64") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U64, sizeof(uint64_t), alignof(uint64_t), NULL, &ffi_type_uint64);
-  ffi_type *ffi_type_uint128 = malloc(sizeof(ffi_type) + sizeof(ffi_type *) * 3);
-  ffi_type_uint128->type = FFI_TYPE_STRUCT;
-  ffi_type_uint128->size = 0;
-  ffi_type_uint128->alignment = 0;
-  ffi_type_uint128->elements = (ffi_type **)(ffi_type_uint128 + 1);
-  ffi_type_uint128->elements[0] = &ffi_type_uint64;
-  ffi_type_uint128->elements[1] = &ffi_type_uint64;
-  ffi_type_uint128->elements[2] = NULL;
-  *ht_put(SYX_TYPES, "c_u128") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U128, sizeof(unsigned __int128), alignof(unsigned __int128), NULL, ffi_type_uint128);
-  *ht_put(SYX_TYPES, "c_int") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_INT, sizeof(int), alignof(int), NULL, &ffi_type_sint);
-  *ht_put(SYX_TYPES, "c_long") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LONG, sizeof(signed long), alignof(signed long), NULL, &ffi_type_slong);
-  // *ht_put(SYX_TYPES, "c_llong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LLONG, sizeof(signed long long), alignof(signed long long), NULL, &ffi_type_sint64);
-  *ht_put(SYX_TYPES, "c_uint") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_UINT, sizeof(unsigned), alignof(unsigned), NULL, &ffi_type_uint);
-  *ht_put(SYX_TYPES, "c_ulong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULONG, sizeof(unsigned long), alignof(unsigned long), NULL, &ffi_type_ulong);
-  // *ht_put(SYX_TYPES, "c_ullong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULLONG, sizeof(unsigned long long), alignof(unsigned long long), NULL, &ffi_type_uint64);
-  *ht_put(SYX_TYPES, "c_float") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_FLOAT, sizeof(float), alignof(float), NULL, &ffi_type_float);
-  *ht_put(SYX_TYPES, "c_double") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_DOUBLE, sizeof(double), alignof(double), NULL, &ffi_type_double);
-
-  *ht_put(SYX_TYPES, "value") = rc_acquire(make_syx_type(SYX_TYPE_KIND_VALUE_PTR, sizeof(Syx_Value *), alignof(Syx_Value *), NULL, &ffi_type_pointer, 0));
-}
-
 void syx_type_pointer_destructor(void *data) {
   syx_type_destructor(data);
   Syx_Type *type = data;
@@ -201,8 +156,8 @@ void syx_type_pointer_graph_visitor(Rc_Circulars *circulars, const void *data, c
   if (type->name) rc_graph_visitor(circulars, (void **)&(type->name), source);
 }
 
-Syx_Type *make_syx_type_pointer(size_t size, size_t alignment, Syx_Symbol *name, Syx_Type *target) {
-  Syx_Type *type = make_syx_type(SYX_TYPE_KIND_PTR, size, alignment, name, &ffi_type_pointer, 0);
+Syx_Type *make_syx_type_pointer(Syx_Symbol *name, Syx_Type *target) {
+  Syx_Type *type = make_syx_type(SYX_TYPE_KIND_PTR, sizeof(void *), alignof(void *), name, &ffi_type_pointer, 0);
   rc_get(type)->methods = (Rc_Methods){.destructor = syx_type_pointer_destructor, .graph_visitor = syx_type_pointer_graph_visitor};
   type->pointer = rc_acquire(target);
   return type;
@@ -211,7 +166,10 @@ Syx_Type *make_syx_type_pointer(size_t size, size_t alignment, Syx_Symbol *name,
 void syx_type_structure_destructor(void *data) {
   syx_type_destructor(data);
   Syx_Type_Structure *structure = ((Syx_Type *)data)->structure;
-  da_foreach(&structure->fields, field) rc_release(field->type);
+  da_foreach(&structure->fields, field) {
+    if (field->name) rc_release(syx_value_from_symbol(field->name));
+    rc_release(field->type);
+  }
 }
 
 void syx_type_structure_graph_visitor(Rc_Circulars *circulars, const void *data, const void *source) {
@@ -221,8 +179,8 @@ void syx_type_structure_graph_visitor(Rc_Circulars *circulars, const void *data,
   }
 }
 
-Syx_Type *make_syx_type_structure(size_t size, size_t alignment, Syx_Symbol *name, Syx_Type_Structure structure) {
-  Syx_Type *type = make_syx_type(SYX_TYPE_KIND_STRUCTURE, size, alignment, name, NULL, sizeof(Syx_Type_Structure) + sizeof(Syx_Type_Structure_Field) * structure.fields.count + sizeof(ffi_type) + sizeof(ffi_type) * (structure.fields.count + 1));
+Syx_Type *make_syx_type_structure(Syx_Symbol *name, Syx_Type_Structure structure) {
+  Syx_Type *type = make_syx_type(SYX_TYPE_KIND_STRUCTURE, 0, 0, name, NULL, sizeof(Syx_Type_Structure) + sizeof(Syx_Type_Structure_Field) * structure.fields.count + sizeof(ffi_type) + sizeof(ffi_type) * (structure.fields.count + 1));
   rc_get(type)->methods = (Rc_Methods){.destructor = syx_type_structure_destructor, .graph_visitor = syx_type_structure_graph_visitor};
   type->structure = (Syx_Type_Structure *)(type + 1);
   *type->structure = structure;
@@ -233,6 +191,7 @@ Syx_Type *make_syx_type_structure(size_t size, size_t alignment, Syx_Symbol *nam
     if (field->type->alignment > 0) offset = (offset + field->type->alignment - 1) & ~(field->type->alignment - 1);
     if (field->offset == 0) field->offset = offset;
     offset += field->type->size;
+    if (field->name) rc_acquire(syx_value_from_symbol(field->name));
     rc_acquire(field->type);
     da_append(&fields, *field);
   }
@@ -274,8 +233,8 @@ void syx_type_function_graph_visitor(Rc_Circulars *circulars, const void *data, 
   }
 }
 
-Syx_Type *make_syx_type_function(size_t size, size_t alignment, Syx_Symbol *name, Syx_Type_Function func) {
-  Syx_Type *type = make_syx_type(SYX_TYPE_KIND_FUNCTION_PTR, size, alignment, name, NULL, sizeof(Syx_Type_Function) + sizeof(ffi_cif) + sizeof(Syx_Type *) * func.arg_types.count);
+Syx_Type *make_syx_type_function(Syx_Symbol *name, Syx_Type_Function func) {
+  Syx_Type *type = make_syx_type(SYX_TYPE_KIND_FUNCTION_PTR, sizeof(void (*)(void)), alignof(void (*)(void)), name, NULL, sizeof(Syx_Type_Function) + sizeof(ffi_cif) + sizeof(Syx_Type *) * func.arg_types.count);
   rc_get(type)->methods = (Rc_Methods){.destructor = syx_type_function_destructor, .graph_visitor = syx_type_function_graph_visitor};
   type->function = (Syx_Type_Function *)(type + 1);
   type->function->return_type = rc_acquire(func.return_type);
@@ -386,11 +345,65 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
   return state.count;
 }
 
+syx_define_constant(, SYX_KNOWN_TYPES) {
+  SYX_KNOWN_TYPES->hasheq = ht_cstr_hasheq;
+  *ht_put(SYX_KNOWN_TYPES, "c_void") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void);
+  *ht_put(SYX_KNOWN_TYPES, "c_char") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_CHAR, sizeof(char), alignof(char), NULL,
+#if CHAR_MIN < 0
+                                                               &ffi_type_schar
+#else
+                                                               &ffi_type_uchar
+#endif
+  );
+  *ht_put(SYX_KNOWN_TYPES, "c_i8") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I8, sizeof(int8_t), alignof(int8_t), NULL, &ffi_type_sint8);
+  *ht_put(SYX_KNOWN_TYPES, "c_i16") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I16, sizeof(int16_t), alignof(int16_t), NULL, &ffi_type_sint16);
+  *ht_put(SYX_KNOWN_TYPES, "c_i32") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I32, sizeof(int32_t), alignof(int32_t), NULL, &ffi_type_sint32);
+  *ht_put(SYX_KNOWN_TYPES, "c_i64") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I64, sizeof(int64_t), alignof(int64_t), NULL, &ffi_type_sint64);
+  ffi_type *ffi_type_sint128 = malloc(sizeof(ffi_type) + sizeof(ffi_type *) * 3);
+  ffi_type_sint128->type = FFI_TYPE_STRUCT;
+  ffi_type_sint128->size = 0;
+  ffi_type_sint128->alignment = 0;
+  ffi_type_sint128->elements = (ffi_type **)(ffi_type_sint128 + 1);
+  ffi_type_sint128->elements[0] = &ffi_type_sint64;
+  ffi_type_sint128->elements[1] = &ffi_type_sint64;
+  ffi_type_sint128->elements[2] = NULL;
+  *ht_put(SYX_KNOWN_TYPES, "c_i128") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I128, sizeof(__int128), alignof(__int128), NULL, ffi_type_sint128);
+  *ht_put(SYX_KNOWN_TYPES, "c_u8") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U8, sizeof(uint8_t), alignof(uint8_t), NULL, &ffi_type_uint8);
+  *ht_put(SYX_KNOWN_TYPES, "c_u16") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U16, sizeof(uint16_t), alignof(uint16_t), NULL, &ffi_type_uint16);
+  *ht_put(SYX_KNOWN_TYPES, "c_u32") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U32, sizeof(uint32_t), alignof(uint32_t), NULL, &ffi_type_uint32);
+  *ht_put(SYX_KNOWN_TYPES, "c_u64") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U64, sizeof(uint64_t), alignof(uint64_t), NULL, &ffi_type_uint64);
+  ffi_type *ffi_type_uint128 = malloc(sizeof(ffi_type) + sizeof(ffi_type *) * 3);
+  ffi_type_uint128->type = FFI_TYPE_STRUCT;
+  ffi_type_uint128->size = 0;
+  ffi_type_uint128->alignment = 0;
+  ffi_type_uint128->elements = (ffi_type **)(ffi_type_uint128 + 1);
+  ffi_type_uint128->elements[0] = &ffi_type_uint64;
+  ffi_type_uint128->elements[1] = &ffi_type_uint64;
+  ffi_type_uint128->elements[2] = NULL;
+  *ht_put(SYX_KNOWN_TYPES, "c_u128") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U128, sizeof(unsigned __int128), alignof(unsigned __int128), NULL, ffi_type_uint128);
+  *ht_put(SYX_KNOWN_TYPES, "c_int") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_INT, sizeof(int), alignof(int), NULL, &ffi_type_sint);
+  *ht_put(SYX_KNOWN_TYPES, "c_long") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LONG, sizeof(signed long), alignof(signed long), NULL, &ffi_type_slong);
+  // *ht_put(SYX_KNOWN_TYPES, "c_llong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LLONG, sizeof(signed long long), alignof(signed long long), NULL, &ffi_type_sint64);
+  *ht_put(SYX_KNOWN_TYPES, "c_uint") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_UINT, sizeof(unsigned), alignof(unsigned), NULL, &ffi_type_uint);
+  *ht_put(SYX_KNOWN_TYPES, "c_ulong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULONG, sizeof(unsigned long), alignof(unsigned long), NULL, &ffi_type_ulong);
+  // *ht_put(SYX_KNOWN_TYPES, "c_ullong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULLONG, sizeof(unsigned long long), alignof(unsigned long long), NULL, &ffi_type_uint64);
+  *ht_put(SYX_KNOWN_TYPES, "c_float") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_FLOAT, sizeof(float), alignof(float), NULL, &ffi_type_float);
+  *ht_put(SYX_KNOWN_TYPES, "c_double") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_DOUBLE, sizeof(double), alignof(double), NULL, &ffi_type_double);
+  // *ht_put(SYX_KNOWN_TYPES, "c_size") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_SIZE, sizeof(size_t), alignof(size_t), NULL, &ffi_type_double);
+
+  *ht_put(SYX_KNOWN_TYPES, "value") = make_syx_type(SYX_TYPE_KIND_VALUE_PTR, sizeof(Syx_Value *), alignof(Syx_Value *), NULL, &ffi_type_pointer, 0);
+  *ht_put(SYX_KNOWN_TYPES, "c_cstr") = make_syx_type_pointer(NULL, *ht_find(SYX_KNOWN_TYPES, "c_char"));
+  Syx_Type_Structure_Fields string_fields = make_syx_type_structure_fields(
+      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("data"), .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_cstr")},
+      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count"), .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_size")});
+  *ht_put(SYX_KNOWN_TYPES, "string") = make_syx_type_structure(NULL, (Syx_Type_Structure){.fields = string_fields});
+}
+
 void syx_env_define_types(Syx_Env *env) {
   UNUSED(env);
   TODO("syx_env_define_types");
-  ht_foreach(type, SYX_TYPES()) {
-    const char *key = ht_key(SYX_TYPES(), type);
+  ht_foreach(type, SYX_KNOWN_TYPES()) {
+    const char *key = ht_key(SYX_KNOWN_TYPES(), type);
     rc_acquire(type);
     Syx_Value *name = rc_acquire(make_syx_value_symbol_cstr(key));
     (*type)->name = name->symbol;

@@ -1,6 +1,9 @@
 #ifndef SYX_UTILS_H
 #define SYX_UTILS_H
 
+#define syx_predefine_constant(type, name) \
+  typedef type name##_t;                   \
+  static inline name##_t *name();
 #define syx_define_constant(type, name)              \
   typedef type name##_t;                             \
   typedef struct {                                   \

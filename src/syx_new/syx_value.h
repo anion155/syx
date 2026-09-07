@@ -211,13 +211,11 @@ Syx_Value *syx_value_bool(bool value);
 Syx_Value *make_syx_value_number(Syx_Number number);
 Syx_Value *make_syx_value_number_integer(syx_integer_t value);
 Syx_Value *make_syx_value_number_fractional(syx_fractional_t value);
-Syx_Value *make_syx_value_string(Syx_String string);
-#define make_syx_value_string_lit(string) make_syx_value_string((Syx_String){.data = (string), .count = sizeof(string) - 1, .managed = false});
-Syx_Value *make_syx_value_string_n(char *data, size_t count);
-Syx_Value *make_syx_value_string_cstr(const char *data);
+Syx_Value *make_syx_value_string(Syx_String *string);
 Syx_Value *make_syx_value_string_dup(const char *data, size_t count);
 Syx_Value *make_syx_value_string_cstr_dup(const char *data);
-Syx_Value *make_syx_value_stringf(PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(1, 2);
+#define make_syx_value_string_strlit_dup(string) make_syx_value_string_dup((string), sizeof(string) - 1);
+Syx_Value *make_syx_value_stringf_dup(PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(1, 2);
 Syx_Value *make_syx_value_object(Syx_Object *proto);
 Syx_Value *make_syx_value_closure(Syx_Symbol *name, Syx_Closure_Kind kind, size_t size);
 void syx_value_closure_rename(Syx_Closure *closure, Syx_Symbol *name);
@@ -269,10 +267,10 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value);
   }                                                       \
 })
 
-#define SYX_THROW(message, ...) ({                                                                                        \
-  rc_release_all(EXPAND WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )));                                                     \
-  Syx_Value *reason = make_syx_value_stringf(message EXPAND(EXPAND_WITH_COMMA WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)))); \
-  return make_syx_value_exit_thrown(reason, WITH_DEFAULT(NULL, THIRD_ARG(__VA_ARGS__, , )));                              \
+#define SYX_THROW(message, ...) ({                                                                                            \
+  rc_release_all(EXPAND WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )));                                                         \
+  Syx_Value *reason = make_syx_value_stringf_dup(message EXPAND(EXPAND_WITH_COMMA WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)))); \
+  return make_syx_value_exit_thrown(reason, WITH_DEFAULT(NULL, THIRD_ARG(__VA_ARGS__, , )));                                  \
 })
 #define SYX_TODO(message, ...) SYX_THROW("TODO: " message __VA_OPT__(, ) __VA_ARGS__)
 #define SYX_ASSERT(condition, message, ...) ({       \
@@ -431,19 +429,10 @@ inline Syx_Value *make_syx_value_number_fractional(syx_fractional_t value) {
   return make_syx_value_number((Syx_Number){.kind = SYX_NUMBER_KIND_FRACTIONAL, .fractional = value});
 }
 
-Syx_Value *make_syx_value_string(Syx_String string) {
-  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_STRING, sizeof(Syx_String));
-  value->string = (Syx_String *)(value + 1);
-  string_assign(value->string, string);
+Syx_Value *make_syx_value_string(Syx_String *string) {
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_STRING, 0);
+  value->string = string;
   return value;
-}
-
-inline Syx_Value *make_syx_value_string_n(char *data, size_t count) {
-  return make_syx_value_string((Syx_String){.data = data, .count = count});
-}
-
-inline Syx_Value *make_syx_value_string_cstr(const char *data) {
-  return make_syx_value_string((Syx_String){.data = data, .count = strlen(data)});
 }
 
 Syx_Value *make_syx_value_string_dup(const char *data, size_t count) {
@@ -458,7 +447,7 @@ inline Syx_Value *make_syx_value_string_cstr_dup(const char *data) {
   return make_syx_value_string_dup(data, strlen(data));
 }
 
-Syx_Value *make_syx_value_stringf(const char *format, ...) {
+Syx_Value *make_syx_value_stringf_dup(const char *format, ...) {
   va_list args;
   va_start(args, format);
   size_t count = vsnprintf(NULL, 0, format, args);

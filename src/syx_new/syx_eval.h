@@ -561,8 +561,11 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value) {
       switch (native->type->kind) {
         case SYX_TYPE_KIND_PRIMITIVE: SYX_EVAL_THROW(ctx, "native can't be converted to string");
         case SYX_TYPE_KIND_PTR: {
-          if (native->type->pointer->kind == SYX_TYPE_KIND_PRIMITIVE && native->type->pointer->primitive == SYX_PRIMITIVE_TYPE_KIND_CHAR) {
-            return make_syx_value_string_cstr(*(char **)native->data);
+          if (native->type == *ht_find(SYX_KNOWN_TYPES(), "c_cstr")) {
+            return make_syx_value_string_cstr_dup(*(char **)native->data);
+          }
+          if (native->type == *ht_find(SYX_KNOWN_TYPES(), "string")) {
+            return make_syx_value_string((String *)native->data);
           }
           SYX_EVAL_THROW(ctx, "native pointer can't be converted to string");
         }
