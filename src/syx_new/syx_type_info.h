@@ -286,42 +286,27 @@ void *syx_type_function_ffi_call(Syx_Type_Function *func, void (*func_ptr)(void)
 
 size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
   Stringify_State state = make_stringify_state(sb, 256);
+  stringify_append(&state, sb_append_strlit, "#.");
+  if (type->name) {
+    stringify_append(&state, sb_append_syx_symbol, type->name);
+    return state.count;
+  }
   switch (type->kind) {
     case SYX_TYPE_KIND_PRIMITIVE: {
-      stringify_append(&state, sb_append_strlit, "#.");
       if (!type->name) UNREACHABLE("primitive types must have name");
       stringify_append(&state, sb_append_syx_symbol, type->name);
     } break;
     case SYX_TYPE_KIND_PTR: {
-      stringify_append(&state, sb_append_strlit, "#.ref");
-      if (type->name) {
-        stringify_append(&state, sb_append, '<');
-        stringify_append(&state, sb_append_syx_symbol, type->name);
-        stringify_append(&state, sb_append, '>');
-      }
+      stringify_append(&state, sb_append_strlit, "ref");
       stringify_append(&state, sb_append, '(');
       stringify_append(&state, sb_append_syx_type, type->pointer);
       stringify_append(&state, sb_append, ')');
     } break;
     case SYX_TYPE_KIND_STRUCTURE: {
-      stringify_append(&state, sb_append_strlit, "#.");
-      if (type->name) {
-        stringify_append(&state, sb_append, '<');
-        stringify_append(&state, sb_append_syx_symbol, type->name);
-        stringify_append(&state, sb_append, '>');
-      } else {
-        stringify_append(&state, sb_append_strlit, "<anonim>");
-      }
+      stringify_append(&state, sb_append_strlit, "struct");
     } break;
     case SYX_TYPE_KIND_FUNCTION_PTR: {
-      stringify_append(&state, sb_append_strlit, "#.fn");
-      if (type->name) {
-        stringify_append(&state, sb_append, '<');
-        stringify_append(&state, sb_append_syx_symbol, type->name);
-        stringify_append(&state, sb_append, '>');
-      } else {
-        stringify_append(&state, sb_append_strlit, "<anonim>");
-      }
+      stringify_append(&state, sb_append_strlit, "fn");
       Syx_Type_Function *func = type->function;
       stringify_append(&state, sb_append, '(');
       stringify_append(&state, sb_append_syx_type, func->return_type);
@@ -339,7 +324,7 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
       stringify_append(&state, sb_append, ')');
     } break;
     case SYX_TYPE_KIND_VALUE_PTR: {
-      stringify_append(&state, sb_append_strlit, "#.value");
+      stringify_append(&state, sb_append_strlit, "value");
     } break;
   }
   return state.count;
@@ -383,32 +368,55 @@ syx_define_constant(, SYX_KNOWN_TYPES) {
   *ht_put(SYX_KNOWN_TYPES, "c_u128") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U128, sizeof(unsigned __int128), alignof(unsigned __int128), NULL, ffi_type_uint128);
   *ht_put(SYX_KNOWN_TYPES, "c_int") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_INT, sizeof(int), alignof(int), NULL, &ffi_type_sint);
   *ht_put(SYX_KNOWN_TYPES, "c_long") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LONG, sizeof(signed long), alignof(signed long), NULL, &ffi_type_slong);
-  // *ht_put(SYX_KNOWN_TYPES, "c_llong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LLONG, sizeof(signed long long), alignof(signed long long), NULL, &ffi_type_sint64);
+  *ht_put(SYX_KNOWN_TYPES, "c_llong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LLONG, sizeof(signed long long), alignof(signed long long), NULL, &ffi_type_sint64);
   *ht_put(SYX_KNOWN_TYPES, "c_uint") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_UINT, sizeof(unsigned), alignof(unsigned), NULL, &ffi_type_uint);
   *ht_put(SYX_KNOWN_TYPES, "c_ulong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULONG, sizeof(unsigned long), alignof(unsigned long), NULL, &ffi_type_ulong);
-  // *ht_put(SYX_KNOWN_TYPES, "c_ullong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULLONG, sizeof(unsigned long long), alignof(unsigned long long), NULL, &ffi_type_uint64);
+  *ht_put(SYX_KNOWN_TYPES, "c_ullong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULLONG, sizeof(unsigned long long), alignof(unsigned long long), NULL, &ffi_type_uint64);
   *ht_put(SYX_KNOWN_TYPES, "c_float") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_FLOAT, sizeof(float), alignof(float), NULL, &ffi_type_float);
   *ht_put(SYX_KNOWN_TYPES, "c_double") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_DOUBLE, sizeof(double), alignof(double), NULL, &ffi_type_double);
-  // *ht_put(SYX_KNOWN_TYPES, "c_size") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_SIZE, sizeof(size_t), alignof(size_t), NULL, &ffi_type_double);
+  *ht_put(SYX_KNOWN_TYPES, "c_size") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_SIZE, sizeof(size_t), alignof(size_t), NULL, &ffi_type_pointer);
 
   *ht_put(SYX_KNOWN_TYPES, "value") = make_syx_type(SYX_TYPE_KIND_VALUE_PTR, sizeof(Syx_Value *), alignof(Syx_Value *), NULL, &ffi_type_pointer, 0);
-  *ht_put(SYX_KNOWN_TYPES, "c_cstr") = make_syx_type_pointer(NULL, *ht_find(SYX_KNOWN_TYPES, "c_char"));
+  *ht_put(SYX_KNOWN_TYPES, "c_str") = make_syx_type_pointer(NULL, *ht_find(SYX_KNOWN_TYPES, "c_char"));
   Syx_Type_Structure_Fields string_fields = make_syx_type_structure_fields(
-      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("data"), .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_cstr")},
+      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("data"), .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_str")},
       (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count"), .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_size")});
   *ht_put(SYX_KNOWN_TYPES, "string") = make_syx_type_structure(NULL, (Syx_Type_Structure){.fields = string_fields});
 }
 
+void syx_env_define_type_constructor(Syx_Env *env, const char *name) {
+  Syx_Type *type = *ht_find(SYX_KNOWN_TYPES(), name);
+  syx_env_define(env, type->name, make_syx_value_closure_native_constructor(NULL, type));
+}
+
 void syx_env_define_types(Syx_Env *env) {
-  UNUSED(env);
-  TODO("syx_env_define_types");
   ht_foreach(type, SYX_KNOWN_TYPES()) {
     const char *key = ht_key(SYX_KNOWN_TYPES(), type);
     rc_acquire(type);
     Syx_Value *name = rc_acquire(make_syx_value_symbol_cstr(key));
     (*type)->name = name->symbol;
-    // syx_env_define(env, (*type)->name, make_syx_value_native_constructor(*type));
   }
+  // syx_env_define_type_constructor(env, "c_void");
+  syx_env_define_type_constructor(env, "c_char");
+  syx_env_define_type_constructor(env, "c_i8");
+  syx_env_define_type_constructor(env, "c_i16");
+  syx_env_define_type_constructor(env, "c_i32");
+  syx_env_define_type_constructor(env, "c_i64");
+  syx_env_define_type_constructor(env, "c_i128");
+  syx_env_define_type_constructor(env, "c_u8");
+  syx_env_define_type_constructor(env, "c_u16");
+  syx_env_define_type_constructor(env, "c_u32");
+  syx_env_define_type_constructor(env, "c_u64");
+  syx_env_define_type_constructor(env, "c_u128");
+  syx_env_define_type_constructor(env, "c_int");
+  syx_env_define_type_constructor(env, "c_long");
+  syx_env_define_type_constructor(env, "c_llong");
+  syx_env_define_type_constructor(env, "c_uint");
+  syx_env_define_type_constructor(env, "c_ulong");
+  syx_env_define_type_constructor(env, "c_ullong");
+  syx_env_define_type_constructor(env, "c_float");
+  syx_env_define_type_constructor(env, "c_double");
+  syx_env_define_type_constructor(env, "c_size");
 }
 
 #endif // SYX_TYPE_INFO_IMPL

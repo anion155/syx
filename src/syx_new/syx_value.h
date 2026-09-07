@@ -139,6 +139,7 @@ typedef enum Syx_Closure_Kind : unsigned int {
   SYX_CLOSURE_KIND_SPECIALF,
   SYX_CLOSURE_KIND_BUILTIN,
   SYX_CLOSURE_KIND_LAMBDA,
+  SYX_CLOSURE_KIND_NATIVE_CONSTRUCTOR,
 } Syx_Closure_Kind;
 
 typedef struct Syx_Closure {
@@ -149,6 +150,7 @@ typedef struct Syx_Closure {
     Syx_Closure_Special_Form specialf;
     Syx_Closure_Builtin builtin;
     Syx_Closure_Lambda *lambda;
+    Syx_Type *native;
   };
 } Syx_Closure;
 
@@ -222,7 +224,8 @@ void syx_value_closure_rename(Syx_Closure *closure, Syx_Symbol *name);
 Syx_Value *make_syx_value_closure_specialf(Syx_Symbol *name, Syx_Closure_Special_Form specialf);
 Syx_Value *make_syx_value_closure_builtin(Syx_Symbol *name, Syx_Closure_Builtin builtin);
 Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda lambda);
-Syx_Value *make_syx_value_native(Syx_Type *type);
+void syx_value_native_structure_destructor(void *data);
+Syx_Value *make_syx_value_native(Syx_Type *type, size_t additional_size);
 Syx_Value *make_syx_value_exit_returned(Syx_Value *returned);
 Syx_Value *make_syx_value_exit_thrown(Syx_Value *reason, Syx_Frame *stack_frame);
 Syx_Value *make_syx_value_prefixed(Syx_Prefixed_Kind kind, Syx_Value *inner_value);
@@ -545,13 +548,33 @@ Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda la
   return value;
 }
 
+void syx_value_closure_native_constructor_destructor(void *data) {
+  Syx_Value *value = data;
+  rc_release(value->closure->native);
+}
+
+Syx_Value *make_syx_value_closure_native_constructor(Syx_Symbol *name, Syx_Type *type) {
+  Syx_Value *value = make_syx_value_closure(name, SYX_CLOSURE_KIND_NATIVE_CONSTRUCTOR, 0);
+  rc_get(value)->methods.destructor = syx_value_closure_native_constructor_destructor;
+  value->closure->native = rc_acquire(type);
+  return value;
+}
+
 void syx_value_native_destructor(void *data) {
   Syx_Value *value = data;
   rc_release(value->native->type);
 }
 
-Syx_Value *make_syx_value_native(Syx_Type *type) {
-  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NATIVE, sizeof(Syx_Native) + type->size);
+void syx_value_native_structure_destructor(void *data) {
+  Syx_Native *native = ((Syx_Value *)data)->native;
+  if (native->type->structure->destructor) {
+    native->type->structure->destructor(native->data);
+  }
+  syx_value_native_destructor(data);
+}
+
+Syx_Value *make_syx_value_native(Syx_Type *type, size_t additional_size) {
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NATIVE, sizeof(Syx_Native) + type->size + additional_size);
   rc_get(value)->methods.destructor = syx_value_native_destructor;
   value->native = (Syx_Native *)(value + 1);
   value->native->type = rc_acquire(type);
