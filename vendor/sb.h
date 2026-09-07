@@ -10,6 +10,10 @@
 
 typedef Da(char, String_Builder) String_Builder;
 typedef Da_Slice(char, String_View) String_View;
+typedef struct String {
+  const char *const data;
+  const size_t count;
+} String;
 
 #define sb_free(sb) da_free((sb))
 
@@ -59,26 +63,30 @@ size_t sb__append_pad_align(String_Builder *sb, size_t size, char filler);
 
 #define sb_substr(sb, ...) da_slice((sb), String_View, __VA_ARGS__)
 
-#define sb_copy_sv(sv) ({  \
-  String_Builder sb = {0}; \
-  sb_append_sv(&sb, (sv)); \
-  sb;                      \
+#define sb_copy(appender, ...) ({           \
+  String_Builder sb = {0};                  \
+  appender(&sb __VA_OPT__(, ) __VA_ARGS__); \
+  sb;                                       \
 })
-#define sb_copy_n(data, count) ({      \
-  String_Builder sb = {0};             \
-  sb_append_buf(&sb, (data), (count)); \
-  sb;                                  \
+
+#define string_from_sb(sb) ({                                 \
+  String_Builder *_sb_ = (sb);                                \
+  sb_null_terminate(_sb_);                                    \
+  String string = {.data = _sb_->data, .count = _sb_->count}; \
+  *da__reassign(_sb_) = NULL;                                 \
+  _sb_->count = 0;                                            \
+  _sb_->capacity = 0;                                         \
+  string;                                                     \
 })
-#define sb_copy_strlit(str) ({  \
-  String_Builder sb = {0};      \
-  sb_append_strlit(&sb, (str)); \
-  sb;                           \
+
+#define string_copy(appender, ...) ({                               \
+  String_Builder sb = sb_copy(appender __VA_OPT__(, ) __VA_ARGS__); \
+  string_from_sb(&sb);                                              \
 })
-#define sb_copy_cstr(str) ({  \
-  String_Builder sb = {0};    \
-  sb_append_cstr(&sb, (str)); \
-  sb;                         \
-})
+static inline void string_assign(String *dst, String src) {
+  assert(dst && !dst->count && !dst->data);
+  memcpy(dst, &src, sizeof(String));
+}
 
 typedef struct Stringify_State {
   String_Builder *sb;
@@ -99,24 +107,28 @@ Stringify_State make_stringify_state(String_Builder *sb, size_t capacity) {
   _state_->sb ? _state_->sb->data + _state_->start + WITH_DEFAULT(0, __VA_ARGS__) : NULL; \
 })
 
-#define stringify(stringifier, ...) ({         \
-  String_Builder sb = {0};                     \
-  stringifier(&sb __VA_OPT__(, ) __VA_ARGS__); \
-  sb_null_terminate(&sb);                      \
-  sb;                                          \
+#define stringify(appender, ...) ({         \
+  String_Builder sb = {0};                  \
+  appender(&sb __VA_OPT__(, ) __VA_ARGS__); \
+  sb_null_terminate(&sb);                   \
+  string_from_sb(&sb);                      \
 })
-#define fprintf_stringify(f, stringifier, ...) ({ \
-  String_Builder sb = {0};                        \
-  stringifier(&sb __VA_OPT__(, ) __VA_ARGS__);    \
-  fprintf((f), "%.*s", (int)sb.count, sb.data);   \
-  sb_free(&sb);                                   \
+#define fprintf_stringify(f, appender, ...) ({  \
+  String_Builder sb = {0};                      \
+  appender(&sb __VA_OPT__(, ) __VA_ARGS__);     \
+  fprintf((f), "%.*s", (int)sb.count, sb.data); \
+  sb_free(&sb);                                 \
 })
-#define printf_stringify(stringifier, ...) fprintf_stringify(stdout, stringifier __VA_OPT__(, ) __VA_ARGS__)
+#define printf_stringify(appender, ...) fprintf_stringify(stdout, appender __VA_OPT__(, ) __VA_ARGS__)
 
 #define sv_from_parts(data_, count_) ((String_View){.data = (data_), .count = (count_)})
-#define sv_from_like(value) _Generic(&(value), \
-    String_View *: (value),                    \
-    default: sv_from_parts((value).data, (value).count))
+#define sv_from_like(value) _Generic((value),                                    \
+    String_View: (value),                                                        \
+    default: ({                                                                  \
+                                       typeof((value)) _val_ = (value);          \
+                                       const char *const data = _val_.data;      \
+                                       sv_from_parts((char *)data, _val_.count); \
+                                     }))
 #define sv_from_strlit(str) ((String_View){.count = sizeof(str) - 1, .data = (str)})
 #define sv_from_cstr(str) sv_from_parts((str), strlen(str))
 

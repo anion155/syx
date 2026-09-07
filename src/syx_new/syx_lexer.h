@@ -36,10 +36,10 @@ typedef struct Syx_Tokens {
   const Syx_Token *data;
   size_t count;
   size_t capacity;
-  syx_string_view source;
+  String_View source;
 } Syx_Tokens;
 
-Syx_Tokens syx_lexer_tokenize(syx_string_view source);
+Syx_Tokens syx_lexer_tokenize(String_View source);
 
 #endif // SYX_LEXER_H
 
@@ -124,7 +124,7 @@ int syx_lexer_is_invalid_delimeter(int character) {
   return character == '"';
 }
 
-Syx_Token syx_lexer_get_next_token(syx_string_view *it) {
+Syx_Token syx_lexer_get_next_token(String_View *it) {
   Syx_Token token = {.data = it->data, .count = sv_first_utf_length(*it)};
 #define it_chop_next() sv_chop_left(it, it->count ? sv_first_utf_length(*it) : 0)
   switch (*it->data) {
@@ -309,9 +309,9 @@ return_error:
 #undef it_chop_next
 }
 
-Syx_Tokens syx_lexer_tokenize(syx_string_view source) {
+Syx_Tokens syx_lexer_tokenize(String_View source) {
   Syx_Tokens_Da tokens = {};
-  for (syx_string_view it = source; it.count;) {
+  for (String_View it = source; it.count;) {
     while (it.count && syx_lexer_is_whitespace(*it.data)) sv_chop_left(&it, sv_first_utf_length(it));
     Syx_Token token = syx_lexer_get_next_token(&it);
     switch (token.kind) {

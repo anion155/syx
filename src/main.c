@@ -178,7 +178,7 @@ int main(int argc, char **argv) {
   int result = 0;
   if (commands->count) {
     String_Builder sb = {0};
-    da_foreach(const char *, command, commands) sb_append_cstr(&sb, *command);
+    nob_da_foreach(const char *, command, commands) sb_append_cstr(&sb, *command);
     sb_append(&sb, 0);
     int run_result = run_syx(sb_to_sv(sb));
     if (run_result >= 0) nob_return_defer(run_result);

@@ -8,7 +8,7 @@
 
 typedef struct Syx_Frame {
   Syx_Frame *prev;
-  syx_string_view trace;
+  String_View trace;
 } Syx_Frame;
 
 typedef struct Syx_Frames_Stack {
@@ -16,7 +16,7 @@ typedef struct Syx_Frames_Stack {
 } Syx_Frames_Stack;
 
 Syx_Frames_Stack *make_syx_frames_stack();
-void syx_frames_stack_push(Syx_Frames_Stack *frames_stack, syx_string_view trace);
+void syx_frames_stack_push(Syx_Frames_Stack *frames_stack, String_View trace);
 void syx_frames_stack_push_f(Syx_Frames_Stack *frames_stack, PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(2, 3);
 void syx_frames_stack__pop(Syx_Frames_Stack *frames_stack, Syx_Value **to_save, size_t count);
 #define syx_frames_stack_pop(frames_stack, ...) \
@@ -70,27 +70,28 @@ Syx_Value *syx_eval_forms_list_opt(Syx_Eval_Ctx *ctx, Syx_Pair *forms, Syx_Eval_
 Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value);
 Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value);
 Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value);
-#define syx_convert_to(ctx, value, storage, ...) ({                                           \
-  Syx_Value *__value = rc_acquire((value));                                                   \
-  syx_value_early_exit(__value __VA_OPT__(, ) __VA_ARGS__);                                   \
-  Syx_Value *converted = _Generic(storage,                                                    \
-      bool *: syx_convert_to_bool,                                                            \
-      Syx_Number *: syx_convert_to_number,                                                    \
-      syx_integer_t *: syx_convert_to_number,                                                 \
-      syx_fractional_t *: syx_convert_to_number,                                              \
-      syx_string_view *: syx_convert_to_string,                                               \
-      syx_string *: syx_convert_to_string)((ctx), __value);                                   \
-  rc_acquire(converted);                                                                      \
-  syx_value_early_exit(converted, (__value EXPAND_WITH_COMMA WITH_DEFAULT((), __VA_ARGS__))); \
-  rc_release(__value);                                                                        \
-  *(storage) = _Generic(storage,                                                              \
-      bool *: syx_boolean_get(converted),                                                     \
-      Syx_Number *: *converted->number,                                                       \
-      syx_integer_t *: syx_number_get(converted->number),                                     \
-      syx_fractional_t *: syx_number_get(converted->number),                                  \
-      syx_string_view *: sv_from_like(*converted->string),                                    \
-      syx_string *: sb_copy_sv(sv_from_like(*converted->string)));                            \
-  rc_release(converted);                                                                      \
+#define syx_convert_to(ctx, value, storage, ...) ({                                                             \
+  Syx_Value *__value = rc_acquire((value));                                                                     \
+  syx_value_early_exit(__value __VA_OPT__(, ) __VA_ARGS__);                                                     \
+  Syx_Value *converted = _Generic(storage,                                                                      \
+      bool *: syx_convert_to_bool,                                                                              \
+      Syx_Number *: syx_convert_to_number,                                                                      \
+      syx_integer_t *: syx_convert_to_number,                                                                   \
+      syx_fractional_t *: syx_convert_to_number,                                                                \
+      String_View *: syx_convert_to_string,                                                                     \
+      String *: syx_convert_to_string,                                                                          \
+      String_Builder *: syx_convert_to_string)((ctx), __value);                                                 \
+  rc_acquire(converted);                                                                                        \
+  syx_value_early_exit(converted, (__value EXPAND_WITH_COMMA WITH_DEFAULT((), __VA_ARGS__)));                   \
+  rc_release(__value);                                                                                          \
+  _Generic(storage,                                                                                             \
+      bool *: *((bool *)storage) = syx_boolean_get(converted),                                                  \
+      Syx_Number *: *((Syx_Number *)storage) = *converted->number,                                              \
+      syx_integer_t *: *((syx_integer_t *)storage) = syx_number_get(converted->number),                         \
+      syx_fractional_t *: *((syx_fractional_t *)storage) = syx_number_get(converted->number),                   \
+      String_View *: *((String_View *)storage) = sv_from_like(*converted->string),                              \
+      String *: string_assign((String *)storage, string_copy(sb_append_sv, sv_from_like(*converted->string)))); \
+  rc_release(converted);                                                                                        \
 })
 
 #endif // SYX_EVAL_H
@@ -124,7 +125,7 @@ void syx_frame_destructor(void *data) {
   rc_release(frame->prev);
 }
 
-void syx_frames_stack_push(Syx_Frames_Stack *frames_stack, syx_string_view trace) {
+void syx_frames_stack_push(Syx_Frames_Stack *frames_stack, String_View trace) {
   Syx_Frame *prev = frames_stack->latest;
   Syx_Frame *next = rc_acquire(rc_malloc(sizeof(Syx_Frame) + sizeof(char) * trace.count, .destructor = syx_frame_destructor));
   next->trace.data = (char *)next + 1;
@@ -271,7 +272,7 @@ Syx_Value *syx_eval_closure_builtin(Syx_Eval_Ctx *ctx, Syx_Closure_Builtin *buil
   Syx_Value *evaluated = rc_acquire(syx_eval_map_list(ctx, arguments));
   syx_value_early_exit(evaluated);
   Syx_Symbol *name = syx_closure_from_builtin(builtin)->name;
-  if (name) syx_ctx_push_frame_f(ctx, SV_Fmt "()", SV_Arg(*name));
+  if (name) syx_ctx_push_frame_f(ctx, SV_FMT "()", sv_fmt_arg(*name));
   else syx_ctx_push_frame(ctx, sv_from_strlit("<anonim>()"));
   Syx_Value *result = (*builtin)(ctx, evaluated->pair);
   if (!result) result = syx_value_nil();
@@ -316,7 +317,7 @@ Syx_Value *syx_eval_closure_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda
     syx_value_early_exit(value, (call_ctx));
     *ht_put(&call_ctx->env->symbols, symbol) = value;
   }
-  syx_ctx_push_frame_f(ctx, SV_Fmt "()", SV_Arg(*name));
+  syx_ctx_push_frame_f(ctx, SV_FMT "()", sv_fmt_arg(*name));
   Syx_Value *result = rc_acquire(syx_eval_forms_list(call_ctx, lambda->forms));
   syx_ctx_pop_frame(ctx);
   rc_release(call_ctx);
@@ -395,7 +396,7 @@ Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input) {
     case SYX_VALUE_KIND_EXIT: return input;
     case SYX_VALUE_KIND_SYMBOL: {
       Syx_Value *item = syx_env_lookup_get(ctx, input->symbol);
-      SYX_EVAL_ASSERT(ctx, item, "unbound symbol '" SV_Fmt "'", (SV_Arg(*input->symbol)));
+      SYX_EVAL_ASSERT(ctx, item, "unbound symbol '" SV_FMT "'", (sv_fmt_arg(*input->symbol)));
       return item;
     }
     case SYX_VALUE_KIND_PREFIXED: {

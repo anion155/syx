@@ -4,7 +4,7 @@
 #include <sb.h>
 #include <syx_new/syx_lexer.h>
 
-Syx_Value *parse_syx(syx_string_view source, bool ignore_errors);
+Syx_Value *parse_syx(String_View source, bool ignore_errors);
 
 #endif // SYX_PARSER_H
 
@@ -56,7 +56,7 @@ uint16_t syx_parser_utf_4_chars_to_codepoint(char chars[4]) {
          syx_utils_hex_to_decimal(chars[3]);
 }
 
-bool syx_parser_utf_codepoint_to_string(uint32_t codepoint, syx_string *string) {
+bool syx_parser_utf_codepoint_to_string(uint32_t codepoint, String_Builder *string) {
   if (codepoint <= 0x007F) {
     sb_append(string, (uint8_t)codepoint);
   } else if (codepoint <= 0x07FF) {
@@ -77,7 +77,7 @@ bool syx_parser_utf_codepoint_to_string(uint32_t codepoint, syx_string *string) 
   return true;
 }
 
-uint32_t syx_parser_utf_string_to_codepoint(syx_string_view string) {
+uint32_t syx_parser_utf_string_to_codepoint(String_View string) {
   if (string.count < sv_first_utf_length(string)) return 0;
 #define get(index, mask, ...) ((__VA_OPT__((uint32_t)(uint8_t)) string.data[index] & mask) __VA_OPT__(<< __VA_ARGS__))
   if (get(0, 0b10000000) == 0) {
@@ -112,7 +112,7 @@ Syx_Value *parse_syx_string_value(Syx_Token token) {
   SYX_ASSERT(token.data[0] == '"' && token.data[token.count - 1] == '"', "invalid string literal");
   token.data += 1;
   token.count -= 2;
-  syx_string literal = {0};
+  String_Builder literal = {0};
   da_reserve(&literal, token.count);
   for (size_t tindex = 0; tindex < token.count; tindex += 1) {
     if (token.data[tindex] == '\\') {
@@ -203,7 +203,7 @@ Syx_Value *parse_syx_string_value(Syx_Token token) {
 }
 
 Syx_Value *parse_syx_number_binary_value(Syx_Token token) {
-  syx_string_view sv = sv_from_parts(token.data, token.count);
+  String_View sv = sv_from_parts(token.data, token.count);
   bool negative = false;
   if (sv.data[0] == '-') negative = (sv.data += 1, sv.count -= 1, true);
   SYX_ASSERT(sv.data[0] == '0' && (sv.data[1] == 'b' || sv.data[1] == 'B'), "expected binary number");
@@ -224,7 +224,7 @@ Syx_Value *parse_syx_number_binary_value(Syx_Token token) {
 }
 
 Syx_Value *parse_syx_number_octal_value(Syx_Token token) {
-  syx_string_view sv = sv_from_parts(token.data, token.count);
+  String_View sv = sv_from_parts(token.data, token.count);
   bool negative = false;
   if (sv.data[0] == '-') negative = (sv.data += 1, sv.count -= 1, true);
   SYX_ASSERT(sv.data[0] == '0' && (sv.data[1] == 'o' || sv.data[1] == 'O'), "expected octal number");
@@ -250,7 +250,7 @@ Syx_Value *parse_syx_number_octal_value(Syx_Token token) {
   return make_syx_value_number_integer(number);
 }
 
-Syx_Value *parse_syx_number_decimal_fractional_value(syx_string_view sv, bool negative, syx_integer_t integer) {
+Syx_Value *parse_syx_number_decimal_fractional_value(String_View sv, bool negative, syx_integer_t integer) {
   SYX_ASSERT(sv.data[0] == '.', "expected fractional number");
   sv_chop_left(&sv, 1);
   syx_integer_t fractions = 0;
@@ -279,7 +279,7 @@ Syx_Value *parse_syx_number_decimal_fractional_value(syx_string_view sv, bool ne
 }
 
 Syx_Value *parse_syx_number_decimal_value(Syx_Token token) {
-  syx_string_view sv = sv_from_parts(token.data, token.count);
+  String_View sv = sv_from_parts(token.data, token.count);
   bool negative = false;
   if (sv.data[0] == '-') negative = (sv.data += 1, sv.count -= 1, true);
   syx_integer_t number = 0;
@@ -306,7 +306,7 @@ Syx_Value *parse_syx_number_decimal_value(Syx_Token token) {
 }
 
 Syx_Value *parse_syx_number_hex_value(Syx_Token token) {
-  syx_string_view sv = sv_from_parts(token.data, token.count);
+  String_View sv = sv_from_parts(token.data, token.count);
   bool negative = false;
   if (sv.data[0] == '-') negative = (sv.data += 1, sv.count -= 1, true);
   SYX_ASSERT(sv.data[0] == '0' && (sv.data[1] == 'x' || sv.data[1] == 'X'), "expected hex number");
@@ -412,7 +412,7 @@ Syx_Value *parse_syx_value(Syx_Tokens *tokens) {
   }
 }
 
-Syx_Value *parse_syx(syx_string_view source, bool ignore_errors) {
+Syx_Value *parse_syx(String_View source, bool ignore_errors) {
   Syx_Tokens tokens = syx_lexer_tokenize(source);
   SYX_ASSERT(tokens.count, "Failed to parse syx script");
   SYX_ASSERT(tokens.data[tokens.count - 1].kind == SYX_TOKEN_KIND_EOF, "Failed to parse syx script");
