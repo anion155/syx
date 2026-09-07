@@ -1,7 +1,5 @@
 - value: native data
-
 - implement ffi declaration from language
-- object values, like boxed
 - attach stack frame to error object on throw
 - compiler test runner
 - unit tests for parser : compiler test runner
