@@ -21,80 +21,27 @@ typedef enum Syx_Type_Kind : unsigned int {
 } Syx_Type_Kind;
 
 typedef enum Syx_Primitive_Type_Kind : unsigned int {
-  SYX_PRIMITIVE_TYPE_KIND_VOID, // void
-  SYX_PRIMITIVE_TYPE_KIND_CHAR, // char
-  SYX_PRIMITIVE_TYPE_KIND_I8,   // int8_t
-  SYX_PRIMITIVE_TYPE_KIND_I16,  // int16_t
-  SYX_PRIMITIVE_TYPE_KIND_I32,  // int32_t
-  SYX_PRIMITIVE_TYPE_KIND_I64,  // int64_t
-  SYX_PRIMITIVE_TYPE_KIND_I128, // int128_t
-  SYX_PRIMITIVE_TYPE_KIND_U8,   // uint8_t
-  SYX_PRIMITIVE_TYPE_KIND_U16,  // uint16_t
-  SYX_PRIMITIVE_TYPE_KIND_U32,  // uint32_t
-  SYX_PRIMITIVE_TYPE_KIND_U64,  // uint64_t
-  SYX_PRIMITIVE_TYPE_KIND_U128, // uint128_t
-  SYX_PRIMITIVE_TYPE_KIND_INT,
-  SYX_PRIMITIVE_TYPE_KIND_LONG,
-  SYX_PRIMITIVE_TYPE_KIND_LLONG,
-  SYX_PRIMITIVE_TYPE_KIND_UINT,
-  SYX_PRIMITIVE_TYPE_KIND_ULONG,
-  SYX_PRIMITIVE_TYPE_KIND_ULLONG,
-  SYX_PRIMITIVE_TYPE_KIND_F16,  // _Float16
-  SYX_PRIMITIVE_TYPE_KIND_F32,  // _Float32
-  SYX_PRIMITIVE_TYPE_KIND_F64,  // _Float64
-  SYX_PRIMITIVE_TYPE_KIND_F128, // _Float128
-  SYX_PRIMITIVE_TYPE_KIND_FLOAT,
-  SYX_PRIMITIVE_TYPE_KIND_DOUBLE,
-  SYX_PRIMITIVE_TYPE_KIND_LDOUBLE,
-  SYX_PRIMITIVE_TYPE_KIND_SIZE, // size_t
+  SYX_PRIMITIVE_TYPE_KIND_VOID,   // void
+  SYX_PRIMITIVE_TYPE_KIND_CHAR,   // char
+  SYX_PRIMITIVE_TYPE_KIND_I8,     // int8_t
+  SYX_PRIMITIVE_TYPE_KIND_I16,    // int16_t
+  SYX_PRIMITIVE_TYPE_KIND_I32,    // int32_t
+  SYX_PRIMITIVE_TYPE_KIND_I64,    // int64_t
+  SYX_PRIMITIVE_TYPE_KIND_I128,   // __int128_t
+  SYX_PRIMITIVE_TYPE_KIND_U8,     // uint8_t
+  SYX_PRIMITIVE_TYPE_KIND_U16,    // uint16_t
+  SYX_PRIMITIVE_TYPE_KIND_U32,    // uint32_t
+  SYX_PRIMITIVE_TYPE_KIND_U64,    // uint64_t
+  SYX_PRIMITIVE_TYPE_KIND_U128,   // __uint128_t
+  SYX_PRIMITIVE_TYPE_KIND_INT,    // int
+  SYX_PRIMITIVE_TYPE_KIND_LONG,   // long
+  SYX_PRIMITIVE_TYPE_KIND_LLONG,  // long long
+  SYX_PRIMITIVE_TYPE_KIND_UINT,   // unsigned int
+  SYX_PRIMITIVE_TYPE_KIND_ULONG,  // unsigned long
+  SYX_PRIMITIVE_TYPE_KIND_ULLONG, // unsigned long long
+  SYX_PRIMITIVE_TYPE_KIND_FLOAT,  // float
+  SYX_PRIMITIVE_TYPE_KIND_DOUBLE, // double
 } Syx_Primitive_Type_Kind;
-
-#define SYX_PRIMITIVE_TYPE_VOID void
-#define SYX_PRIMITIVE_TYPE_CHAR char
-#define SYX_PRIMITIVE_TYPE_I8 int8_t
-#define SYX_PRIMITIVE_TYPE_I16 int16_t
-#define SYX_PRIMITIVE_TYPE_I32 int32_t
-#define SYX_PRIMITIVE_TYPE_I64 int64_t
-#define SYX_PRIMITIVE_TYPE_I128 __int128
-#define SYX_PRIMITIVE_TYPE_U8 uint8_t
-#define SYX_PRIMITIVE_TYPE_U16 uint16_t
-#define SYX_PRIMITIVE_TYPE_U32 uint32_t
-#define SYX_PRIMITIVE_TYPE_U64 uint64_t
-#define SYX_PRIMITIVE_TYPE_U128 unsigned __int128
-#define SYX_PRIMITIVE_TYPE_INT int
-#define SYX_PRIMITIVE_TYPE_LONG signed long
-#define SYX_PRIMITIVE_TYPE_LLONG signed long long
-#define SYX_PRIMITIVE_TYPE_UINT unsigned
-#define SYX_PRIMITIVE_TYPE_ULONG unsigned long
-#define SYX_PRIMITIVE_TYPE_ULLONG unsigned long long
-#define SYX_PRIMITIVE_TYPE_FLOAT float
-#define SYX_PRIMITIVE_TYPE_DOUBLE double
-#define SYX_PRIMITIVE_TYPE_LDOUBLE long double
-#define SYX_PRIMITIVE_TYPE_SIZE size_t
-
-#define SYX_PRIMITIVE_TYPE_NAME_VOID "c_void"
-#define SYX_PRIMITIVE_TYPE_NAME_CHAR "c_char"
-#define SYX_PRIMITIVE_TYPE_NAME_I8 "c_i8"
-#define SYX_PRIMITIVE_TYPE_NAME_I16 "c_i16"
-#define SYX_PRIMITIVE_TYPE_NAME_I32 "c_i32"
-#define SYX_PRIMITIVE_TYPE_NAME_I64 "c_i64"
-#define SYX_PRIMITIVE_TYPE_NAME_I128 "c_i128"
-#define SYX_PRIMITIVE_TYPE_NAME_U8 "c_u8"
-#define SYX_PRIMITIVE_TYPE_NAME_U16 "c_u16"
-#define SYX_PRIMITIVE_TYPE_NAME_U32 "c_u32"
-#define SYX_PRIMITIVE_TYPE_NAME_U64 "c_u64"
-#define SYX_PRIMITIVE_TYPE_NAME_U128 "c_u128"
-#define SYX_PRIMITIVE_TYPE_NAME_INT "c_int"
-#define SYX_PRIMITIVE_TYPE_NAME_LONG "c_long"
-#define SYX_PRIMITIVE_TYPE_NAME_LLONG "c_llong"
-#define SYX_PRIMITIVE_TYPE_NAME_UINT "c_uint"
-#define SYX_PRIMITIVE_TYPE_NAME_ULONG "c_ulong"
-#define SYX_PRIMITIVE_TYPE_NAME_ULLONG "c_ullong"
-#define SYX_PRIMITIVE_TYPE_NAME_FLOAT "c_float"
-#define SYX_PRIMITIVE_TYPE_NAME_DOUBLE "c_double"
-#define SYX_PRIMITIVE_TYPE_NAME_LDOUBLE "c_ldouble"
-#define SYX_PRIMITIVE_TYPE_NAME_SIZE "c_size"
-// const char *syx_type_kind_name(Syx_Type_Kind kind);
 
 typedef struct Syx_Type_Structure Syx_Type_Structure;
 typedef struct Syx_Type_Function Syx_Type_Function;
@@ -163,7 +110,6 @@ void syx_env_define_types(Syx_Env *env);
 
 #endif // SYX_TYPE_INFO_H
 
-#define SYX_TYPE_INFO_IMPL
 #if defined(SYX_TYPE_INFO_IMPL) && !defined(SYX_TYPE_INFO_IMPL_C)
 #define SYX_TYPE_INFO_IMPL_C
 
@@ -198,18 +144,18 @@ Syx_Type *make_syx_type_primitive(Syx_Primitive_Type_Kind kind, size_t size, siz
 
 syx_define_constant(Ht(const char *, Syx_Type *), SYX_TYPES) {
   SYX_TYPES->hasheq = ht_cstr_hasheq;
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_VOID) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_VOID, sizeof(SYX_PRIMITIVE_TYPE_VOID), alignof(SYX_PRIMITIVE_TYPE_VOID), NULL, &ffi_type_void);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_CHAR) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_CHAR, sizeof(SYX_PRIMITIVE_TYPE_CHAR), alignof(SYX_PRIMITIVE_TYPE_CHAR), NULL,
+  *ht_put(SYX_TYPES, "c_void") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void);
+  *ht_put(SYX_TYPES, "c_char") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_CHAR, sizeof(char), alignof(char), NULL,
 #if CHAR_MIN < 0
-                                                                             &ffi_type_schar
+                                                         &ffi_type_schar
 #else
-                                                                             &ffi_type_uchar
+                                                         &ffi_type_uchar
 #endif
   );
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_I8) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I8, sizeof(SYX_PRIMITIVE_TYPE_I8), alignof(SYX_PRIMITIVE_TYPE_I8), NULL, &ffi_type_sint8);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_I16) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I16, sizeof(SYX_PRIMITIVE_TYPE_I16), alignof(SYX_PRIMITIVE_TYPE_I16), NULL, &ffi_type_sint16);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_I32) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I32, sizeof(SYX_PRIMITIVE_TYPE_I32), alignof(SYX_PRIMITIVE_TYPE_I32), NULL, &ffi_type_sint32);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_I64) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I64, sizeof(SYX_PRIMITIVE_TYPE_I64), alignof(SYX_PRIMITIVE_TYPE_I64), NULL, &ffi_type_sint64);
+  *ht_put(SYX_TYPES, "c_i8") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I8, sizeof(int8_t), alignof(int8_t), NULL, &ffi_type_sint8);
+  *ht_put(SYX_TYPES, "c_i16") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I16, sizeof(int16_t), alignof(int16_t), NULL, &ffi_type_sint16);
+  *ht_put(SYX_TYPES, "c_i32") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I32, sizeof(int32_t), alignof(int32_t), NULL, &ffi_type_sint32);
+  *ht_put(SYX_TYPES, "c_i64") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I64, sizeof(int64_t), alignof(int64_t), NULL, &ffi_type_sint64);
   ffi_type *ffi_type_sint128 = malloc(sizeof(ffi_type) + sizeof(ffi_type *) * 3);
   ffi_type_sint128->type = FFI_TYPE_STRUCT;
   ffi_type_sint128->size = 0;
@@ -218,11 +164,11 @@ syx_define_constant(Ht(const char *, Syx_Type *), SYX_TYPES) {
   ffi_type_sint128->elements[0] = &ffi_type_sint64;
   ffi_type_sint128->elements[1] = &ffi_type_sint64;
   ffi_type_sint128->elements[2] = NULL;
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_I128) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I128, sizeof(SYX_PRIMITIVE_TYPE_I128), alignof(SYX_PRIMITIVE_TYPE_I128), NULL, ffi_type_sint128);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_U8) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U8, sizeof(SYX_PRIMITIVE_TYPE_U8), alignof(SYX_PRIMITIVE_TYPE_U8), NULL, &ffi_type_uint8);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_U16) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U16, sizeof(SYX_PRIMITIVE_TYPE_U16), alignof(SYX_PRIMITIVE_TYPE_U16), NULL, &ffi_type_uint16);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_U32) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U32, sizeof(SYX_PRIMITIVE_TYPE_U32), alignof(SYX_PRIMITIVE_TYPE_U32), NULL, &ffi_type_uint32);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_U64) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U64, sizeof(SYX_PRIMITIVE_TYPE_U64), alignof(SYX_PRIMITIVE_TYPE_U64), NULL, &ffi_type_uint64);
+  *ht_put(SYX_TYPES, "c_i128") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I128, sizeof(__int128), alignof(__int128), NULL, ffi_type_sint128);
+  *ht_put(SYX_TYPES, "c_u8") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U8, sizeof(uint8_t), alignof(uint8_t), NULL, &ffi_type_uint8);
+  *ht_put(SYX_TYPES, "c_u16") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U16, sizeof(uint16_t), alignof(uint16_t), NULL, &ffi_type_uint16);
+  *ht_put(SYX_TYPES, "c_u32") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U32, sizeof(uint32_t), alignof(uint32_t), NULL, &ffi_type_uint32);
+  *ht_put(SYX_TYPES, "c_u64") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U64, sizeof(uint64_t), alignof(uint64_t), NULL, &ffi_type_uint64);
   ffi_type *ffi_type_uint128 = malloc(sizeof(ffi_type) + sizeof(ffi_type *) * 3);
   ffi_type_uint128->type = FFI_TYPE_STRUCT;
   ffi_type_uint128->size = 0;
@@ -231,25 +177,17 @@ syx_define_constant(Ht(const char *, Syx_Type *), SYX_TYPES) {
   ffi_type_uint128->elements[0] = &ffi_type_uint64;
   ffi_type_uint128->elements[1] = &ffi_type_uint64;
   ffi_type_uint128->elements[2] = NULL;
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_U128) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U128, sizeof(SYX_PRIMITIVE_TYPE_U128), alignof(SYX_PRIMITIVE_TYPE_U128), NULL, ffi_type_uint128);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_INT) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_INT, sizeof(SYX_PRIMITIVE_TYPE_INT), alignof(SYX_PRIMITIVE_TYPE_INT), NULL, &ffi_type_sint);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_LONG) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LONG, sizeof(SYX_PRIMITIVE_TYPE_LONG), alignof(SYX_PRIMITIVE_TYPE_LONG), NULL, &ffi_type_slong);
-  // *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_LLONG) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LLONG, sizeof(SYX_PRIMITIVE_TYPE_LLONG), alignof(SYX_PRIMITIVE_TYPE_LLONG), NULL, &ffi_type_sint64);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_UINT) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_UINT, sizeof(SYX_PRIMITIVE_TYPE_UINT), alignof(SYX_PRIMITIVE_TYPE_UINT), NULL, &ffi_type_uint);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_ULONG) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULONG, sizeof(SYX_PRIMITIVE_TYPE_ULONG), alignof(SYX_PRIMITIVE_TYPE_ULONG), NULL, &ffi_type_ulong);
-  // *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_ULLONG) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULLONG, sizeof(SYX_PRIMITIVE_TYPE_ULLONG), alignof(SYX_PRIMITIVE_TYPE_ULLONG), NULL, &ffi_type_uint64);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_FLOAT) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_FLOAT, sizeof(SYX_PRIMITIVE_TYPE_FLOAT), alignof(SYX_PRIMITIVE_TYPE_FLOAT), NULL, &ffi_type_float);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_DOUBLE) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_DOUBLE, sizeof(SYX_PRIMITIVE_TYPE_DOUBLE), alignof(SYX_PRIMITIVE_TYPE_DOUBLE), NULL, &ffi_type_double);
-  *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_LDOUBLE) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LDOUBLE, sizeof(SYX_PRIMITIVE_TYPE_LDOUBLE), alignof(SYX_PRIMITIVE_TYPE_LDOUBLE), NULL, &ffi_type_longdouble);
-  // *ht_put(SYX_TYPES, SYX_PRIMITIVE_TYPE_NAME_SIZE) = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_SIZE, sizeof(SYX_PRIMITIVE_TYPE_SIZE), alignof(SYX_PRIMITIVE_TYPE_SIZE), NULL, &ffi_type_uint64);
+  *ht_put(SYX_TYPES, "c_u128") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U128, sizeof(unsigned __int128), alignof(unsigned __int128), NULL, ffi_type_uint128);
+  *ht_put(SYX_TYPES, "c_int") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_INT, sizeof(int), alignof(int), NULL, &ffi_type_sint);
+  *ht_put(SYX_TYPES, "c_long") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LONG, sizeof(signed long), alignof(signed long), NULL, &ffi_type_slong);
+  // *ht_put(SYX_TYPES, "c_llong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LLONG, sizeof(signed long long), alignof(signed long long), NULL, &ffi_type_sint64);
+  *ht_put(SYX_TYPES, "c_uint") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_UINT, sizeof(unsigned), alignof(unsigned), NULL, &ffi_type_uint);
+  *ht_put(SYX_TYPES, "c_ulong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULONG, sizeof(unsigned long), alignof(unsigned long), NULL, &ffi_type_ulong);
+  // *ht_put(SYX_TYPES, "c_ullong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULLONG, sizeof(unsigned long long), alignof(unsigned long long), NULL, &ffi_type_uint64);
+  *ht_put(SYX_TYPES, "c_float") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_FLOAT, sizeof(float), alignof(float), NULL, &ffi_type_float);
+  *ht_put(SYX_TYPES, "c_double") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_DOUBLE, sizeof(double), alignof(double), NULL, &ffi_type_double);
 
   *ht_put(SYX_TYPES, "value") = rc_acquire(make_syx_type(SYX_TYPE_KIND_VALUE_PTR, sizeof(Syx_Value *), alignof(Syx_Value *), NULL, &ffi_type_pointer, 0));
-
-  ht_foreach(type, SYX_TYPES) {
-    const char *key = ht_key(SYX_TYPES, type);
-    Syx_Value *name = rc_acquire(make_syx_value_symbol_cstr(key));
-    (*type)->name = name->symbol;
-  }
 }
 
 void syx_type_pointer_destructor(void *data) {
@@ -296,8 +234,9 @@ Syx_Type *make_syx_type_structure(size_t size, size_t alignment, Syx_Symbol *nam
     if (field->offset == 0) field->offset = offset;
     offset += field->type->size;
     rc_acquire(field->type);
+    da_append(&fields, *field);
   }
-  free(structure.fields.data);
+  free((Syx_Type_Structure_Field *)structure.fields.data);
   type->structure->fields = da_slice(fields, Syx_Type_Structure_Fields);
   type->size = (offset + max_alignment - 1) & ~(max_alignment - 1);
   type->alignment = type->alignment;
@@ -450,9 +389,13 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
 void syx_env_define_types(Syx_Env *env) {
   UNUSED(env);
   TODO("syx_env_define_types");
-  // ht_foreach(type, SYX_TYPES()) {
-  //   syx_env_define(env, (*type)->name, make_syx_value_native_constructor(*type));
-  // }
+  ht_foreach(type, SYX_TYPES()) {
+    const char *key = ht_key(SYX_TYPES(), type);
+    rc_acquire(type);
+    Syx_Value *name = rc_acquire(make_syx_value_symbol_cstr(key));
+    (*type)->name = name->symbol;
+    // syx_env_define(env, (*type)->name, make_syx_value_native_constructor(*type));
+  }
 }
 
 #endif // SYX_TYPE_INFO_IMPL

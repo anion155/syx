@@ -20,6 +20,7 @@ typedef struct Syx_Number Syx_Number;
 typedef String Syx_String;
 typedef struct Syx_Object Syx_Object;
 typedef struct Syx_Closure Syx_Closure;
+typedef struct Syx_Native Syx_Native;
 typedef struct Syx_Exit Syx_Exit;
 typedef struct Syx_Prefixed Syx_Prefixed;
 
@@ -31,6 +32,7 @@ typedef enum Syx_Value_Kind : unsigned int {
   SYX_VALUE_KIND_STRING,
   SYX_VALUE_KIND_OBJECT,
   SYX_VALUE_KIND_CLOSURE,
+  SYX_VALUE_KIND_NATIVE,
   SYX_VALUE_KIND_EXIT,
   SYX_VALUE_KIND_PREFIXED,
 } Syx_Value_Kind;
@@ -45,6 +47,7 @@ typedef struct Syx_Value {
     Syx_String *string;
     Syx_Object *object;
     Syx_Closure *closure;
+    Syx_Native *native;
     Syx_Exit *exit;
     Syx_Prefixed *prefixed;
   };
@@ -155,6 +158,12 @@ typedef struct Syx_Closure_Lambda {
   Syx_Pair *forms;
 } Syx_Closure_Lambda;
 
+typedef struct Syx_Type Syx_Type;
+typedef struct Syx_Native {
+  Syx_Type *type;
+  void *data;
+} Syx_Native;
+
 typedef enum Syx_Exit_Kind : unsigned int {
   SYX_EXIT_KIND_RETURNED,
   SYX_EXIT_KIND_THROWN,
@@ -205,6 +214,7 @@ Syx_Value *make_syx_value_number_fractional(syx_fractional_t value);
 Syx_Value *make_syx_value_string(Syx_String string);
 #define make_syx_value_string_lit(string) make_syx_value_string((Syx_String){.data = (string), .count = sizeof(string) - 1, .managed = false});
 Syx_Value *make_syx_value_string_n(char *data, size_t count);
+Syx_Value *make_syx_value_string_cstr(const char *data);
 Syx_Value *make_syx_value_string_dup(const char *data, size_t count);
 Syx_Value *make_syx_value_string_cstr_dup(const char *data);
 Syx_Value *make_syx_value_stringf(PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(1, 2);
@@ -214,6 +224,7 @@ void syx_value_closure_rename(Syx_Closure *closure, Syx_Symbol *name);
 Syx_Value *make_syx_value_closure_specialf(Syx_Symbol *name, Syx_Closure_Special_Form specialf);
 Syx_Value *make_syx_value_closure_builtin(Syx_Symbol *name, Syx_Closure_Builtin builtin);
 Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda lambda);
+Syx_Value *make_syx_value_native(Syx_Type *type);
 Syx_Value *make_syx_value_exit_returned(Syx_Value *returned);
 Syx_Value *make_syx_value_exit_thrown(Syx_Value *reason, Syx_Frame *stack_frame);
 Syx_Value *make_syx_value_prefixed(Syx_Prefixed_Kind kind, Syx_Value *inner_value);
@@ -281,6 +292,8 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value);
 #include <sb_number.h>
 #define SYX_UTILS_IMPL
 #include <syx_new/syx_utils.h>
+#define SYX_TYPE_INFO_IMPL
+#include <syx_new/syx_type_info.h>
 
 syx_define_constant(struct { Syx_Value *nil; Syx_Value *bool_true; Syx_Value *bool_false; }, SYX_VALUE_CONSTANTS) {
   SYX_VALUE_CONSTANTS->nil = rc_acquire(make_syx_value(SYX_VALUE_KIND_PAIR, 0));
@@ -429,6 +442,10 @@ inline Syx_Value *make_syx_value_string_n(char *data, size_t count) {
   return make_syx_value_string((Syx_String){.data = data, .count = count});
 }
 
+inline Syx_Value *make_syx_value_string_cstr(const char *data) {
+  return make_syx_value_string((Syx_String){.data = data, .count = strlen(data)});
+}
+
 Syx_Value *make_syx_value_string_dup(const char *data, size_t count) {
   Syx_Value *value = make_syx_value(SYX_VALUE_KIND_STRING, sizeof(Syx_String) + sizeof(char) * count);
   value->string = (Syx_String *)(value + 1);
@@ -536,6 +553,20 @@ Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda la
   value->closure->lambda->env = rc_acquire(lambda.env);
   value->closure->lambda->defines = rc_acquire(lambda.defines);
   value->closure->lambda->forms = rc_acquire(lambda.forms);
+  return value;
+}
+
+void syx_value_native_destructor(void *data) {
+  Syx_Value *value = data;
+  rc_release(value->native->type);
+}
+
+Syx_Value *make_syx_value_native(Syx_Type *type) {
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NATIVE, sizeof(Syx_Native) + type->size);
+  rc_get(value)->methods.destructor = syx_value_native_destructor;
+  value->native = (Syx_Native *)(value + 1);
+  value->native->type = rc_acquire(type);
+  value->native->data = (void *)(value->native + 1);
   return value;
 }
 
@@ -715,6 +746,10 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
       //     it = it->pair.right;
       //   }
     } break;
+    case SYX_VALUE_KIND_NATIVE: {
+      stringify_append(&state, sb_append_syx_type, value->native->type);
+      // append actual value string representation
+    } break;
     case SYX_VALUE_KIND_EXIT: {
       UNREACHABLE("thrown value can't be converted to string");
     } break;
@@ -723,9 +758,6 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
       stringify_append(&state, sb_append_syx_value, value->prefixed->value);
     } break;
   }
-  // case SYXV_KIND_BOXED: {
-  //   __str_append_with(str_append_syx_boxed, value->boxed);
-  // } break;
   // case SYXV_KIND_BOXED_METHOD: {
   //   __str_append_with(str_append_boxed_method, value->boxed_method);
   // } break;

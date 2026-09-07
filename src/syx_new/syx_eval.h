@@ -458,6 +458,39 @@ Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_STRING: SYX_EVAL_THROW(ctx, "string can't be converted to bool");
     case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "object converted to bool");
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to bool");
+    case SYX_VALUE_KIND_NATIVE: {
+      Syx_Native *native = value->native;
+      switch (native->type->kind) {
+        case SYX_TYPE_KIND_PRIMITIVE: {
+          switch (native->type->primitive) {
+            case SYX_PRIMITIVE_TYPE_KIND_VOID: SYX_EVAL_THROW(ctx, "primitive native void can't be converted to bool");
+            case SYX_PRIMITIVE_TYPE_KIND_CHAR: return syx_value_bool(*(char *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_I8: return syx_value_bool(*(int8_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_I16: return syx_value_bool(*(int16_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_I32: return syx_value_bool(*(int32_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_I64: return syx_value_bool(*(int64_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_I128: return syx_value_bool(*(__int128_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_U8: return syx_value_bool(*(uint8_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_U16: return syx_value_bool(*(uint16_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_U32: return syx_value_bool(*(uint32_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_U64: return syx_value_bool(*(uint64_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_U128: return syx_value_bool(*(__uint128_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_INT: return syx_value_bool(*(int *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_LONG: return syx_value_bool(*(long *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_LLONG: return syx_value_bool(*(long long *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_UINT: return syx_value_bool(*(unsigned int *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_ULONG: return syx_value_bool(*(unsigned long *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_ULLONG: return syx_value_bool(*(unsigned long long *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_FLOAT: return syx_value_bool(*(float *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_DOUBLE: return syx_value_bool(*(double *)native->data);
+          }
+        }
+        case SYX_TYPE_KIND_PTR: return syx_value_bool(*(void **)native->data);
+        case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to bool");
+        case SYX_TYPE_KIND_FUNCTION_PTR: return syx_value_bool(*(void **)native->data);
+        case SYX_TYPE_KIND_VALUE_PTR: return syx_convert_to_bool(ctx, (Syx_Value *)native->data);
+      }
+    }
     case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to bool");
     case SYX_VALUE_KIND_PREFIXED: SYX_EVAL_THROW(ctx, "prefixed value can't be converted to bool");
   }
@@ -476,6 +509,39 @@ Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_STRING: SYX_EVAL_THROW(ctx, "string can't be converted to number");
     case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "object converted to number");
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to number");
+    case SYX_VALUE_KIND_NATIVE: {
+      Syx_Native *native = value->native;
+      switch (native->type->kind) {
+        case SYX_TYPE_KIND_PRIMITIVE: {
+          switch (native->type->primitive) {
+            case SYX_PRIMITIVE_TYPE_KIND_VOID: SYX_EVAL_THROW(ctx, "primitive native void can't be converted to number");
+            case SYX_PRIMITIVE_TYPE_KIND_CHAR: return make_syx_value_number_integer(*(char *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_I8: return make_syx_value_number_integer(*(int8_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_I16: return make_syx_value_number_integer(*(int16_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_I32: return make_syx_value_number_integer(*(int32_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_I64: return make_syx_value_number_integer(*(int64_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_I128: return make_syx_value_number_integer(*(__int128_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_U8: return make_syx_value_number_integer(*(uint8_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_U16: return make_syx_value_number_integer(*(uint16_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_U32: return make_syx_value_number_integer(*(uint32_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_U64: return make_syx_value_number_integer(*(uint64_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_U128: return make_syx_value_number_integer(*(__uint128_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_INT: return make_syx_value_number_integer(*(int *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_LONG: return make_syx_value_number_integer(*(long *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_LLONG: return make_syx_value_number_integer(*(long long *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_UINT: return make_syx_value_number_integer(*(unsigned int *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_ULONG: return make_syx_value_number_integer(*(unsigned long *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_ULLONG: return make_syx_value_number_integer(*(unsigned long long *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_FLOAT: return make_syx_value_number_fractional(*(float *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_DOUBLE: return make_syx_value_number_fractional(*(double *)native->data);
+          }
+        }
+        case SYX_TYPE_KIND_PTR: SYX_EVAL_THROW(ctx, "native pointer can't be converted to number");
+        case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to number");
+        case SYX_TYPE_KIND_FUNCTION_PTR: SYX_EVAL_THROW(ctx, "native function pointer can't be converted to number");
+        case SYX_TYPE_KIND_VALUE_PTR: return syx_convert_to_bool(ctx, (Syx_Value *)native->data);
+      }
+    }
     case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to number");
     case SYX_VALUE_KIND_PREFIXED: SYX_EVAL_THROW(ctx, "prefixed value can't be converted to number");
   }
@@ -490,6 +556,21 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_STRING: return value;
     case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "object converted to string");
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to string");
+    case SYX_VALUE_KIND_NATIVE: {
+      Syx_Native *native = value->native;
+      switch (native->type->kind) {
+        case SYX_TYPE_KIND_PRIMITIVE: SYX_EVAL_THROW(ctx, "native can't be converted to string");
+        case SYX_TYPE_KIND_PTR: {
+          if (native->type->pointer->kind == SYX_TYPE_KIND_PRIMITIVE && native->type->pointer->primitive == SYX_PRIMITIVE_TYPE_KIND_CHAR) {
+            return make_syx_value_string_cstr(*(char **)native->data);
+          }
+          SYX_EVAL_THROW(ctx, "native pointer can't be converted to string");
+        }
+        case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to string");
+        case SYX_TYPE_KIND_FUNCTION_PTR: SYX_EVAL_THROW(ctx, "native function pointer can't be converted to string");
+        case SYX_TYPE_KIND_VALUE_PTR: return syx_convert_to_bool(ctx, (Syx_Value *)native->data);
+      }
+    }
     case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to string");
     case SYX_VALUE_KIND_PREFIXED: SYX_EVAL_THROW(ctx, "prefixed value can't be converted to string");
   }
