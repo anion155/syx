@@ -1,6 +1,8 @@
 #include <stdio.h>
 #define SB_NUMBER_IMPL
 #include <sb_number.h>
+#define SYX_TYPE_INFO_IMPL
+#include <syx_new/syx_type_info.h>
 
 int main(void) {
   {
