@@ -344,20 +344,6 @@ Syx_Value *syx_special_form_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   return rc_move(value);
 }
 
-// /** Instantiates a user-defined boxed types, allocates its dedicated block of native heap memory, and executes its associated constructor behavior. */
-// Syx_Value *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-//   Syx_Value *head = rc_acquire(syx_eval(ctx, syx_list_next(&arguments)));
-//   syx_value_early_exit(head);
-//   if (head->kind != SYXV_KIND_CONSTRUCTOR) SYX_EVAL_THROW(ctx, "constructor expected here");
-//   Syx_Value *evaluated = syx_eval_list(ctx, arguments);
-//   syx_value_early_exit(evaluated, (head));
-//   rc_acquire(evaluated);
-//   Syx_Value *result = rc_acquire(syx_eval_boxed_construct(ctx, head->constructor.typeinfo, evaluated));
-//   rc_release(head);
-//   rc_release(evaluated);
-//   return rc_move(result);
-// }
-
 void syx_env_define_special_forms(Syx_Env *env) {
   /** Special forms */
   syx_env_define_strlit(env, "begin", make_syx_value_closure_specialf(NULL, syx_special_form_begin));
@@ -382,7 +368,6 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define_strlit(env, "return", make_syx_value_closure_specialf(NULL, syx_special_form_return));
 
   syx_env_define_strlit(env, "object", make_syx_value_closure_specialf(NULL, syx_special_form_object));
-  // syx_env_define_strlit(env, "new", make_syx_value_closure_specialf(NULL, syx_special_form_new));
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL

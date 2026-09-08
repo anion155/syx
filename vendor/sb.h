@@ -79,7 +79,7 @@ size_t sb__append_pad_align(String_Builder *sb, size_t size, char filler);
   string;                                                     \
 })
 
-#define string_copy(appender, ...) ({                               \
+#define string_from(appender, ...) ({                               \
   String_Builder sb = sb_copy(appender __VA_OPT__(, ) __VA_ARGS__); \
   string_from_sb(&sb);                                              \
 })

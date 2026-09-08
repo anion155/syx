@@ -197,7 +197,7 @@ Syx_Value *parse_syx_string_value(Syx_Token token) {
   }
 #undef handle_error
 #undef utf_bytes_from_string
-  Syx_Value *value = make_syx_value_string_dup(literal.data, literal.count);
+  Syx_Value *value = make_syx_value_string_n_dup(literal.data, literal.count);
   sb_free(&literal);
   return value;
 }
@@ -383,7 +383,7 @@ Syx_Value *parse_syx_dispatch(Syx_Token token, Syx_Tokens *tokens) {
       SYX_ASSERT(tokens->count >= 1, "expected string literal");
       token = da_slice_shift(tokens);
       SYX_ASSERT(token.kind == SYX_TOKEN_KIND_STRLIT, "expected string literal");
-      return make_syx_value_string_dup(token.data, token.count);
+      return make_syx_value_string_n_dup(token.data, token.count);
     }
     case '{': {
       Syx_Value *fields = rc_acquire(parse_syx_list_values(tokens, SYX_TOKEN_KIND_RCURLY));

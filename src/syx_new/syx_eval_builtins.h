@@ -494,8 +494,7 @@ result:
 /** Prints arguments to file. */
 Syx_Value *syx_builtin_print(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
-  Syx_Value *count = syx__builtin_print_values(ctx, f, arguments);
-  return count;
+  return syx__builtin_print_values(ctx, f, arguments);
 }
 
 /** Flash file descriptor. */
@@ -511,16 +510,8 @@ Syx_Value *syx_builtin_println(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
   Syx_Value *count = syx__builtin_print_values(ctx, f, arguments);
   if (count->kind != SYX_VALUE_KIND_NUMBER || count->number->kind != SYX_NUMBER_KIND_INTEGER) return count;
-  if (!io_putc(f, '\n')) return count;
+  if (!syx_io_putc(f, '\n')) return count;
   return make_syx_value_number_integer(count->number->integer + 1);
-}
-
-ssize_t io_put_sv_diff(FILE *fd, String_View *base, String_View *offset) {
-  ptrdiff_t diff = offset->data - base->data;
-  if (diff <= 0) return 0;
-  if (!io_puts_n(fd, base->data, offset->data - base->data)) return -1;
-  *base = *offset;
-  return diff;
 }
 
 /** Prints formatted string to file. */
@@ -530,7 +521,7 @@ Syx_Value *syx_builtin_printf(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   syx_convert_to(ctx, syx_list_next(&arguments), &fmt);
   size_t count = 0;
   String_Builder sb = {0};
-  for (size_t index = 0; index < fmt.count; index += utf8_character_lengths[fmt.data[index]]) {
+  for (size_t index = 0; index < fmt.count; index += utf8_character_lengths[(uint8_t)fmt.data[index]]) {
     if (fmt.data[index] != '%') goto put_char;
     if (index + 1 < fmt.count && fmt.data[index + 1] == '%') goto put_char;
     Syx_Value *argument = syx_list_next(&arguments);
@@ -546,7 +537,7 @@ Syx_Value *syx_builtin_printf(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   }
 result:
   sb_free(&sb);
-  return count;
+  return make_syx_value_number_integer(count);
 }
 
 void syx_env_define_builtins(Syx_Env *env) {

@@ -1,14 +1,19 @@
-- value: native data
-- implement ffi declaration from language
-- attach stack frame to error object on throw
-- compiler test runner
-- unit tests for parser : compiler test runner
-- unit tests for evaluator : compiler test runner
-- unit tests for utilities : compiler test runner
-- defer execution
-- return from upper function
-- implement quit command
-- implement exports from module
-- implement parse error fancy message
-- implement runtime error fancy message
-- language based c bindings
+- value: native values stringify
+- value: call native structure
+- value: call primitives as objects with specific prototypes
+- ffi: call fn pointers
+- error: attach stack frame to error object on throw
+- language: defer execution
+- language: return from upper function
+- modules: implement exports from module
+- error: implement parse error fancy message
+- error: implement runtime error fancy message
+- ffi: implement ffi declaration from language
+- ffi: language based c bindings
+
+- main: implement quit command
+
+- tests: compiler test runner
+- tests: unit tests for parser : compiler test runner
+- tests: unit tests for evaluator : compiler test runner
+- tests: unit tests for utilities : compiler test runner

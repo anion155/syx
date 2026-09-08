@@ -47,6 +47,17 @@ size_t sb__append_unsigned_integer(String_Builder *sb, uintmax_t value, size_t m
       ? sb__append_signed_integer((sb), _value_, max_width, minimum) \
       : sb__append_unsigned_integer((sb), _value_, max_width);       \
 })
+static inline size_t sb_append_integer_char(String_Builder *sb, char value) { return sb_append_integer(sb, value); }
+static inline size_t sb_append_integer_signed_char(String_Builder *sb, signed char value) { return sb_append_integer(sb, value); }
+static inline size_t sb_append_integer_short(String_Builder *sb, short value) { return sb_append_integer(sb, value); }
+static inline size_t sb_append_integer_int(String_Builder *sb, int value) { return sb_append_integer(sb, value); }
+static inline size_t sb_append_integer_long(String_Builder *sb, long value) { return sb_append_integer(sb, value); }
+static inline size_t sb_append_integer_long_long(String_Builder *sb, long long value) { return sb_append_integer(sb, value); }
+static inline size_t sb_append_integer_unsigned_char(String_Builder *sb, unsigned char value) { return sb_append_integer(sb, value); }
+static inline size_t sb_append_integer_unsigned_short(String_Builder *sb, unsigned short value) { return sb_append_integer(sb, value); }
+static inline size_t sb_append_integer_unsigned_int(String_Builder *sb, unsigned int value) { return sb_append_integer(sb, value); }
+static inline size_t sb_append_integer_unsigned_long(String_Builder *sb, unsigned long value) { return sb_append_integer(sb, value); }
+static inline size_t sb_append_integer_unsigned_long_long(String_Builder *sb, unsigned long long value) { return sb_append_integer(sb, value); }
 
 size_t sb_append_float(String_Builder *sb, float value);
 size_t sb_append_double(String_Builder *sb, double value);
@@ -60,6 +71,22 @@ size_t sb__append_float_hex(String_Builder *sb, float value, bool uppercase);
 #define sb_append_float_hex(sb, value, ...) sb__append_float_hex((sb), (value), WITH_DEFAULT(false, __VA_ARGS__))
 size_t sb__append_double_hex(String_Builder *sb, double value, bool uppercase);
 #define sb_append_double_hex(sb, value, ...) sb__append_double_hex((sb), (value), WITH_DEFAULT(false, __VA_ARGS__))
+
+#define sb_append_number(sb, value) _Generic((value),         \
+    char: sb_append_integer_char,                             \
+    signed char: sb_append_integer_signed_char,               \
+    short: sb_append_integer_short,                           \
+    int: sb_append_integer_int,                               \
+    long: sb_append_integer_long,                             \
+    long long: sb_append_integer_long_long,                   \
+    unsigned char: sb_append_integer_unsigned_char,           \
+    unsigned short: sb_append_integer_unsigned_short,         \
+    unsigned int: sb_append_integer_unsigned_int,             \
+    unsigned long: sb_append_integer_unsigned_long,           \
+    unsigned long long: sb_append_integer_unsigned_long_long, \
+    float: sb_append_float,                                   \
+    double: sb_append_double,                                 \
+    long double: sb_append_long_double)((sb), (value))
 
 #endif // SB_NUMBER_H
 

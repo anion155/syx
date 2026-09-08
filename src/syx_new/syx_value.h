@@ -215,9 +215,10 @@ Syx_Value *make_syx_value_number(Syx_Number number);
 Syx_Value *make_syx_value_number_integer(syx_integer_t value);
 Syx_Value *make_syx_value_number_fractional(syx_fractional_t value);
 Syx_Value *make_syx_value_string(Syx_String *string);
-Syx_Value *make_syx_value_string_dup(const char *data, size_t count);
+Syx_Value *make_syx_value_string_dup(Syx_String string);
+Syx_Value *make_syx_value_string_n_dup(const char *data, size_t count);
 Syx_Value *make_syx_value_string_cstr_dup(const char *data);
-#define make_syx_value_string_strlit_dup(string) make_syx_value_string_dup((string), sizeof(string) - 1);
+#define make_syx_value_string_strlit_dup(string) make_syx_value_string_n_dup((string), sizeof(string) - 1);
 Syx_Value *make_syx_value_stringf_dup(PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(1, 2);
 Syx_Value *make_syx_value_object(Syx_Object *proto);
 Syx_Value *make_syx_value_closure(Syx_Symbol *name, Syx_Closure_Kind kind, size_t size);
@@ -434,22 +435,33 @@ inline Syx_Value *make_syx_value_number_fractional(syx_fractional_t value) {
   return make_syx_value_number((Syx_Number){.kind = SYX_NUMBER_KIND_FRACTIONAL, .fractional = value});
 }
 
+void syx_value_string_destructor(void *data) {
+  Syx_Value *value = data;
+  free((char *)value->string->data);
+}
+
 Syx_Value *make_syx_value_string(Syx_String *string) {
   Syx_Value *value = make_syx_value(SYX_VALUE_KIND_STRING, 0);
+  rc_get(value)->methods.destructor = syx_value_string_destructor;
   value->string = string;
   return value;
 }
 
-Syx_Value *make_syx_value_string_dup(const char *data, size_t count) {
-  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_STRING, sizeof(Syx_String) + sizeof(char) * count);
+Syx_Value *make_syx_value_string_n_dup(const char *data, size_t count) {
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_STRING, sizeof(Syx_String) + sizeof(char) * count + 1);
   value->string = (Syx_String *)(value + 1);
   string_assign(value->string, (Syx_String){.data = (const char *const)(value->string + 1), .count = count});
   memcpy((char *)value->string->data, data, count);
+  ((char *)value->string->data)[count] = '\0';
   return value;
 }
 
+Syx_Value *make_syx_value_string_dup(Syx_String string) {
+  return make_syx_value_string_n_dup(string.data, string.count);
+}
+
 inline Syx_Value *make_syx_value_string_cstr_dup(const char *data) {
-  return make_syx_value_string_dup(data, strlen(data));
+  return make_syx_value_string_n_dup(data, strlen(data));
 }
 
 Syx_Value *make_syx_value_stringf_dup(const char *format, ...) {

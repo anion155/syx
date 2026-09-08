@@ -91,7 +91,7 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value);
       syx_fractional_t *: *((syx_fractional_t *)storage) = syx_number_get(converted->number),                   \
       String_Builder *: sb_append_sv((String_Builder *)storage, *converted->string),                            \
       String_View *: *((String_View *)storage) = sv_from_like(*converted->string),                              \
-      String *: string_assign((String *)storage, string_copy(sb_append_sv, sv_from_like(*converted->string)))); \
+      String *: string_assign((String *)storage, string_from(sb_append_sv, sv_from_like(*converted->string)))); \
   rc_release(converted);                                                                                        \
 })
 
@@ -387,12 +387,23 @@ Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
           if (head->prefixed->value->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "is not callable");
           return syx_eval_in_environment(ctx, head->prefixed->value->symbol, arguments);
         }
-        default: SYX_EVAL_THROW(ctx, "is not callable");
+        default:;
       }
     }
     case SYX_VALUE_KIND_OBJECT: return syx_eval_object(ctx, head->object, arguments);
-    default: SYX_EVAL_THROW(ctx, "is not callable");
+    case SYX_VALUE_KIND_NATIVE: {
+      switch (head->native->type->kind) {
+        // case SYX_TYPE_KIND_PRIMITIVE:
+        // case SYX_TYPE_KIND_STRUCTURE:
+        // case SYX_TYPE_KIND_PTR:
+        // case SYX_TYPE_KIND_FUNCTION_PTR:
+        // case SYX_TYPE_KIND_VALUE_PTR:
+        default:
+      }
+    }
+    default:;
   }
+  SYX_EVAL_THROW(ctx, "is not callable");
 }
 
 Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input) {
@@ -560,7 +571,10 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_PAIR: SYX_EVAL_THROW(ctx, "pair can't be converted to string");
     case SYX_VALUE_KIND_CONST: SYX_EVAL_THROW(ctx, "constant can't be converted to string");
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to string");
-    case SYX_VALUE_KIND_NUMBER: SYX_EVAL_THROW(ctx, "number can't be converted to string");
+    case SYX_VALUE_KIND_NUMBER: {
+      String str = string_from(sb_append_number, syx_number_get(value->number));
+      return make_syx_value_string_dup(str);
+    }
     case SYX_VALUE_KIND_STRING: return value;
     case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "object converted to string");
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to string");

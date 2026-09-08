@@ -382,42 +382,42 @@ syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
       (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("data")->symbol, .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_str")},
       (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count")->symbol, .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_size")});
   *ht_put(SYX_KNOWN_TYPES, "string") = make_syx_type_structure(NULL, (Syx_Type_Structure){.fields = string_fields});
-  *ht_put(SYX_KNOWN_TYPES, "FILE*") = make_syx_type_pointer(NULL, *ht_find(SYX_KNOWN_TYPES, "void"));
-}
-
-void syx_env_define_type_constructor(Syx_Env *env, const char *name) {
-  Syx_Type *type = *ht_find(SYX_KNOWN_TYPES(), name);
-  syx_env_define(env, type->name, make_syx_value_closure_native_constructor(NULL, type));
+  *ht_put(SYX_KNOWN_TYPES, "FILE*") = make_syx_type_pointer(NULL, *ht_find(SYX_KNOWN_TYPES, "c_void"));
 }
 
 void syx_env_define_types(Syx_Env *env) {
   ht_foreach(type, SYX_KNOWN_TYPES()) {
     const char *key = ht_key(SYX_KNOWN_TYPES(), type);
-    rc_acquire(type);
+    rc_acquire(*type);
     Syx_Value *name = rc_acquire(make_syx_value_symbol_cstr(key));
     (*type)->name = name->symbol;
   }
-  syx_env_define_type_constructor(env, "c_void");
-  syx_env_define_type_constructor(env, "c_char");
-  syx_env_define_type_constructor(env, "c_i8");
-  syx_env_define_type_constructor(env, "c_i16");
-  syx_env_define_type_constructor(env, "c_i32");
-  syx_env_define_type_constructor(env, "c_i64");
-  syx_env_define_type_constructor(env, "c_i128");
-  syx_env_define_type_constructor(env, "c_u8");
-  syx_env_define_type_constructor(env, "c_u16");
-  syx_env_define_type_constructor(env, "c_u32");
-  syx_env_define_type_constructor(env, "c_u64");
-  syx_env_define_type_constructor(env, "c_u128");
-  syx_env_define_type_constructor(env, "c_int");
-  syx_env_define_type_constructor(env, "c_long");
-  syx_env_define_type_constructor(env, "c_llong");
-  syx_env_define_type_constructor(env, "c_uint");
-  syx_env_define_type_constructor(env, "c_ulong");
-  syx_env_define_type_constructor(env, "c_ullong");
-  syx_env_define_type_constructor(env, "c_float");
-  syx_env_define_type_constructor(env, "c_double");
-  syx_env_define_type_constructor(env, "c_size");
+#define DEFINE(name_lit) ({                                                               \
+  Syx_Type *type = *ht_find(SYX_KNOWN_TYPES(), name_lit);                                 \
+  syx_env_define(env, type->name, make_syx_value_closure_native_constructor(NULL, type)); \
+})
+  DEFINE("c_void");
+  DEFINE("c_char");
+  DEFINE("c_i8");
+  DEFINE("c_i16");
+  DEFINE("c_i32");
+  DEFINE("c_i64");
+  DEFINE("c_i128");
+  DEFINE("c_u8");
+  DEFINE("c_u16");
+  DEFINE("c_u32");
+  DEFINE("c_u64");
+  DEFINE("c_u128");
+  DEFINE("c_int");
+  DEFINE("c_long");
+  DEFINE("c_llong");
+  DEFINE("c_uint");
+  DEFINE("c_ulong");
+  DEFINE("c_ullong");
+  DEFINE("c_float");
+  DEFINE("c_double");
+  DEFINE("c_size");
+#undef DEFINE
 }
 
 #endif // SYX_TYPE_INFO_IMPL
