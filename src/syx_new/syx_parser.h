@@ -203,7 +203,7 @@ Syx_Value *parse_syx_string_value(Syx_Token token) {
 }
 
 Syx_Value *parse_syx_number_binary_value(Syx_Token token) {
-  String_View sv = sv_from_parts(token.data, token.count);
+  String_View sv = sv_from_like(token);
   bool negative = false;
   if (sv.data[0] == '-') negative = (sv.data += 1, sv.count -= 1, true);
   SYX_ASSERT(sv.data[0] == '0' && (sv.data[1] == 'b' || sv.data[1] == 'B'), "expected binary number");
@@ -224,7 +224,7 @@ Syx_Value *parse_syx_number_binary_value(Syx_Token token) {
 }
 
 Syx_Value *parse_syx_number_octal_value(Syx_Token token) {
-  String_View sv = sv_from_parts(token.data, token.count);
+  String_View sv = sv_from_like(token);
   bool negative = false;
   if (sv.data[0] == '-') negative = (sv.data += 1, sv.count -= 1, true);
   SYX_ASSERT(sv.data[0] == '0' && (sv.data[1] == 'o' || sv.data[1] == 'O'), "expected octal number");
@@ -279,7 +279,7 @@ Syx_Value *parse_syx_number_decimal_fractional_value(String_View sv, bool negati
 }
 
 Syx_Value *parse_syx_number_decimal_value(Syx_Token token) {
-  String_View sv = sv_from_parts(token.data, token.count);
+  String_View sv = sv_from_like(token);
   bool negative = false;
   if (sv.data[0] == '-') negative = (sv.data += 1, sv.count -= 1, true);
   syx_integer_t number = 0;
@@ -306,7 +306,7 @@ Syx_Value *parse_syx_number_decimal_value(Syx_Token token) {
 }
 
 Syx_Value *parse_syx_number_hex_value(Syx_Token token) {
-  String_View sv = sv_from_parts(token.data, token.count);
+  String_View sv = sv_from_like(token);
   bool negative = false;
   if (sv.data[0] == '-') negative = (sv.data += 1, sv.count -= 1, true);
   SYX_ASSERT(sv.data[0] == '0' && (sv.data[1] == 'x' || sv.data[1] == 'X'), "expected hex number");
@@ -374,14 +374,14 @@ Syx_Value *parse_syx_prefix(Syx_Token token, Syx_Tokens *tokens) {
 
 Syx_Value *parse_syx_dispatch(Syx_Token token, Syx_Tokens *tokens) {
   SYX_ASSERT(token.kind == SYX_TOKEN_KIND_DISPATCH && token.count > 1, "dispatch expected");
-  uint32_t type = syx_parser_utf_string_to_codepoint(sv_from_parts(token.data + 1, token.count - 1));
+  uint32_t type = syx_parser_utf_string_to_codepoint(sv_from_parts((char *)token.data + 1, token.count - 1));
   switch (type) {
     case 'n': return syx_value_nil();
     case 't': return syx_value_bool_true();
     case 'f': return syx_value_bool_false();
     case 'R': {
       SYX_ASSERT(tokens->count >= 1, "expected string literal");
-      token = da_first(da_slice_chop_left(tokens));
+      token = da_slice_shift(tokens);
       SYX_ASSERT(token.kind == SYX_TOKEN_KIND_STRLIT, "expected string literal");
       return make_syx_value_string_dup(token.data, token.count);
     }

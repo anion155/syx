@@ -3,6 +3,8 @@
 #include <sb_number.h>
 #define SYX_TYPE_INFO_IMPL
 #include <syx_new/syx_type_info.h>
+#define SYX_EVAL_BUILTINS_IMPL
+#include <syx_new/syx_eval_builtins.h>
 
 int main(void) {
   {

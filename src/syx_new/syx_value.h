@@ -134,6 +134,7 @@ typedef struct Syx_Object {
 typedef Syx_Value *(*Syx_Closure_Special_Form)(Syx_Eval_Ctx *ctx, Syx_Pair *arguments);
 typedef Syx_Value *(*Syx_Closure_Builtin)(Syx_Eval_Ctx *ctx, Syx_Pair *arguments);
 typedef struct Syx_Closure_Lambda Syx_Closure_Lambda;
+typedef struct Syx_Type Syx_Type;
 
 typedef enum Syx_Closure_Kind : unsigned int {
   SYX_CLOSURE_KIND_SPECIALF,
@@ -224,6 +225,7 @@ void syx_value_closure_rename(Syx_Closure *closure, Syx_Symbol *name);
 Syx_Value *make_syx_value_closure_specialf(Syx_Symbol *name, Syx_Closure_Special_Form specialf);
 Syx_Value *make_syx_value_closure_builtin(Syx_Symbol *name, Syx_Closure_Builtin builtin);
 Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda lambda);
+Syx_Value *make_syx_value_closure_native_constructor(Syx_Symbol *name, Syx_Type *type);
 void syx_value_native_structure_destructor(void *data);
 Syx_Value *make_syx_value_native(Syx_Type *type, size_t additional_size);
 Syx_Value *make_syx_value_exit_returned(Syx_Value *returned);

@@ -29,12 +29,14 @@
   typeof(da) _da_dnc_ = (da);                         \
   (typeof_unqual(*_da_dnc_->data) **)&_da_dnc_->data; \
 })
-#define da_free(da) ({          \
-  typeof(da) _da_f_ = (da);     \
-  free(_da_f_->data);           \
-  *da__reassign(_da_f_) = NULL; \
-  _da_f_->capacity = 0;         \
-  _da_f_->count = 0;            \
+#define da_free(da) ({            \
+  typeof(da) _da_f_ = (da);       \
+  if (_da_f_->data) {             \
+    free(_da_f_->data);           \
+    *da__reassign(_da_f_) = NULL; \
+    _da_f_->capacity = 0;         \
+    _da_f_->count = 0;            \
+  }                               \
 })
 
 #define da_reserve(da, target_capacity) ({                                                                         \

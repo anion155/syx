@@ -14,8 +14,8 @@
 
 typedef enum Syx_Type_Kind : unsigned int {
   SYX_TYPE_KIND_PRIMITIVE,
-  SYX_TYPE_KIND_PTR,
   SYX_TYPE_KIND_STRUCTURE,
+  SYX_TYPE_KIND_PTR,
   SYX_TYPE_KIND_FUNCTION_PTR,
   SYX_TYPE_KIND_VALUE_PTR,
 } Syx_Type_Kind;
@@ -64,11 +64,11 @@ typedef struct Syx_Type {
 } Syx_Type;
 typedef Da_Slice(Syx_Type *, Syx_Types) Syx_Types;
 
-typedef Syx_Value *(*Syx_Type_Structure_Constructor)(Syx_Eval_Ctx *ctx, void *data, Syx_Value *arguments);
-typedef Syx_Value *(*Syx_Type_Structure_Index_Getter)(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index);
-typedef Syx_Value *(*Syx_Type_Structure_Index_Setter)(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index, Syx_Value *argument);
-typedef Syx_Value *(*Syx_Type_Structure_Field_Getter)(Syx_Eval_Ctx *ctx, void *data, const char *field_name);
-typedef Syx_Value *(*Syx_Type_Structure_Field_Setter)(Syx_Eval_Ctx *ctx, void *data, const char *field_name, Syx_Value *argument);
+typedef Syx_Value *(*Syx_Type_Structure_Constructor)(Syx_Eval_Ctx *ctx, void *data, Syx_Pair *arguments);
+// typedef Syx_Value *(*Syx_Type_Structure_Index_Getter)(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index);
+// typedef Syx_Value *(*Syx_Type_Structure_Index_Setter)(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index, Syx_Value *argument);
+// typedef Syx_Value *(*Syx_Type_Structure_Field_Getter)(Syx_Eval_Ctx *ctx, void *data, const char *field_name);
+// typedef Syx_Value *(*Syx_Type_Structure_Field_Setter)(Syx_Eval_Ctx *ctx, void *data, const char *field_name, Syx_Value *argument);
 typedef void (*Syx_Type_Structure_Destructor)(void *data);
 
 typedef struct Syx_Type_Structure_Field {
@@ -296,14 +296,14 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
       if (!type->name) UNREACHABLE("primitive types must have name");
       stringify_append(&state, sb_append_syx_symbol, type->name);
     } break;
+    case SYX_TYPE_KIND_STRUCTURE: {
+      stringify_append(&state, sb_append_strlit, "struct");
+    } break;
     case SYX_TYPE_KIND_PTR: {
       stringify_append(&state, sb_append_strlit, "ref");
       stringify_append(&state, sb_append, '(');
       stringify_append(&state, sb_append_syx_type, type->pointer);
       stringify_append(&state, sb_append, ')');
-    } break;
-    case SYX_TYPE_KIND_STRUCTURE: {
-      stringify_append(&state, sb_append_strlit, "struct");
     } break;
     case SYX_TYPE_KIND_FUNCTION_PTR: {
       stringify_append(&state, sb_append_strlit, "fn");
@@ -330,7 +330,7 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
   return state.count;
 }
 
-syx_define_constant(, SYX_KNOWN_TYPES) {
+syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
   SYX_KNOWN_TYPES->hasheq = ht_cstr_hasheq;
   *ht_put(SYX_KNOWN_TYPES, "c_void") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void);
   *ht_put(SYX_KNOWN_TYPES, "c_char") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_CHAR, sizeof(char), alignof(char), NULL,
@@ -379,9 +379,10 @@ syx_define_constant(, SYX_KNOWN_TYPES) {
   *ht_put(SYX_KNOWN_TYPES, "value") = make_syx_type(SYX_TYPE_KIND_VALUE_PTR, sizeof(Syx_Value *), alignof(Syx_Value *), NULL, &ffi_type_pointer, 0);
   *ht_put(SYX_KNOWN_TYPES, "c_str") = make_syx_type_pointer(NULL, *ht_find(SYX_KNOWN_TYPES, "c_char"));
   Syx_Type_Structure_Fields string_fields = make_syx_type_structure_fields(
-      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("data"), .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_str")},
-      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count"), .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_size")});
+      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("data")->symbol, .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_str")},
+      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count")->symbol, .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_size")});
   *ht_put(SYX_KNOWN_TYPES, "string") = make_syx_type_structure(NULL, (Syx_Type_Structure){.fields = string_fields});
+  *ht_put(SYX_KNOWN_TYPES, "FILE*") = make_syx_type_pointer(NULL, *ht_find(SYX_KNOWN_TYPES, "void"));
 }
 
 void syx_env_define_type_constructor(Syx_Env *env, const char *name) {
@@ -396,7 +397,7 @@ void syx_env_define_types(Syx_Env *env) {
     Syx_Value *name = rc_acquire(make_syx_value_symbol_cstr(key));
     (*type)->name = name->symbol;
   }
-  // syx_env_define_type_constructor(env, "c_void");
+  syx_env_define_type_constructor(env, "c_void");
   syx_env_define_type_constructor(env, "c_char");
   syx_env_define_type_constructor(env, "c_i8");
   syx_env_define_type_constructor(env, "c_i16");

@@ -2,6 +2,7 @@
 #define SYX_EVAL_BUILTINS_H
 
 #include <syx_new/syx_eval.h>
+#include <syx_new/syx_io.h>
 #include <syx_new/syx_value.h>
 
 void syx_env_define_builtins(Syx_Env *env);
@@ -13,6 +14,8 @@ void syx_env_define_builtins(Syx_Env *env);
 
 #include <math.h>
 #include <stdio.h>
+#define SYX_IO_IMPL
+#include <syx_new/syx_io.h>
 
 /** Builtins */
 
@@ -178,6 +181,7 @@ bool syx__builtin_equivalent_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_
     case SYX_VALUE_KIND_STRING: return right->kind == SYX_VALUE_KIND_STRING && sv_eq(*left->string, *right->string);
     case SYX_VALUE_KIND_OBJECT: return false;  // should work on left == right level
     case SYX_VALUE_KIND_CLOSURE: return false; // should work on left == right level
+    case SYX_VALUE_KIND_NATIVE: return (right->kind == SYX_VALUE_KIND_NATIVE && right->native->type == left->native->type && memcmp(left->native->data, right->native->data, left->native->type->size) == 0);
     case SYX_VALUE_KIND_EXIT: UNREACHABLE("should never get exit value here");
     case SYX_VALUE_KIND_PREFIXED: return (
         right->kind == SYX_VALUE_KIND_PREFIXED &&
@@ -268,6 +272,7 @@ bool syx__builtin_identity_comparator(Syx_Eval_Ctx *ctx, Syx_Value *left, Syx_Va
     case SYX_VALUE_KIND_STRING: return false;  // should work on left == right level
     case SYX_VALUE_KIND_OBJECT: return false;  // should work on left == right level
     case SYX_VALUE_KIND_CLOSURE: return false; // should work on left == right level
+    case SYX_VALUE_KIND_NATIVE: return (right->kind == SYX_VALUE_KIND_NATIVE && right->native->type == left->native->type && left->native->data == right->native->data);
     case SYX_VALUE_KIND_EXIT: UNREACHABLE("should never get exit value here");
     case SYX_VALUE_KIND_PREFIXED: return false; // should work on left == right level
   }
@@ -328,6 +333,9 @@ Syx_Value *syx_builtin_is_fractional(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { s
 /** Type checks if first argument is string. */
 Syx_Value *syx_builtin_is_string(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_STRING); }
 
+/** Type checks if first argument is object. */
+Syx_Value *syx_builtin_is_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_OBJECT); }
+
 /** Type checks if first argument is closure. */
 Syx_Value *syx_builtin_is_closure(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_CLOSURE); }
 
@@ -339,6 +347,12 @@ Syx_Value *syx_builtin_is_builtin(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx_
 
 /** Type checks if first argument is lambda. */
 Syx_Value *syx_builtin_is_lambda(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_CLOSURE && value->closure->kind == SYX_CLOSURE_KIND_LAMBDA); }
+
+/** Type checks if first argument is native constructor. */
+Syx_Value *syx_builtin_is_native_constructor(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_CLOSURE && value->closure->kind == SYX_CLOSURE_KIND_NATIVE_CONSTRUCTOR); }
+
+/** Type checks if first argument is native wrapper. */
+Syx_Value *syx_builtin_is_native(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_NATIVE); }
 
 /** Type checks if first argument is prefixed. */
 Syx_Value *syx_builtin_is_prefixed(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_PREFIXED); }
@@ -364,106 +378,176 @@ Syx_Value *syx_builtin_is_coloned(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx_
 //   return syx_value_bool(value->boxed->typeinfo == constructor->constructor.typeinfo);
 // }
 
+Syx_Closure_Builtin syx__builtints_static_check_is() {
+  Syx_Value_Kind value_kind = (Syx_Value_Kind)0;
+  switch (value_kind) {
+    case SYX_VALUE_KIND_PAIR: {
+      UNUSED(syx_builtin_is_nil);
+      UNUSED(syx_builtin_is_full_pair);
+      UNUSED(syx_builtin_is_list);
+      return syx_builtin_is_pair;
+    }
+    case SYX_VALUE_KIND_CONST: {
+      UNUSED(syx_builtin_is_bool_true);
+      UNUSED(syx_builtin_is_bool_false);
+      UNUSED(syx_builtin_is_bool);
+      return syx_builtin_is_const;
+    }
+    case SYX_VALUE_KIND_SYMBOL: return syx_builtin_is_symbol;
+    case SYX_VALUE_KIND_NUMBER: {
+      Syx_Number_Kind number_kind = (Syx_Number_Kind)0;
+      switch (number_kind) {
+        case SYX_NUMBER_KIND_INTEGER: return syx_builtin_is_integer;
+        case SYX_NUMBER_KIND_FRACTIONAL: return syx_builtin_is_fractional;
+      }
+      return syx_builtin_is_number;
+    }
+    case SYX_VALUE_KIND_STRING: return syx_builtin_is_string;
+    case SYX_VALUE_KIND_OBJECT: return syx_builtin_is_object;
+    case SYX_VALUE_KIND_CLOSURE: {
+      Syx_Closure_Kind closure_kind = (Syx_Closure_Kind)0;
+      switch (closure_kind) {
+        case SYX_CLOSURE_KIND_SPECIALF: return syx_builtin_is_special_form;
+        case SYX_CLOSURE_KIND_BUILTIN: return syx_builtin_is_builtin;
+        case SYX_CLOSURE_KIND_LAMBDA: return syx_builtin_is_lambda;
+        case SYX_CLOSURE_KIND_NATIVE_CONSTRUCTOR: return syx_builtin_is_native_constructor;
+      }
+      return syx_builtin_is_closure;
+    }
+    case SYX_VALUE_KIND_NATIVE: return syx_builtin_is_native;
+    case SYX_VALUE_KIND_EXIT: return (Syx_Closure_Builtin)0;
+    case SYX_VALUE_KIND_PREFIXED: {
+      Syx_Prefixed_Kind prefixed_kind = (Syx_Prefixed_Kind)0;
+      switch (prefixed_kind) {
+        case SYX_PREFIXED_KIND_QUOTE: return syx_builtin_is_quoted;
+        case SYX_PREFIXED_KIND_UNQUOTE: return syx_builtin_is_unquoted;
+        case SYX_PREFIXED_KIND_COLON: return syx_builtin_is_coloned;
+        case SYX_PREFIXED_KIND_DOLLAR: return (Syx_Closure_Builtin)0;
+      }
+      return syx_builtin_is_prefixed;
+    }
+  }
+}
+
 #undef syx__builtin_type_guard
 
-// typedef struct File_Constant {
-//   int fd;
-//   FILE *stream;
-// } File_Constant;
+typedef struct Syx_File_Constant {
+  int fd;
+  FILE *stream;
+} Syx_File_Constant;
 
-// syx_define_constant(Ht(Syx_Symbol *, File_Constant), FD_CONSTANTS) {
-//   FD_CONSTANTS->hasheq = ht_syx_symbol_hasheq;
-//   *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stdout")->symbol) = (File_Constant){.fd = STDOUT_FILENO, .stream = stdout};
-//   *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stderr")->symbol) = (File_Constant){.fd = STDERR_FILENO, .stream = stderr};
-//   *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stdin")->symbol) = (File_Constant){.fd = STDIN_FILENO, .stream = stdin};
-//   ht_foreach(symbol, FD_CONSTANTS) {
-//     rc_acquire(syx_value_from_symbol(ht_key(FD_CONSTANTS, symbol)));
-//   }
-// }
+syx_define_constant(Ht(Syx_Symbol *, Syx_File_Constant), FD_CONSTANTS) {
+  FD_CONSTANTS->hasheq = ht_syx_symbol_hasheq;
+  *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stdout")->symbol) = (Syx_File_Constant){.fd = STDOUT_FILENO, .stream = stdout};
+  *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stderr")->symbol) = (Syx_File_Constant){.fd = STDERR_FILENO, .stream = stderr};
+  *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stdin")->symbol) = (Syx_File_Constant){.fd = STDIN_FILENO, .stream = stdin};
+  ht_foreach(symbol, FD_CONSTANTS) {
+    rc_acquire(syx_value_from_symbol(ht_key(FD_CONSTANTS, symbol)));
+  }
+}
 
-// FILE *parse_optional_file_descriptor(Syx_Pair **arguments) {
-//   FILE *f = stdout;
-//   if ((*arguments)->left->kind != SYX_VALUE_KIND_SYMBOL) return f;
-//   File_Constant *constant = ht_find(FD_CONSTANTS(), (*arguments)->left->symbol);
-//   if (!constant) return f;
-//   syx_list_next_nullable(arguments);
-//   f = constant->stream;
-//   // TODO: pass fd as value not as constant
-//   return f;
-// }
+FILE *parse_optional_file_descriptor(Syx_Pair **arguments) {
+  FILE *f = stdout;
+  if (!(*arguments)) return f;
+  Syx_Value *argument = (*arguments)->left;
+  switch (argument->kind) {
+    case SYX_VALUE_KIND_PREFIXED: {
+      if (argument->prefixed->kind != SYX_PREFIXED_KIND_COLON) return f;
+      argument = argument->prefixed->value;
+      if (argument->kind != SYX_VALUE_KIND_SYMBOL) return f;
+      if ((*arguments)->right->kind != SYX_VALUE_KIND_PAIR) return f;
+      Syx_File_Constant *constant = ht_find(FD_CONSTANTS(), (*arguments)->left->symbol);
+      if (!constant) return f;
+      (*arguments) = (*arguments)->right->pair;
+      f = constant->stream;
+    } break;
+    case SYX_VALUE_KIND_NATIVE: {
+      if (argument->native->type != *ht_find(SYX_KNOWN_TYPES(), "FILE*")) return f;
+      f = *(FILE **)argument->native->data;
+    } break;
+    default:
+  }
+  return f;
+}
 
-// /** Prints arguments to file. */
-// Syx_Value *syx_builtin_print(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-//   FILE *f = parse_optional_file_descriptor(&arguments);
-//   bool first = true;
-//   syx_list_for_each(arguments, argument) {
-//     syx_string sb = {0};
-//     sb_copy_from_sv(sv_from_like(*argument->string));
-//     syx_convert_to(ctx, argument, &sb);
-//     if (!first && !io_putc(f, ' ')) return (sb_free(sb), syx_value_nil());
-//     if (!io_puts(f, sb_to_sv(sb))) return (sb_free(sb), syx_value_nil());
-//     sb_free(sb);
-//     first = false;
-//   }
-//   return syx_value_nil();
-// }
+Syx_Value *syx__builtin_print_values(Syx_Eval_Ctx *ctx, FILE *f, Syx_Pair *arguments) {
+  bool first = true;
+  size_t count = 0;
+  String_Builder sb = {0};
+  syx_list_for_each(arguments, argument) {
+    sb.count = 0;
+    syx_convert_to(ctx, argument, &sb);
+    if (!first) {
+      if (!syx_io_putc(f, ' ')) goto result;
+      count += 1;
+    }
+    first = false;
+    size_t value_count = syx_io_puts_n(f, sb.data, sb.count);
+    if (!value_count) goto result;
+    count += value_count;
+  }
+result:
+  sb_free(&sb);
+  return make_syx_value_number_integer(count);
+}
 
-// /** Flash file descriptor. */
-// Syx_Value *syx_builtin_print_flash(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-//   UNUSED(ctx);
-//   FILE *f = parse_optional_file_descriptor(&arguments);
-//   io_flash(f);
-//   return syx_value_nil();
-// }
+/** Prints arguments to file. */
+Syx_Value *syx_builtin_print(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  FILE *f = parse_optional_file_descriptor(&arguments);
+  Syx_Value *count = syx__builtin_print_values(ctx, f, arguments);
+  return count;
+}
 
-// /** Prints arguments to file, adds new line to the end. */
-// Syx_Value *syx_builtin_println(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-//   FILE *f = parse_optional_file_descriptor(&arguments);
-//   bool first = true;
-//   syx_list_for_each(arguments, argument) {
-//     syx_string sb = {0};
-//     syx_convert_to(ctx, argument, &sb);
-//     if (!first && !io_putc(f, ' ')) return (sb_free(sb), syx_value_nil());
-//     if (!io_puts(f, sb_to_sv(sb))) return (sb_free(sb), syx_value_nil());
-//     sb_free(sb);
-//     first = false;
-//   }
-//   if (!io_putc(f, '\n')) return syx_value_nil();
-//   return syx_value_nil();
-// }
+/** Flash file descriptor. */
+Syx_Value *syx_builtin_print_flash(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  UNUSED(ctx);
+  FILE *f = parse_optional_file_descriptor(&arguments);
+  syx_io_flash(f);
+  return syx_value_nil();
+}
 
-// ssize_t io_put_sv_diff(FILE *fd, String_View *base, String_View *offset) {
-//   ptrdiff_t diff = offset->data - base->data;
-//   if (diff <= 0) return 0;
-//   if (!io_puts_n(fd, base->data, offset->data - base->data)) return -1;
-//   *base = *offset;
-//   return diff;
-// }
+/** Prints arguments to file, adds new line to the end. */
+Syx_Value *syx_builtin_println(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  FILE *f = parse_optional_file_descriptor(&arguments);
+  Syx_Value *count = syx__builtin_print_values(ctx, f, arguments);
+  if (count->kind != SYX_VALUE_KIND_NUMBER || count->number->kind != SYX_NUMBER_KIND_INTEGER) return count;
+  if (!io_putc(f, '\n')) return count;
+  return make_syx_value_number_integer(count->number->integer + 1);
+}
 
-// /** Prints formatted string to file. */
-// Syx_Value *syx_builtin_printf(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-//   FILE *f = parse_optional_file_descriptor(&arguments);
-//   syx_string fmt = {0};
-//   syx_convert_to(ctx, syx_list_next(&arguments), &fmt);
-//   String_View it = sb_to_sv(fmt);
-//   String_View str = sb_to_sv(fmt);
-//   for (; it.count; sv_chop_left(&it, 1)) {
-//     size_t format_size = 1;
-//     if (it.data[0] != '%') continue;
-//     // TODO: implement custom formats
-//     if (io_put_sv_diff(f, &str, &it) < 0) return syx_value_nil();
-//     sv_chop_left(&it, format_size);
-//     str = it;
-//     Syx_Value *argument = syx_list_next(&arguments);
-//     syx_string sb = {0};
-//     syx_convert_to(ctx, argument, &sb);
-//     if (!io_puts(f, sb_to_sv(sb))) return syx_value_nil();
-//     sb_free(sb);
-//   }
-//   if (io_put_sv_diff(f, &str, &it) < 0) return syx_value_nil();
-//   sb_free(fmt);
-//   return syx_value_nil();
-// }
+ssize_t io_put_sv_diff(FILE *fd, String_View *base, String_View *offset) {
+  ptrdiff_t diff = offset->data - base->data;
+  if (diff <= 0) return 0;
+  if (!io_puts_n(fd, base->data, offset->data - base->data)) return -1;
+  *base = *offset;
+  return diff;
+}
+
+/** Prints formatted string to file. */
+Syx_Value *syx_builtin_printf(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  FILE *f = parse_optional_file_descriptor(&arguments);
+  String fmt = {0};
+  syx_convert_to(ctx, syx_list_next(&arguments), &fmt);
+  size_t count = 0;
+  String_Builder sb = {0};
+  for (size_t index = 0; index < fmt.count; index += utf8_character_lengths[fmt.data[index]]) {
+    if (fmt.data[index] != '%') goto put_char;
+    if (index + 1 < fmt.count && fmt.data[index + 1] == '%') goto put_char;
+    Syx_Value *argument = syx_list_next(&arguments);
+    sb.count = 0;
+    syx_convert_to(ctx, argument, &sb);
+    size_t value_count = syx_io_puts_n(f, sb.data, sb.count);
+    if (!value_count) goto result;
+    count += value_count;
+    continue;
+  put_char:
+    if (!syx_io_putc(f, fmt.data[index])) goto result;
+    count += 1;
+  }
+result:
+  sb_free(&sb);
+  return count;
+}
 
 void syx_env_define_builtins(Syx_Env *env) {
   /** Builtins */
@@ -500,10 +584,13 @@ void syx_env_define_builtins(Syx_Env *env) {
   syx_env_define_strlit(env, "integer?", make_syx_value_closure_builtin(NULL, syx_builtin_is_integer));
   syx_env_define_strlit(env, "fractional?", make_syx_value_closure_builtin(NULL, syx_builtin_is_fractional));
   syx_env_define_strlit(env, "string?", make_syx_value_closure_builtin(NULL, syx_builtin_is_string));
+  syx_env_define_strlit(env, "object?", make_syx_value_closure_builtin(NULL, syx_builtin_is_object));
   syx_env_define_strlit(env, "closure?", make_syx_value_closure_builtin(NULL, syx_builtin_is_closure));
   syx_env_define_strlit(env, "special-form?", make_syx_value_closure_builtin(NULL, syx_builtin_is_special_form));
   syx_env_define_strlit(env, "builtin?", make_syx_value_closure_builtin(NULL, syx_builtin_is_builtin));
   syx_env_define_strlit(env, "lambda?", make_syx_value_closure_builtin(NULL, syx_builtin_is_lambda));
+  syx_env_define_strlit(env, "constructor?", make_syx_value_closure_builtin(NULL, syx_builtin_is_native_constructor));
+  syx_env_define_strlit(env, "native?", make_syx_value_closure_builtin(NULL, syx_builtin_is_native));
   syx_env_define_strlit(env, "prefixed?", make_syx_value_closure_builtin(NULL, syx_builtin_is_prefixed));
   syx_env_define_strlit(env, "quoted?", make_syx_value_closure_builtin(NULL, syx_builtin_is_quoted));
   syx_env_define_strlit(env, "unquoted?", make_syx_value_closure_builtin(NULL, syx_builtin_is_unquoted));
@@ -511,10 +598,10 @@ void syx_env_define_builtins(Syx_Env *env) {
 
   syx_env_define_strlit(env, "not", make_syx_value_closure_builtin(NULL, syx_builtin_not));
 
-  // syx_env_define_strlit(env, "print", make_syx_value_closure_builtin(NULL, syx_builtin_print));
-  // syx_env_define_strlit(env, "print-flash", make_syx_value_closure_builtin(NULL, syx_builtin_print_flash));
-  // syx_env_define_strlit(env, "println", make_syx_value_closure_builtin(NULL, syx_builtin_println));
-  // syx_env_define_strlit(env, "printf", make_syx_value_closure_builtin(NULL, syx_builtin_printf));
+  syx_env_define_strlit(env, "print", make_syx_value_closure_builtin(NULL, syx_builtin_print));
+  syx_env_define_strlit(env, "print-flash", make_syx_value_closure_builtin(NULL, syx_builtin_print_flash));
+  syx_env_define_strlit(env, "println", make_syx_value_closure_builtin(NULL, syx_builtin_println));
+  syx_env_define_strlit(env, "printf", make_syx_value_closure_builtin(NULL, syx_builtin_printf));
 }
 
 #endif // SYX_EVAL_BUILTINS_IMPL
