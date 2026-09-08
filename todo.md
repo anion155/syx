@@ -1,3 +1,4 @@
+- value: separate integer stringifiers implementaion
 - value: native values stringify
 - value: call native structure
 - value: call primitives as objects with specific prototypes

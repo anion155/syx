@@ -27,12 +27,10 @@ typedef enum Syx_Primitive_Type_Kind : unsigned int {
   SYX_PRIMITIVE_TYPE_KIND_I16,    // int16_t
   SYX_PRIMITIVE_TYPE_KIND_I32,    // int32_t
   SYX_PRIMITIVE_TYPE_KIND_I64,    // int64_t
-  SYX_PRIMITIVE_TYPE_KIND_I128,   // __int128_t
   SYX_PRIMITIVE_TYPE_KIND_U8,     // uint8_t
   SYX_PRIMITIVE_TYPE_KIND_U16,    // uint16_t
   SYX_PRIMITIVE_TYPE_KIND_U32,    // uint32_t
   SYX_PRIMITIVE_TYPE_KIND_U64,    // uint64_t
-  SYX_PRIMITIVE_TYPE_KIND_U128,   // __uint128_t
   SYX_PRIMITIVE_TYPE_KIND_INT,    // int
   SYX_PRIMITIVE_TYPE_KIND_LONG,   // long
   SYX_PRIMITIVE_TYPE_KIND_LLONG,  // long long
@@ -286,27 +284,24 @@ void *syx_type_function_ffi_call(Syx_Type_Function *func, void (*func_ptr)(void)
 
 size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
   Stringify_State state = make_stringify_state(sb, 256);
-  stringify_append(&state, sb_append_strlit, "#.");
-  if (type->name) {
-    stringify_append(&state, sb_append_syx_symbol, type->name);
-    return state.count;
-  }
   switch (type->kind) {
     case SYX_TYPE_KIND_PRIMITIVE: {
       if (!type->name) UNREACHABLE("primitive types must have name");
       stringify_append(&state, sb_append_syx_symbol, type->name);
     } break;
     case SYX_TYPE_KIND_STRUCTURE: {
-      stringify_append(&state, sb_append_strlit, "struct");
+      stringify_append(&state, sb_append_strlit, "c_struct");
+      stringify_append(&state, sb_append, '(');
+      stringify_append(&state, sb_append, ')');
     } break;
     case SYX_TYPE_KIND_PTR: {
-      stringify_append(&state, sb_append_strlit, "ref");
+      stringify_append(&state, sb_append_strlit, "c_ref");
       stringify_append(&state, sb_append, '(');
       stringify_append(&state, sb_append_syx_type, type->pointer);
       stringify_append(&state, sb_append, ')');
     } break;
     case SYX_TYPE_KIND_FUNCTION_PTR: {
-      stringify_append(&state, sb_append_strlit, "fn");
+      stringify_append(&state, sb_append_strlit, "c_fn");
       Syx_Type_Function *func = type->function;
       stringify_append(&state, sb_append, '(');
       stringify_append(&state, sb_append_syx_type, func->return_type);
@@ -344,28 +339,10 @@ syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
   *ht_put(SYX_KNOWN_TYPES, "c_i16") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I16, sizeof(int16_t), alignof(int16_t), NULL, &ffi_type_sint16);
   *ht_put(SYX_KNOWN_TYPES, "c_i32") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I32, sizeof(int32_t), alignof(int32_t), NULL, &ffi_type_sint32);
   *ht_put(SYX_KNOWN_TYPES, "c_i64") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I64, sizeof(int64_t), alignof(int64_t), NULL, &ffi_type_sint64);
-  ffi_type *ffi_type_sint128 = malloc(sizeof(ffi_type) + sizeof(ffi_type *) * 3);
-  ffi_type_sint128->type = FFI_TYPE_STRUCT;
-  ffi_type_sint128->size = 0;
-  ffi_type_sint128->alignment = 0;
-  ffi_type_sint128->elements = (ffi_type **)(ffi_type_sint128 + 1);
-  ffi_type_sint128->elements[0] = &ffi_type_sint64;
-  ffi_type_sint128->elements[1] = &ffi_type_sint64;
-  ffi_type_sint128->elements[2] = NULL;
-  *ht_put(SYX_KNOWN_TYPES, "c_i128") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I128, sizeof(__int128), alignof(__int128), NULL, ffi_type_sint128);
   *ht_put(SYX_KNOWN_TYPES, "c_u8") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U8, sizeof(uint8_t), alignof(uint8_t), NULL, &ffi_type_uint8);
   *ht_put(SYX_KNOWN_TYPES, "c_u16") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U16, sizeof(uint16_t), alignof(uint16_t), NULL, &ffi_type_uint16);
   *ht_put(SYX_KNOWN_TYPES, "c_u32") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U32, sizeof(uint32_t), alignof(uint32_t), NULL, &ffi_type_uint32);
   *ht_put(SYX_KNOWN_TYPES, "c_u64") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U64, sizeof(uint64_t), alignof(uint64_t), NULL, &ffi_type_uint64);
-  ffi_type *ffi_type_uint128 = malloc(sizeof(ffi_type) + sizeof(ffi_type *) * 3);
-  ffi_type_uint128->type = FFI_TYPE_STRUCT;
-  ffi_type_uint128->size = 0;
-  ffi_type_uint128->alignment = 0;
-  ffi_type_uint128->elements = (ffi_type **)(ffi_type_uint128 + 1);
-  ffi_type_uint128->elements[0] = &ffi_type_uint64;
-  ffi_type_uint128->elements[1] = &ffi_type_uint64;
-  ffi_type_uint128->elements[2] = NULL;
-  *ht_put(SYX_KNOWN_TYPES, "c_u128") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U128, sizeof(unsigned __int128), alignof(unsigned __int128), NULL, ffi_type_uint128);
   *ht_put(SYX_KNOWN_TYPES, "c_int") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_INT, sizeof(int), alignof(int), NULL, &ffi_type_sint);
   *ht_put(SYX_KNOWN_TYPES, "c_long") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LONG, sizeof(signed long), alignof(signed long), NULL, &ffi_type_slong);
   *ht_put(SYX_KNOWN_TYPES, "c_llong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LLONG, sizeof(signed long long), alignof(signed long long), NULL, &ffi_type_sint64);
@@ -402,12 +379,10 @@ void syx_env_define_types(Syx_Env *env) {
   DEFINE("c_i16");
   DEFINE("c_i32");
   DEFINE("c_i64");
-  DEFINE("c_i128");
   DEFINE("c_u8");
   DEFINE("c_u16");
   DEFINE("c_u32");
   DEFINE("c_u64");
-  DEFINE("c_u128");
   DEFINE("c_int");
   DEFINE("c_long");
   DEFINE("c_llong");

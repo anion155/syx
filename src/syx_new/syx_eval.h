@@ -484,12 +484,10 @@ Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value) {
             case SYX_PRIMITIVE_TYPE_KIND_I16: return syx_value_bool(*(int16_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_I32: return syx_value_bool(*(int32_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_I64: return syx_value_bool(*(int64_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_I128: return syx_value_bool(*(__int128_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U8: return syx_value_bool(*(uint8_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U16: return syx_value_bool(*(uint16_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U32: return syx_value_bool(*(uint32_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U64: return syx_value_bool(*(uint64_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_U128: return syx_value_bool(*(__uint128_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_INT: return syx_value_bool(*(int *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_LONG: return syx_value_bool(*(long *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_LLONG: return syx_value_bool(*(long long *)native->data);
@@ -537,12 +535,10 @@ Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value) {
             case SYX_PRIMITIVE_TYPE_KIND_I16: return make_syx_value_number_integer(*(int16_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_I32: return make_syx_value_number_integer(*(int32_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_I64: return make_syx_value_number_integer(*(int64_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_I128: return make_syx_value_number_integer(*(__int128_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U8: return make_syx_value_number_integer(*(uint8_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U16: return make_syx_value_number_integer(*(uint16_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U32: return make_syx_value_number_integer(*(uint32_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U64: return make_syx_value_number_integer(*(uint64_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_U128: return make_syx_value_number_integer(*(__uint128_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_INT: return make_syx_value_number_integer(*(int *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_LONG: return make_syx_value_number_integer(*(long *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_LLONG: return make_syx_value_number_integer(*(long long *)native->data);

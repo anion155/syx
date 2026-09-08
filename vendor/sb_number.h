@@ -47,17 +47,17 @@ size_t sb__append_unsigned_integer(String_Builder *sb, uintmax_t value, size_t m
       ? sb__append_signed_integer((sb), _value_, max_width, minimum) \
       : sb__append_unsigned_integer((sb), _value_, max_width);       \
 })
-static inline size_t sb_append_integer_char(String_Builder *sb, char value) { return sb_append_integer(sb, value); }
-static inline size_t sb_append_integer_signed_char(String_Builder *sb, signed char value) { return sb_append_integer(sb, value); }
-static inline size_t sb_append_integer_short(String_Builder *sb, short value) { return sb_append_integer(sb, value); }
-static inline size_t sb_append_integer_int(String_Builder *sb, int value) { return sb_append_integer(sb, value); }
-static inline size_t sb_append_integer_long(String_Builder *sb, long value) { return sb_append_integer(sb, value); }
-static inline size_t sb_append_integer_long_long(String_Builder *sb, long long value) { return sb_append_integer(sb, value); }
-static inline size_t sb_append_integer_unsigned_char(String_Builder *sb, unsigned char value) { return sb_append_integer(sb, value); }
-static inline size_t sb_append_integer_unsigned_short(String_Builder *sb, unsigned short value) { return sb_append_integer(sb, value); }
-static inline size_t sb_append_integer_unsigned_int(String_Builder *sb, unsigned int value) { return sb_append_integer(sb, value); }
-static inline size_t sb_append_integer_unsigned_long(String_Builder *sb, unsigned long value) { return sb_append_integer(sb, value); }
-static inline size_t sb_append_integer_unsigned_long_long(String_Builder *sb, unsigned long long value) { return sb_append_integer(sb, value); }
+static inline size_t sb_append_integer_char(String_Builder *sb, char value) { return sb_append_signed_integer(sb, value); }
+static inline size_t sb_append_integer_signed_char(String_Builder *sb, signed char value) { return sb_append_signed_integer(sb, value); }
+static inline size_t sb_append_integer_short(String_Builder *sb, short value) { return sb_append_signed_integer(sb, value); }
+static inline size_t sb_append_integer_int(String_Builder *sb, int value) { return sb_append_signed_integer(sb, value); }
+static inline size_t sb_append_integer_long(String_Builder *sb, long value) { return sb_append_signed_integer(sb, value); }
+static inline size_t sb_append_integer_long_long(String_Builder *sb, long long value) { return sb_append_signed_integer(sb, value); }
+static inline size_t sb_append_integer_unsigned_char(String_Builder *sb, unsigned char value) { return sb_append_unsigned_integer(sb, value); }
+static inline size_t sb_append_integer_unsigned_short(String_Builder *sb, unsigned short value) { return sb_append_unsigned_integer(sb, value); }
+static inline size_t sb_append_integer_unsigned_int(String_Builder *sb, unsigned int value) { return sb_append_unsigned_integer(sb, value); }
+static inline size_t sb_append_integer_unsigned_long(String_Builder *sb, unsigned long value) { return sb_append_unsigned_integer(sb, value); }
+static inline size_t sb_append_integer_unsigned_long_long(String_Builder *sb, unsigned long long value) { return sb_append_unsigned_integer(sb, value); }
 
 size_t sb_append_float(String_Builder *sb, float value);
 size_t sb_append_double(String_Builder *sb, double value);

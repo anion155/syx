@@ -718,19 +718,20 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
   Stringify_State state = make_stringify_state(sb, 256);
   switch (value->kind) {
     case SYX_VALUE_KIND_PAIR: {
+      if (!value->pair) {
+        stringify_append(&state, sb_append_strlit, "#n");
+      }
       stringify_append(&state, sb_append, '(');
-      if (value->pair) {
-        Syx_Pair *pair = value->pair;
+      Syx_Pair *pair = value->pair;
+      stringify_append(&state, sb_append_syx_value, syx_list_next(&pair));
+      Syx_Value *last = NULL;
+      syx_list_for_each(pair, item, &last) {
+        stringify_append(&state, sb_append, ' ');
         stringify_append(&state, sb_append_syx_value, syx_list_next(&pair));
-        Syx_Value *last = NULL;
-        syx_list_for_each(pair, item, &last) {
-          stringify_append(&state, sb_append, ' ');
-          stringify_append(&state, sb_append_syx_value, syx_list_next(&pair));
-        }
-        if (last) {
-          stringify_append(&state, sb_append_strlit, " . ");
-          stringify_append(&state, sb_append_syx_value, last);
-        }
+      }
+      if (last) {
+        stringify_append(&state, sb_append_strlit, " . ");
+        stringify_append(&state, sb_append_syx_value, last);
       }
       stringify_append(&state, sb_append, ')');
     } break;
@@ -761,6 +762,7 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
       TODO("sb_append_syx_value: SYX_VALUE_KIND_OBJECT");
     } break;
     case SYX_VALUE_KIND_CLOSURE: {
+      TODO("sb_append_syx_value: different closures");
       stringify_append(&state, sb_append_strlit, "<fn ");
       if (value->closure->name) stringify_append(&state, sb_append_syx_symbol, value->closure->name);
       stringify_append(&state, sb_append, '>');
@@ -773,8 +775,45 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
       //   }
     } break;
     case SYX_VALUE_KIND_NATIVE: {
-      stringify_append(&state, sb_append_syx_type, value->native->type);
-      // append actual value string representation
+      Syx_Native *native = value->native;
+      stringify_append(&state, sb_append, '(');
+      if (native->type->name) {
+        stringify_append(&state, sb_append_syx_symbol, native->type->name);
+      } else {
+        stringify_append(&state, sb_append_syx_type, native->type);
+      }
+      stringify_append(&state, sb_append, ' ');
+      switch (native->type->kind) {
+        case SYX_TYPE_KIND_PRIMITIVE: {
+          switch (native->type->primitive) {
+            case SYX_PRIMITIVE_TYPE_KIND_VOID: stringify_append(&state, sb_append_strlit, "#n"); break;
+            case SYX_PRIMITIVE_TYPE_KIND_CHAR: stringify_append(&state, sb_append, *(char *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_I8: stringify_append(&state, sb_append_number, *(int8_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_I16: stringify_append(&state, sb_append_number, *(int16_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_I32: stringify_append(&state, sb_append_number, *(int32_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_I64: stringify_append(&state, sb_append_number, *(int64_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_U8: stringify_append(&state, sb_append_number, *(uint8_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_U16: stringify_append(&state, sb_append_number, *(uint16_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_U32: stringify_append(&state, sb_append_number, *(uint32_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_U64: stringify_append(&state, sb_append_number, *(uint64_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_INT: stringify_append(&state, sb_append_number, *(int *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_LONG: stringify_append(&state, sb_append_number, *(long *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_LLONG: stringify_append(&state, sb_append_number, *(long long *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_UINT: stringify_append(&state, sb_append_number, *(unsigned int *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_ULONG: stringify_append(&state, sb_append_number, *(unsigned long *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_ULLONG: stringify_append(&state, sb_append_number, *(unsigned long long *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_FLOAT: stringify_append(&state, sb_append_number, *(float *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_DOUBLE: stringify_append(&state, sb_append_number, *(double *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_SIZE: stringify_append(&state, sb_append_number, *(size_t *)native->data); break;
+          }
+        } break;
+        case SYX_TYPE_KIND_STRUCTURE: TODO("sb_append_syx_value: structure to string");
+        case SYX_TYPE_KIND_PTR:
+        case SYX_TYPE_KIND_FUNCTION_PTR:
+        case SYX_TYPE_KIND_VALUE_PTR:
+          TODO("sb_append_syx_value: pointer to string");
+      }
+      stringify_append(&state, sb_append, ')');
     } break;
     case SYX_VALUE_KIND_EXIT: {
       UNREACHABLE("thrown value can't be converted to string");

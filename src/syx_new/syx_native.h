@@ -35,12 +35,10 @@ Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair
           case SYX_PRIMITIVE_TYPE_KIND_I16: *(int16_t *)data = syx_number_get(converted->number); break;
           case SYX_PRIMITIVE_TYPE_KIND_I32: *(int32_t *)data = syx_number_get(converted->number); break;
           case SYX_PRIMITIVE_TYPE_KIND_I64: *(int64_t *)data = syx_number_get(converted->number); break;
-          case SYX_PRIMITIVE_TYPE_KIND_I128: *(__int128_t *)data = syx_number_get(converted->number); break;
           case SYX_PRIMITIVE_TYPE_KIND_U8: *(uint8_t *)data = syx_number_get(converted->number); break;
           case SYX_PRIMITIVE_TYPE_KIND_U16: *(uint16_t *)data = syx_number_get(converted->number); break;
           case SYX_PRIMITIVE_TYPE_KIND_U32: *(uint32_t *)data = syx_number_get(converted->number); break;
           case SYX_PRIMITIVE_TYPE_KIND_U64: *(uint64_t *)data = syx_number_get(converted->number); break;
-          case SYX_PRIMITIVE_TYPE_KIND_U128: *(__uint128_t *)data = syx_number_get(converted->number); break;
           case SYX_PRIMITIVE_TYPE_KIND_INT: *(int *)data = syx_number_get(converted->number); break;
           case SYX_PRIMITIVE_TYPE_KIND_LONG: *(long *)data = syx_number_get(converted->number); break;
           case SYX_PRIMITIVE_TYPE_KIND_LLONG: *(long long *)data = syx_number_get(converted->number); break;
@@ -88,12 +86,10 @@ Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair
                 case SYX_PRIMITIVE_TYPE_KIND_I16: CONVERT(int16_t); break;
                 case SYX_PRIMITIVE_TYPE_KIND_I32: CONVERT(int32_t); break;
                 case SYX_PRIMITIVE_TYPE_KIND_I64: CONVERT(int64_t); break;
-                case SYX_PRIMITIVE_TYPE_KIND_I128: CONVERT(__int128_t); break;
                 case SYX_PRIMITIVE_TYPE_KIND_U8: CONVERT(uint8_t); break;
                 case SYX_PRIMITIVE_TYPE_KIND_U16: CONVERT(uint16_t); break;
                 case SYX_PRIMITIVE_TYPE_KIND_U32: CONVERT(uint32_t); break;
                 case SYX_PRIMITIVE_TYPE_KIND_U64: CONVERT(uint64_t); break;
-                case SYX_PRIMITIVE_TYPE_KIND_U128: CONVERT(__uint128_t); break;
                 case SYX_PRIMITIVE_TYPE_KIND_INT: CONVERT(int); break;
                 case SYX_PRIMITIVE_TYPE_KIND_LONG: CONVERT(long); break;
                 case SYX_PRIMITIVE_TYPE_KIND_LLONG: CONVERT(long long); break;
