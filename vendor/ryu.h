@@ -91,7 +91,7 @@ typedef struct floating_decimal_f128 {
 #endif
 
 // Returns the number of decimal digits in v, which must not contain more than 9 digits.
-static inline uint32_t ryu_decimalLength_float(const uint32_t v) {
+static inline uint32_t ryu_decimalLength_f32(const uint32_t v) {
   // Function precondition: v is not a 10-digit number.
   // (f2s: 9 digits are sufficient for round-tripping.)
   // (d2fixed: We print 9-digit blocks.)
@@ -741,7 +741,7 @@ static const uint64_t RYU_DOUBLE_POW5_SPLIT[RYU_DOUBLE_POW5_TABLE_SIZE][2] = {
 #define RYU_F64_EXPONENT_BITS 11
 #define RYU_F64_BIAS 1023
 
-static inline uint32_t ryu_decimalLength_double(const uint64_t v) {
+static inline uint32_t ryu_decimalLength_f64(const uint64_t v) {
   // This is slightly faster than a loop.
   // The average output length is 16.38 digits, so we check high-to-low.
   // Function precondition: v is not an 18, 19, or 20-digit number.
@@ -1391,8 +1391,7 @@ static inline floating_decimal_f32 ryu_f32_parse(const uint32_t ieeeMantissa, co
 static inline int16_t ryu_pow5bits_16(const int16_t e) {
   assert(e >= 0);
   assert(e <= 26);
-  // For e <= 26, (e * 300) >> 7 perfectly matches ceil(log_2(5^e))
-  return (int16_t)(((e * 300) >> 7) + 1);
+  return (int16_t)(((((uint32_t)e) * 1217359u) >> 19) + 1);
 }
 
 // Returns floor(log_10(2^e)); requires 0 <= e <= 13.
@@ -1415,7 +1414,7 @@ static inline uint8_t ryu_log10Pow5_16(const uint8_t e) {
 }
 
 #define RYU_F16_POW5_INV_BITCOUNT 16
-#define RYU_F16_POW5_BITCOUNT 16
+#define RYU_F16_POW5_BITCOUNT 32
 
 static const uint16_t RYU_F16_POW5_INV_SPLIT[4] = {
     0x0000, // q=0 is handled as a 1u << 16 multiplication
@@ -1448,13 +1447,13 @@ static inline bool ryu_multipleOfPowerOf5_16(const uint16_t value, const uint8_t
   return (value % POW5[p - 1]) == 0;
 }
 
-// Precomputed 16-bit table storing floor(5^i / 2^(ceil(log2(5^i)) - 16)) for i in [0, 26]
-// This normalizes 5^i into a 16-bit fixed-point mantissa scaled to fit standard registers.
-static const uint16_t RYU_F16_POW5_SPLIT[27] = {
-    0x8000, 0xA000, 0xC800, 0xFA00, 0x9C40, 0xC350, 0xF424, 0x9896,
-    0xBEBC, 0xEE6B, 0x9502, 0xBA43, 0xE8D4, 0x9184, 0xB5E5, 0xE35E,
-    0x8E1B, 0xB1A2, 0xDE0B, 0x8AC7, 0xAD78, 0xD8D7, 0x8786, 0xA968,
-    0xD3C2, 0x8459, 0xA56F};
+// Precomputed 32-bit table for ceil(2^k * 5^i) giving 32 bits of precision for 5^i
+static const uint32_t RYU_F16_POW5_SPLIT[27] = {
+    0x80000000u, 0xA0000000u, 0xC8000000u, 0xFA000000u, 0x9C400000u, 0xC3500000u,
+    0xF4240000u, 0x98968000u, 0xBEBC2000u, 0xEE6B2800u, 0x9502F900u, 0xBA43B740u,
+    0xE8D4A510u, 0x9184E72Au, 0xB5E620F4u, 0xE35DA931u, 0x8E1BC9BFu, 0xB1A2BC2Fu,
+    0xDE0B6B3Au, 0x8AC72305u, 0xAD78EBCEu, 0xD8D726C1u, 0x87867839u, 0xA9681647u,
+    0xD3C21BD9u, 0x84595167u, 0xA56FA5C1u};
 
 /**
  * Multiplies a 16-bit mantissa 'm' by 5^i and shifts right by 'j'.
@@ -1463,8 +1462,8 @@ static const uint16_t RYU_F16_POW5_SPLIT[27] = {
 static inline uint16_t ryu_mulPow5divPow2_16(const uint16_t m, const uint32_t i, const int32_t j) {
   assert(i <= 26);
   assert(j >= 0);
-  // 16-bit x 16-bit -> 32-bit product, then shift right by j
-  uint32_t bits = (uint32_t)m * RYU_F16_POW5_SPLIT[i];
+  // 16-bit x 32-bit -> 48-bit product inside 64-bit uint64_t, shifted right by j
+  uint64_t bits = (uint64_t)m * RYU_F16_POW5_SPLIT[i];
   return (uint16_t)(bits >> j);
 }
 
@@ -1497,6 +1496,26 @@ static inline bool ryu_multipleOfPowerOf2_16(const uint16_t value, const uint8_t
 #define RYU_F16_MANTISSA_BITS 10
 #define RYU_F16_EXPONENT_BITS 5
 #define RYU_F16_BIAS 15
+
+// Returns the number of decimal digits in v, which must not contain more than 5 digits.
+static inline uint16_t ryu_decimalLength_f16(const uint32_t v) {
+  // Function precondition: v is not a 5-digit number.
+  // (h2s: 5 digits are sufficient for round-tripping.)
+  assert(v < 100000);
+  if (v >= 10000) {
+    return 5;
+  }
+  if (v >= 1000) {
+    return 4;
+  }
+  if (v >= 100) {
+    return 3;
+  }
+  if (v >= 10) {
+    return 2;
+  }
+  return 1;
+}
 
 static inline floating_decimal_f16 ryu_f16_parse(const uint16_t ieeeMantissa, const uint16_t ieeeExponent) {
   int16_t e2;

@@ -51,7 +51,8 @@ static inline size_t sb_append_repeat(String_Builder *sb, char character, size_t
   if (!sb) return count;
   da_reserve(sb, sb->count + count);
   memset(sb->data + sb->count, character, count);
-  return sb->count += count;
+  sb->count += count;
+  return count;
 }
 
 #define sb_append_null(sb) sb_append((sb), '\0')
