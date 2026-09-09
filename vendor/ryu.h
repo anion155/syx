@@ -77,6 +77,9 @@ typedef struct floating_decimal_f128 {
 #define RYU_F2S_IMPL
 #define RYU_H2S_INTRINSICS_INCL
 #define RYU_H2S_IMPL
+#define RYU_DE2S_IMPL
+#define RYU_DP2S_IMPL
+#define RYU_Q2S_IMPL
 #endif // RYU_IMPL_C
 
 #if defined(RYU_COMMON_INCL) && !defined(RYU_COMMON_H)
@@ -1384,6 +1387,8 @@ static inline floating_decimal_f32 ryu_f32_parse(const uint32_t ieeeMantissa, co
 
 #endif // RYU_F2S_IMPL_C
 
+// Everything after this line is 100% AI generated code based on original Ryu implementation
+
 #if defined(RYU_H2S_INTRINSICS_INCL) && !defined(RYU_H2S_INTRINSICS_H)
 #define RYU_H2S_INTRINSICS_H
 
@@ -1677,3 +1682,18 @@ static inline floating_decimal_f16 ryu_f16_parse(const uint16_t ieeeMantissa, co
 }
 
 #endif // RYU_H2S_IMPL_C
+
+#if defined(RYU_DE2S_IMPL) && !defined(RYU_DE2S_IMPL_C)
+#define RYU_DE2S_IMPL_C
+
+#endif // RYU_DE2S_IMPL_C
+
+#if defined(RYU_DP2S_IMPL) && !defined(RYU_DP2S_IMPL_C)
+#define RYU_DP2S_IMPL_C
+
+#endif // RYU_DP2S_IMPL_C
+
+#if defined(RYU_Q2S_IMPL) && !defined(RYU_Q2S_IMPL_C)
+#define RYU_Q2S_IMPL_C
+
+#endif // RYU_Q2S_IMPL_C

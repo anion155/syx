@@ -52,6 +52,7 @@ size_t sb_append_integer_u128_fmt(String_Builder *sb, __uint128_t value, Sb_Inte
 
 typedef enum Sb_Floating_Format_Kind {
   SB_FLOATING_FORMAT_KIND_DECIMAL = 0,
+  SB_FLOATING_FORMAT_KIND_FIXED,
   SB_FLOATING_FORMAT_KIND_HEX,
   SB_FLOATING_FORMAT_KIND_HEX_BIG,
 } Sb_Floating_Format_Kind;
@@ -59,16 +60,100 @@ typedef enum Sb_Floating_Format_Kind {
 typedef struct Sb_Floating_Format {
   Sb_Floating_Format_Kind kind;
   size_t min_width;
+  size_t precision;
 } Sb_Floating_Format;
+
+#define LD_KIND_F64 0
+#define LD_KIND_F80 1
+#define LD_KIND_F128 2
+#define LD_KIND_F64PAIR 2
+
+#if defined(_MSC_VER) || defined(_WIN32)
+#  define LD_KIND LD_KIND_F64
+#elif defined(__APPLE__) && (defined(__arm64__) || defined(__aarch64__))
+#  define LD_KIND LD_KIND_F64
+#elif defined(__ppc64__) || defined(__PPC64__) || defined(_ARCH_PPC)
+#  if defined(__LONG_DOUBLE_128__) && !defined(__IEEE_FLOAT__)
+#    define LD_KIND LD_KIND_F64PAIR
+#  elif defined(__IEEE_FLOAT__)
+#    define LD_KIND LD_KIND_F128
+#  else
+#    error "Unsupported or unknown long double architecture."
+#  endif
+#elif defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
+#  define LD_KIND LD_KIND_F80
+#elif defined(__aarch64__) || defined(__riscv) || defined(__sparc__)
+#  define LD_KIND LD_KIND_F128
+#elif LDBL_MANT_DIG == 53
+#  define LD_KIND LD_KIND_F64
+#elif LDBL_MANT_DIG == 64
+#  define LD_KIND LD_KIND_F80
+#elif LDBL_MANT_DIG == 113
+#  define LD_KIND LD_KIND_F128
+#elif LDBL_MANT_DIG == 106
+#  define LD_KIND LD_KIND_F64PAIR
+#else
+#  error "Unsupported or unknown long double architecture."
+#endif
+
+#pragma pack(push, 1)
+typedef struct f80_canonical_t {
+  uint64_t mantissa;      /* 64-bit significand (includes explicit integer bit 63) */
+  uint16_t exponent_sign; /* Bit 15: Sign, Bits 0-14: Biased Exponent (bias = 16383) */
+} f80_canonical_t;
+typedef struct f128_canonical_t {
+  __uint128_t bits;
+} f128_canonical_t;
+typedef union f64pair_canonical_t {
+  struct {
+    double head;
+    double tail;
+  };
+  __uint128_t bits;
+} f64pair_canonical_t;
+#pragma pack(pop)
+_Static_assert(sizeof(f80_canonical_t) == 10, "Canonical f80 struct must be 10 bytes");
+_Static_assert(sizeof(f128_canonical_t) == 16, "Canonical f128 struct must be 16 bytes");
+_Static_assert(sizeof(f64pair_canonical_t) == 16, "Canonical f64pair struct must be 16 bytes");
+
+#if LD_KIND == LD_KIND_F64
+#  define f80_t f80_canonical_t
+#  define f128_t f128_canonical_t
+#  define f64pair_t f64pair_canonical_t
+#elif LD_KIND == LD_KIND_F80
+#  define f80_t long double
+#  define f128_t f128_canonical_t
+#  define f64pair_t f64pair_canonical_t
+#elif LD_KIND == LD_KIND_F128
+#  define f80_t f80_canonical_t
+#  define f128_t long double
+#  define f64pair_t f64pair_canonical_t
+#elif LD_KIND == LD_KIND_F64PAIR
+#  define f80_t f80_canonical_t
+#  define f128_t f128_canonical_t
+#  define f64pair_t long double
+#else
+#  error "Unsupported or unknown long double architecture."
+#endif
 
 size_t sb_append_floating_f16_fmt(String_Builder *sb, _Float16 value, Sb_Floating_Format fmt);
 size_t sb_append_floating_f32_fmt(String_Builder *sb, float value, Sb_Floating_Format fmt);
 size_t sb_append_floating_f64_fmt(String_Builder *sb, double value, Sb_Floating_Format fmt);
-size_t sb_append_floating_f128_fmt(String_Builder *sb, long double value, Sb_Floating_Format fmt);
+size_t sb_append_floating_f80_fmt(String_Builder *sb, f80_t value, Sb_Floating_Format fmt);
+size_t sb_append_floating_f128_fmt(String_Builder *sb, f128_t value, Sb_Floating_Format fmt);
+size_t sb_append_floating_f64pair_fmt(String_Builder *sb, f64pair_t value, Sb_Floating_Format fmt);
+size_t sb_append_floating_f80_canonical_fmt(String_Builder *sb, f80_canonical_t value, Sb_Floating_Format fmt);
+size_t sb_append_floating_f128_canonical_fmt(String_Builder *sb, f128_canonical_t value, Sb_Floating_Format fmt);
+size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_canonical_t value, Sb_Floating_Format fmt);
 #define sb_append_floating_f16(sb, value, ...) sb_append_floating_f16_fmt((sb), (value), ((Sb_Floating_Format){__VA_ARGS__}))
 #define sb_append_floating_f32(sb, value, ...) sb_append_floating_f32_fmt((sb), (value), ((Sb_Floating_Format){__VA_ARGS__}))
 #define sb_append_floating_f64(sb, value, ...) sb_append_floating_f64_fmt((sb), (value), ((Sb_Floating_Format){__VA_ARGS__}))
+#define sb_append_floating_f80(sb, value, ...) sb_append_floating_f80_fmt((sb), (value), ((Sb_Floating_Format){__VA_ARGS__}))
 #define sb_append_floating_f128(sb, value, ...) sb_append_floating_f128_fmt((sb), (value), ((Sb_Floating_Format){__VA_ARGS__}))
+#define sb_append_floating_f64pair(sb, value, ...) sb_append_floating_f64pair_fmt((sb), (value), ((Sb_Floating_Format){__VA_ARGS__}))
+#define sb_append_floating_f80_canonical(sb, value, ...) sb_append_floating_f80_canonical_fmt((sb), (value), ((Sb_Floating_Format){__VA_ARGS__}))
+#define sb_append_floating_f128_canonical(sb, value, ...) sb_append_floating_f128_canonical_fmt((sb), (value), ((Sb_Floating_Format){__VA_ARGS__}))
+#define sb_append_floating_f64pair_canonical(sb, value, ...) sb_append_floating_f64pair_canonical_fmt((sb), (value), ((Sb_Floating_Format){__VA_ARGS__}))
 
 #if CHAR_MIN < 0
 #  define SB_APPEND_NUMBER_FN_CHAR_CASE char : sb_append_integer_i8_fmt
@@ -172,75 +257,112 @@ size_t sb_append_floating_f128_fmt(String_Builder *sb, long double value, Sb_Flo
 #define SB_APPEND_NUMBER_FN_FIXED_FLOATS_CASE SB_APPEND_NUMBER_FN_F16_CASE SB_APPEND_NUMBER_FN_F32_CASE SB_APPEND_NUMBER_FN_F64_CASE SB_APPEND_NUMBER_FN_F128_CASE
 #define SB_APPEND_NUMBER_FMT_FIXED_FLOATS_CASE(...) SB_APPEND_NUMBER_FMT_F16_CASE(__VA_ARGS__) SB_APPEND_NUMBER_FMT_F32_CASE(__VA_ARGS__) SB_APPEND_NUMBER_FMT_F64_CASE(__VA_ARGS__) SB_APPEND_NUMBER_FMT_F128_CASE(__VA_ARGS__)
 
+#if LD_KIND == LD_KIND_F64
+#  define SB_APPEND_NUMBER_FN_LDOUBLE_CASE long double : sb_append_floating_f64_fmt
+#  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE(...) long double : ((Sb_Floating_Format){__VA_ARGS__})
+#elif LD_KIND == LD_KIND_F80
+#  define SB_APPEND_NUMBER_FN_LDOUBLE_CASE \
+  f80_canonical_t:                         \
+    sb_append_floating_f80_canonical_fmt
+#  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE(...) \
+  f80_canonical_t:                               \
+    ((Sb_Floating_Format){__VA_ARGS__})
+#elif LD_KIND == LD_KIND_F128
+#  define SB_APPEND_NUMBER_FN_LDOUBLE_CASE \
+  f128_canonical_t:                        \
+    sb_append_floating_f128_canonical_fmt
+#  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE(...) \
+  f128_canonical_t:                              \
+    ((Sb_Floating_Format){__VA_ARGS__})
+#elif LD_KIND == LD_KIND_F64PAIR
+#  define SB_APPEND_NUMBER_FN_LDOUBLE_CASE \
+  f64pair_canonical_t:                     \
+    sb_append_floating_f64pair_canonical_fmt
+#  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE(...) \
+  f64pair_canonical_t:                           \
+    ((Sb_Floating_Format){__VA_ARGS__})
+#else
+#  error "Unsupported or unknown long double architecture."
+#endif
+
 // clang-format off
 #define sb_append_signed_integer_fmt(sb, value, fmt) _Generic((value), \
-  signed char: sb_append_integer_i8_fmt,                     \
-  SB_APPEND_NUMBER_FN_SSHORT_CASE,                           \
-  SB_APPEND_NUMBER_FN_SINT_CASE,                             \
-  SB_APPEND_NUMBER_FN_SLONG_CASE,                            \
-  SB_APPEND_NUMBER_FN_SLLONG_CASE                            \
-  SB_APPEND_NUMBER_FN_SCHAR_CASE                             \
+  signed char: sb_append_integer_i8_fmt,                               \
+  SB_APPEND_NUMBER_FN_SSHORT_CASE,                                     \
+  SB_APPEND_NUMBER_FN_SINT_CASE,                                       \
+  SB_APPEND_NUMBER_FN_SLONG_CASE,                                      \
+  SB_APPEND_NUMBER_FN_SLLONG_CASE                                      \
+  SB_APPEND_NUMBER_FN_SCHAR_CASE                                       \
   SB_APPEND_NUMBER_FN_SI128_CASE)((sb), (value), (fmt))
 #define sb_append_signed_integer(sb, value, ...) sb_append_signed_integer_fmt(sb, value, ((Sb_Integer_Format){__VA_ARGS__}))
 
 #define sb_append_unsigned_integer_fmt(sb, value, fmt) _Generic((value), \
-  unsigned char: sb_append_integer_u8_fmt,                   \
-  SB_APPEND_NUMBER_FN_USHORT_CASE,                           \
-  SB_APPEND_NUMBER_FN_UINT_CASE,                             \
-  SB_APPEND_NUMBER_FN_ULONG_CASE,                            \
-  SB_APPEND_NUMBER_FN_ULLONG_CASE                            \
-  SB_APPEND_NUMBER_FN_UCHAR_CASE                             \
+  unsigned char: sb_append_integer_u8_fmt,                               \
+  SB_APPEND_NUMBER_FN_USHORT_CASE,                                       \
+  SB_APPEND_NUMBER_FN_UINT_CASE,                                         \
+  SB_APPEND_NUMBER_FN_ULONG_CASE,                                        \
+  SB_APPEND_NUMBER_FN_ULLONG_CASE                                        \
+  SB_APPEND_NUMBER_FN_UCHAR_CASE                                         \
   SB_APPEND_NUMBER_FN_UI128_CASE)((sb), (value), (fmt))
 #define sb_append_unsigned_integer(sb, value, ...) sb_append_unsigned_integer_fmt(sb, value, ((Sb_Integer_Format){__VA_ARGS__}))
 
 #define sb_append_integer_fmt(sb, value, fmt) _Generic((value), \
-  SB_APPEND_NUMBER_FN_CHAR_CASE,                            \
-  signed char: sb_append_integer_i8_fmt,                    \
-  unsigned char: sb_append_integer_u8_fmt,                  \
-  SB_APPEND_NUMBER_FN_SHORT_CASE,                           \
-  SB_APPEND_NUMBER_FN_INT_CASE,                             \
-  SB_APPEND_NUMBER_FN_LONG_CASE,                            \
-  SB_APPEND_NUMBER_FN_LLONG_CASE                            \
+  SB_APPEND_NUMBER_FN_CHAR_CASE,                                \
+  signed char: sb_append_integer_i8_fmt,                        \
+  unsigned char: sb_append_integer_u8_fmt,                      \
+  SB_APPEND_NUMBER_FN_SHORT_CASE,                               \
+  SB_APPEND_NUMBER_FN_INT_CASE,                                 \
+  SB_APPEND_NUMBER_FN_LONG_CASE,                                \
+  SB_APPEND_NUMBER_FN_LLONG_CASE                                \
   SB_APPEND_NUMBER_FN_I128_CASE)((sb), (value), (fmt))
 #define sb_append_integer(sb, value, ...) sb_append_integer_fmt(sb, value, ((Sb_Integer_Format){__VA_ARGS__}))
 
 #define sb_append_floating_fmt(sb, value, fmt) _Generic((value), \
-  float: sb_append_floating_f32_fmt,                         \
-  double: sb_append_floating_f64_fmt,                        \
-  long double: sb_append_floating_f128_fmt                   \
+  float: sb_append_floating_f32_fmt,                             \
+  double: sb_append_floating_f64_fmt,                            \
+  SB_APPEND_NUMBER_FN_LDOUBLE_CASE,                              \
+  f80_t: sb_append_floating_f80_fmt,                             \
+  f128_t: sb_append_floating_f128_fmt,                           \
+  f64pair_t: sb_append_floating_f64pair_fmt                      \
   SB_APPEND_NUMBER_FN_FIXED_FLOATS_CASE)((sb), (value), (fmt))
 #define sb_append_floating(sb, value, ...) sb_append_floating_fmt(sb, value, ((Sb_Floating_Format){__VA_ARGS__}))
 
 #define sb_append_number_fmt(sb, value, fmt) _Generic((value), \
-  SB_APPEND_NUMBER_FN_CHAR_CASE,                           \
-  signed char: sb_append_integer_i8_fmt,                   \
-  unsigned char: sb_append_integer_u8_fmt,                 \
-  SB_APPEND_NUMBER_FN_SHORT_CASE,                          \
-  SB_APPEND_NUMBER_FN_INT_CASE,                            \
-  SB_APPEND_NUMBER_FN_LONG_CASE,                           \
-  SB_APPEND_NUMBER_FN_LLONG_CASE,                          \
-  float: sb_append_floating_f32_fmt,                       \
-  double: sb_append_floating_f64_fmt,                      \
-  long double: sb_append_floating_f128_fmt                 \
-  SB_APPEND_NUMBER_FN_I128_CASE                            \
+  SB_APPEND_NUMBER_FN_CHAR_CASE,                               \
+  signed char: sb_append_integer_i8_fmt,                       \
+  unsigned char: sb_append_integer_u8_fmt,                     \
+  SB_APPEND_NUMBER_FN_SHORT_CASE,                              \
+  SB_APPEND_NUMBER_FN_INT_CASE,                                \
+  SB_APPEND_NUMBER_FN_LONG_CASE,                               \
+  SB_APPEND_NUMBER_FN_LLONG_CASE,                              \
+  float: sb_append_floating_f32_fmt,                           \
+  double: sb_append_floating_f64_fmt,                          \
+  SB_APPEND_NUMBER_FN_LDOUBLE_CASE,                            \
+  f80_t: sb_append_floating_f80_fmt,                           \
+  f128_t: sb_append_floating_f128_fmt,                         \
+  f64pair_t: sb_append_floating_f64pair_fmt                    \
+  SB_APPEND_NUMBER_FN_I128_CASE                                \
   SB_APPEND_NUMBER_FN_FIXED_FLOATS_CASE)((sb), (value), (fmt))
 #define sb_append_number(sb, value, ...) sb_append_number_fmt(sb, value, _Generic((value), \
-    char: ((Sb_Integer_Format){__VA_ARGS__}),               \
-    signed char: ((Sb_Integer_Format){__VA_ARGS__}),        \
-    unsigned char: ((Sb_Integer_Format){__VA_ARGS__}),      \
-    signed short: ((Sb_Integer_Format){__VA_ARGS__}),       \
-    unsigned short: ((Sb_Integer_Format){__VA_ARGS__}),     \
-    signed int: ((Sb_Integer_Format){__VA_ARGS__}),         \
-    unsigned int: ((Sb_Integer_Format){__VA_ARGS__}),       \
-    signed long: ((Sb_Integer_Format){__VA_ARGS__}),        \
-    unsigned long: ((Sb_Integer_Format){__VA_ARGS__}),      \
-    signed long long: ((Sb_Integer_Format){__VA_ARGS__}),   \
-    unsigned long long: ((Sb_Integer_Format){__VA_ARGS__}), \
-    float: ((Sb_Floating_Format){__VA_ARGS__}),             \
-    double: ((Sb_Floating_Format){__VA_ARGS__}),            \
-    long double: ((Sb_Floating_Format){__VA_ARGS__})        \
-    SB_APPEND_NUMBER_FMT_FIXED_FLOATS_CASE(__VA_ARGS__)   \
-    SB_APPEND_NUMBER_FMT_I128_CASE(__VA_ARGS__)           \
+    char: ((Sb_Integer_Format){__VA_ARGS__}),                                              \
+    signed char: ((Sb_Integer_Format){__VA_ARGS__}),                                       \
+    unsigned char: ((Sb_Integer_Format){__VA_ARGS__}),                                     \
+    signed short: ((Sb_Integer_Format){__VA_ARGS__}),                                      \
+    unsigned short: ((Sb_Integer_Format){__VA_ARGS__}),                                    \
+    signed int: ((Sb_Integer_Format){__VA_ARGS__}),                                        \
+    unsigned int: ((Sb_Integer_Format){__VA_ARGS__}),                                      \
+    signed long: ((Sb_Integer_Format){__VA_ARGS__}),                                       \
+    unsigned long: ((Sb_Integer_Format){__VA_ARGS__}),                                     \
+    signed long long: ((Sb_Integer_Format){__VA_ARGS__}),                                  \
+    unsigned long long: ((Sb_Integer_Format){__VA_ARGS__}),                                \
+    float: ((Sb_Floating_Format){__VA_ARGS__}),                                            \
+    double: ((Sb_Floating_Format){__VA_ARGS__}),                                           \
+    SB_APPEND_NUMBER_FMT_LDOUBLE_CASE(__VA_ARGS__),                                        \
+    f80_t: ((Sb_Floating_Format){__VA_ARGS__}),                                            \
+    f128_t: ((Sb_Floating_Format){__VA_ARGS__}),                                           \
+    f64pair_t: ((Sb_Floating_Format){__VA_ARGS__})                                         \
+    SB_APPEND_NUMBER_FMT_FIXED_FLOATS_CASE(__VA_ARGS__)                                    \
+    SB_APPEND_NUMBER_FMT_I128_CASE(__VA_ARGS__)                                            \
   ))
 // clang-format on
 
@@ -493,26 +615,28 @@ void sb___floating_format_width(Stringify_State *state, Sb_Floating_Format *fmt,
   (void)0;                                                                         \
 })
 
-#define sb___ryu_floating_to_decimal_chars(state, f, binary_width) ({                       \
-  floating_decimal_f##binary_width v = ryu_f##binary_width##_parse(f.mantissa, f.exponent); \
-  if (!v.exponent) {                                                                        \
-    stringify_append(&state, sb_append_unsigned_integer, v.mantissa);                       \
-  } else if (v.exponent < 0) {                                                              \
-    size_t exponent = -v.exponent;                                                          \
-    size_t count = ryu_decimalLength_f##binary_width(v.mantissa);                           \
-    if (exponent >= count) stringify_append(&state, sb_append, '0');                        \
-    stringify_append(&state, sb_append_unsigned_integer, v.mantissa);                       \
-    stringify_append(&state, sb_append, '.');                                               \
-    if (state.sb) {                                                                         \
-      char *start = state.sb->data + state.sb->count - exponent - 1;                        \
-      memmove(start + 1, start, exponent);                                                  \
-      *start = '.';                                                                         \
-    }                                                                                       \
-  } else {                                                                                  \
-    stringify_append(&state, sb_append_unsigned_integer, v.mantissa);                       \
-    stringify_append(&state, sb_append_repeat, '0', v.exponent);                            \
-  }                                                                                         \
-  (void)0;                                                                                  \
+#define sb___ryu_floating_to_decimal_chars(state, f, binary_width) ({                             \
+  floating_decimal_f##binary_width v = ryu_f##binary_width##_parse(f.mantissa, f.exponent);       \
+  if (!v.exponent) {                                                                              \
+    stringify_append(&state, sb_append_unsigned_integer, v.mantissa);                             \
+    stringify_append(&state, sb_append_strlit, ".0");                                             \
+  } else if (v.exponent < 0) {                                                                    \
+    size_t exponent = -v.exponent;                                                                \
+    size_t count = ryu_decimalLength_f##binary_width(v.mantissa);                                 \
+    if (exponent >= count) stringify_append(&state, sb_append_repeat, '0', exponent - count + 1); \
+    stringify_append(&state, sb_append_unsigned_integer, v.mantissa);                             \
+    stringify_append(&state, sb_append, '.');                                                     \
+    if (state.sb) {                                                                               \
+      char *start = state.sb->data + state.sb->count - exponent - 1;                              \
+      memmove(start + 1, start, exponent);                                                        \
+      *start = '.';                                                                               \
+    }                                                                                             \
+  } else {                                                                                        \
+    stringify_append(&state, sb_append_unsigned_integer, v.mantissa);                             \
+    stringify_append(&state, sb_append_repeat, '0', v.exponent);                                  \
+    stringify_append(&state, sb_append_strlit, ".0");                                             \
+  }                                                                                               \
+  (void)0;                                                                                        \
 })
 
 #define sb___ryu_floating_to_hex_chars(state, f, binary_width, fmt_kind, fmt_min_width) ({                                                                           \
@@ -537,6 +661,7 @@ void sb___floating_format_width(Stringify_State *state, Sb_Floating_Format *fmt,
   sb___floating_detect_special(state, f, fmt, binary_width, number_start);                                                       \
   switch (fmt.kind) {                                                                                                            \
     case SB_FLOATING_FORMAT_KIND_DECIMAL: sb___ryu_floating_to_decimal_chars(state, f, binary_width); break;                     \
+    case SB_FLOATING_FORMAT_KIND_FIXED: TODO(); break;                                                                           \
     case SB_FLOATING_FORMAT_KIND_HEX: sb___ryu_floating_to_hex_chars(state, f, binary_width, HEX, fmt.min_width); break;         \
     case SB_FLOATING_FORMAT_KIND_HEX_BIG: sb___ryu_floating_to_hex_chars(state, f, binary_width, HEX_BIG, fmt.min_width); break; \
   }                                                                                                                              \
@@ -547,10 +672,50 @@ void sb___floating_format_width(Stringify_State *state, Sb_Floating_Format *fmt,
 size_t sb_append_floating_f16_fmt(String_Builder *sb, _Float16 value, Sb_Floating_Format fmt) { return sb___append_ryu_floating(sb, value, fmt, 16, 8); }
 size_t sb_append_floating_f32_fmt(String_Builder *sb, float value, Sb_Floating_Format fmt) { return sb___append_ryu_floating(sb, value, fmt, 32, 16); }
 size_t sb_append_floating_f64_fmt(String_Builder *sb, double value, Sb_Floating_Format fmt) { return sb___append_ryu_floating(sb, value, fmt, 64, 27); }
-// size_t sb_append_floating_f128_fmt(String_Builder *sb, long double value, Sb_Floating_Format fmt) { return sb___append_ryu_floating(sb, value, fmt, 128, 36); }
-size_t sb_append_floating_f128_fmt(String_Builder *sb, long double value, Sb_Floating_Format fmt) {
+size_t sb_append_floating_f80_fmt(String_Builder *sb, f80_t value, Sb_Floating_Format fmt) {
   UNUSED(sb, value, fmt);
   TODO();
+  // return sb___append_ryu_floating(sb, value, fmt, 128, 36);
+}
+size_t sb_append_floating_f128_fmt(String_Builder *sb, f128_t value, Sb_Floating_Format fmt) {
+  UNUSED(sb, value, fmt);
+  TODO();
+  // return sb___append_ryu_floating(sb, value, fmt, 128, 36);
+}
+size_t sb_append_floating_f64pair_fmt(String_Builder *sb, f64pair_t value, Sb_Floating_Format fmt) {
+  UNUSED(sb, value, fmt);
+  TODO();
+  // return sb___append_ryu_floating(sb, value, fmt, 128, 36);
+}
+
+size_t sb_append_floating_f80_canonical_fmt(String_Builder *sb, f80_canonical_t value, Sb_Floating_Format fmt) {
+#if LD_KIND == LD_KIND_F80
+  long double native = 0;
+  memcpy(&native, &value, sizeof(native));
+  return sb_append_floating_f80_fmt(sb, native, fmt);
+#else
+  return sb_append_floating_f80_fmt(sb, value, fmt);
+#endif
+}
+
+size_t sb_append_floating_f128_canonical_fmt(String_Builder *sb, f128_canonical_t value, Sb_Floating_Format fmt) {
+#if LD_KIND == LD_KIND_F128
+  long double native = 0;
+  memcpy(&native, &value, sizeof(native));
+  return sb_append_floating_f128_fmt(sb, native, fmt);
+#else
+  return sb_append_floating_f128_fmt(sb, value, fmt);
+#endif
+}
+
+size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_canonical_t value, Sb_Floating_Format fmt) {
+#if LD_KIND == LD_KIND_F64PAIR
+  long double native = 0;
+  memcpy(&native, &value, sizeof(native));
+  return sb_append_floating_f64pair_fmt(sb, native, fmt);
+#else
+  return sb_append_floating_f64pair_fmt(sb, value, fmt);
+#endif
 }
 
 #undef sb___ryu_floating_to_bits
