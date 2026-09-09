@@ -33,15 +33,25 @@
 
 #include <inttypes.h>
 
-typedef struct floating_decimal_float {
-  uint64_t mantissa;
-  int32_t exponent;
-} floating_decimal_float;
+typedef struct floating_decimal_f16 {
+  uint16_t mantissa;
+  int8_t exponent;
+} floating_decimal_f16;
 
-typedef struct floating_decimal_double {
+typedef struct floating_decimal_f32 {
+  uint32_t mantissa;
+  int16_t exponent;
+} floating_decimal_f32;
+
+typedef struct floating_decimal_f64 {
   uint64_t mantissa;
   int32_t exponent;
-} floating_decimal_double;
+} floating_decimal_f64;
+
+typedef struct floating_decimal_f128 {
+  __uint128_t mantissa;
+  int64_t exponent;
+} floating_decimal_f128;
 
 #endif // RYU_H
 
@@ -65,6 +75,8 @@ typedef struct floating_decimal_double {
 #  define RYU_D2S_FULL_TABLE_INCL
 #endif
 #define RYU_F2S_IMPL
+#define RYU_H2S_INTRINSICS_INCL
+#define RYU_H2S_IMPL
 #endif // RYU_IMPL_C
 
 #if defined(RYU_COMMON_INCL) && !defined(RYU_COMMON_H)
@@ -131,6 +143,14 @@ static inline int32_t ryu_pow5bits(const int32_t e) {
   return (int32_t)(((((uint32_t)e) * 1217359) >> 19) + 1);
 }
 
+// Returns e == 0 ? 1 : ceil(log_2(5^e)); requires 0 <= e <= 26.
+static inline int16_t ryu_pow5bits_16(const int16_t e) {
+  assert(e >= 0);
+  assert(e <= 26);
+  // For e <= 26, (e * 300) >> 7 perfectly matches ceil(log_2(5^e))
+  return (int16_t)(((e * 300) >> 7) + 1);
+}
+
 // Returns e == 0 ? 1 : ceil(log_2(5^e)); requires 0 <= e <= 3528.
 static inline int32_t ryu_ceil_log2pow5(const int32_t e) {
   return ryu_log2pow5(e) + 1;
@@ -144,6 +164,14 @@ static inline uint32_t ryu_log10Pow2(const int32_t e) {
   return (((uint32_t)e) * 78913) >> 18;
 }
 
+// Returns floor(log_10(2^e)); requires 0 <= e <= 13.
+static inline uint8_t ryu_log10Pow2_16(const int16_t e) {
+  assert(e >= 0);
+  assert(e <= 13);
+  // log10(2) ≈ 0.30103. (e * 77) >> 8 matches floor(e * log10(2)) for e in [0, 13].
+  return (uint8_t)(((uint16_t)e * 77) >> 8);
+}
+
 // Returns floor(log_10(5^e)); requires 0 <= e <= 2620.
 static inline uint32_t ryu_log10Pow5(const int32_t e) {
   // The first value this approximation fails for is 5^2621 which is just greater than 10^1832.
@@ -152,15 +180,38 @@ static inline uint32_t ryu_log10Pow5(const int32_t e) {
   return (((uint32_t)e) * 732923) >> 20;
 }
 
-static inline uint32_t ryu_float_to_bits(const float f) {
+// Returns floor(log_10(5^e)); requires 0 <= e <= 26.
+static inline uint8_t ryu_log10Pow5_16(const uint8_t e) {
+  assert(e <= 26);
+
+  // log10(5) ≈ 0.69897.
+  // The fraction 179 / 256 (0.69921875) perfectly matches floor(e * log10(5))
+  // for all e in [0, 26].
+  // Max intermediate product is 26 * 179 = 4654, which easily fits in a uint16_t.
+  return (uint8_t)(((uint16_t)e * 179) >> 8);
+}
+
+static inline uint16_t ryu_f16_to_bits(const _Float16 f) {
+  uint16_t bits = 0;
+  memcpy(&bits, &f, sizeof(_Float16));
+  return bits;
+}
+
+static inline uint32_t ryu_f32_to_bits(const float f) {
   uint32_t bits = 0;
   memcpy(&bits, &f, sizeof(float));
   return bits;
 }
 
-static inline uint64_t ryu_double_to_bits(const double d) {
+static inline uint64_t ryu_f64_to_bits(const double d) {
   uint64_t bits = 0;
   memcpy(&bits, &d, sizeof(double));
+  return bits;
+}
+
+static inline __uint128_t ryu_f128_to_bits(const long double d) {
+  __uint128_t bits = 0;
+  memcpy(&bits, &d, sizeof(long double));
   return bits;
 }
 
@@ -712,11 +763,10 @@ static const uint64_t RYU_DOUBLE_POW5_SPLIT[RYU_DOUBLE_POW5_TABLE_SIZE][2] = {
 #  include <stdio.h>
 #endif
 
-#define RYU_DOUBLE_MANTISSA_STORAGE uint64_t
-#define RYU_DOUBLE_MANTISSA_BASE 1ull
-#define RYU_DOUBLE_MANTISSA_BITS 52
-#define RYU_DOUBLE_EXPONENT_BITS 11
-#define RYU_DOUBLE_BIAS 1023
+#define RYU_F64_MANTISSA_BASE 1ull
+#define RYU_F64_MANTISSA_BITS 52
+#define RYU_F64_EXPONENT_BITS 11
+#define RYU_F64_BIAS 1023
 
 static inline uint32_t ryu_decimalLength_double(const uint64_t v) {
   // This is slightly faster than a loop.
@@ -775,9 +825,9 @@ static inline uint32_t ryu_decimalLength_double(const uint64_t v) {
   return 1;
 }
 
-static inline floating_decimal_double ryu_double_parse(const uint64_t ieeeMantissa, const uint32_t ieeeExponent) {
-  uint64_t m2 = (1ull << RYU_DOUBLE_MANTISSA_BITS) | ieeeMantissa;
-  int32_t e2 = (int32_t)ieeeExponent - RYU_DOUBLE_BIAS - RYU_DOUBLE_MANTISSA_BITS;
+static inline floating_decimal_f64 ryu_f64_parse(const uint64_t ieeeMantissa, const uint32_t ieeeExponent) {
+  uint64_t m2 = (1ull << RYU_F64_MANTISSA_BITS) | ieeeMantissa;
+  int32_t e2 = (int32_t)ieeeExponent - RYU_F64_BIAS - RYU_F64_MANTISSA_BITS;
 
   // f = m2 * 2^e2 >= 2^53 is an integer.
   // Ignore this case for now.
@@ -790,7 +840,7 @@ static inline floating_decimal_double ryu_double_parse(const uint64_t ieeeMantis
                      const uint64_t fraction = m2 & mask;
                      fraction;
                    }) == 0) {
-    floating_decimal_double v = {.mantissa = m2 >> -e2};
+    floating_decimal_f64 v = {.mantissa = m2 >> -e2};
     for (;;) {
       uint64_t q = ryu_div10(v.mantissa);
       uint32_t r = ((uint32_t)v.mantissa) - 10 * ((uint32_t)q);
@@ -803,11 +853,11 @@ static inline floating_decimal_double ryu_double_parse(const uint64_t ieeeMantis
 
   if (ieeeExponent == 0) {
     // We subtract 2 so that the bounds computation has 2 additional bits.
-    e2 = 1 - RYU_DOUBLE_BIAS - RYU_DOUBLE_MANTISSA_BITS - 2;
+    e2 = 1 - RYU_F64_BIAS - RYU_F64_MANTISSA_BITS - 2;
     m2 = ieeeMantissa;
   } else {
-    e2 = (int32_t)ieeeExponent - RYU_DOUBLE_BIAS - RYU_DOUBLE_MANTISSA_BITS - 2;
-    m2 = (1ull << RYU_DOUBLE_MANTISSA_BITS) | ieeeMantissa;
+    e2 = (int32_t)ieeeExponent - RYU_F64_BIAS - RYU_F64_MANTISSA_BITS - 2;
+    m2 = (1ull << RYU_F64_MANTISSA_BITS) | ieeeMantissa;
   }
   const bool even = (m2 & 1) == 0;
   const bool acceptBounds = even;
@@ -1015,7 +1065,7 @@ static inline floating_decimal_double ryu_double_parse(const uint64_t ieeeMantis
   printf("EXP=%d\n", exp);
 #endif
 
-  floating_decimal_double fd;
+  floating_decimal_f64 fd;
   fd.exponent = exp;
   fd.mantissa = output;
   return fd;
@@ -1174,22 +1224,21 @@ static inline uint32_t ryu_mulPow5divPow2(const uint32_t m, const uint32_t i, co
 #  include <stdio.h>
 #endif
 
-#define RYU_FLOAT_MANTISSA_STORAGE uint32_t
-#define RYU_FLOAT_MANTISSA_BASE 1u
-#define RYU_FLOAT_MANTISSA_BITS 23
-#define RYU_FLOAT_EXPONENT_BITS 8
-#define RYU_FLOAT_BIAS 127
+#define RYU_F32_MANTISSA_BASE 1u
+#define RYU_F32_MANTISSA_BITS 23
+#define RYU_F32_EXPONENT_BITS 8
+#define RYU_F32_BIAS 127
 
-static inline floating_decimal_float ryu_float_parse(const uint32_t ieeeMantissa, const uint32_t ieeeExponent) {
+static inline floating_decimal_f32 ryu_f32_parse(const uint32_t ieeeMantissa, const uint32_t ieeeExponent) {
   int32_t e2;
   uint32_t m2;
   if (ieeeExponent == 0) {
     // We subtract 2 so that the bounds computation has 2 additional bits.
-    e2 = 1 - RYU_FLOAT_BIAS - RYU_FLOAT_MANTISSA_BITS - 2;
+    e2 = 1 - RYU_F32_BIAS - RYU_F32_MANTISSA_BITS - 2;
     m2 = ieeeMantissa;
   } else {
-    e2 = (int32_t)ieeeExponent - RYU_FLOAT_BIAS - RYU_FLOAT_MANTISSA_BITS - 2;
-    m2 = (1u << RYU_FLOAT_MANTISSA_BITS) | ieeeMantissa;
+    e2 = (int32_t)ieeeExponent - RYU_F32_BIAS - RYU_F32_MANTISSA_BITS - 2;
+    m2 = (1u << RYU_F32_MANTISSA_BITS) | ieeeMantissa;
   }
   const bool even = (m2 & 1) == 0;
   const bool acceptBounds = even;
@@ -1354,10 +1403,252 @@ static inline floating_decimal_float ryu_float_parse(const uint32_t ieeeMantissa
   printf("EXP=%d\n", exp);
 #endif
 
-  floating_decimal_float fd;
+  floating_decimal_f32 fd;
   fd.exponent = exp;
   fd.mantissa = output;
   return fd;
 }
 
 #endif // RYU_F2S_IMPL_C
+
+#if defined(RYU_H2S_INTRINSICS_INCL) && !defined(RYU_H2S_INTRINSICS_H)
+#define RYU_H2S_INTRINSICS_H
+
+#define RYU_F16_POW5_INV_BITCOUNT 16
+#define RYU_F16_POW5_BITCOUNT 16
+
+static const uint16_t RYU_F16_POW5_INV_SPLIT[4] = {
+    0x0000, // q=0 is handled as a 1u << 16 multiplication
+    0x6667, // q=1
+    0x28F6, // q=2
+    0x1063  // q=3
+};
+
+static inline uint16_t ryu_mulPow5InvDivPow2_16(const uint16_t m, const uint8_t q, const int16_t j) {
+  assert(q <= 3);
+  assert(j >= 0);
+
+  uint32_t mul;
+  if (q == 0) {
+    mul = 1u << RYU_F16_POW5_INV_BITCOUNT; // 1 << 16 = 65536
+  } else {
+    mul = RYU_F16_POW5_INV_SPLIT[q];
+  }
+
+  // 16-bit x 16-bit -> 32-bit product, then right-shift by j
+  uint32_t bits = (uint32_t)m * mul;
+  return (uint16_t)(bits >> j);
+}
+
+static inline bool ryu_multipleOfPowerOf5_16(const uint16_t value, const uint8_t p) {
+  if (p == 0) return true;
+  // Precomputed powers of 5: 5^1=5, 5^2=25, 5^3=125, 5^4=625
+  static const uint16_t POW5[4] = {5, 25, 125, 625};
+  if (p > 4) return false;
+  return (value % POW5[p - 1]) == 0;
+}
+
+// Precomputed 16-bit table storing floor(5^i / 2^(ceil(log2(5^i)) - 16)) for i in [0, 26]
+// This normalizes 5^i into a 16-bit fixed-point mantissa scaled to fit standard registers.
+static const uint16_t RYU_F16_POW5_SPLIT[27] = {
+    0x8000, 0xA000, 0xC800, 0xFA00, 0x9C40, 0xC350, 0xF424, 0x9896,
+    0xBEBC, 0xEE6B, 0x9502, 0xBA43, 0xE8D4, 0x9184, 0xB5E5, 0xE35E,
+    0x8E1B, 0xB1A2, 0xDE0B, 0x8AC7, 0xAD78, 0xD8D7, 0x8786, 0xA968,
+    0xD3C2, 0x8459, 0xA56F};
+
+/**
+ * Multiplies a 16-bit mantissa 'm' by 5^i and shifts right by 'j'.
+ * Computes: (m * 5^i_scaled) >> j using 32-bit intermediate arithmetic.
+ */
+static inline uint16_t ryu_mulPow5divPow2_16(const uint16_t m, const uint32_t i, const int32_t j) {
+  assert(i <= 26);
+  assert(j >= 0);
+  // 16-bit x 16-bit -> 32-bit product, then shift right by j
+  uint32_t bits = (uint32_t)m * RYU_F16_POW5_SPLIT[i];
+  return (uint16_t)(bits >> j);
+}
+
+// Returns true if value is divisible by 2^p for _Float16.
+static inline bool ryu_multipleOfPowerOf2_16(const uint16_t value, const uint8_t p) {
+  assert(value != 0);
+  assert(p < 16);
+  // (1u << p) - 1 generates a bitmask of 'p' ones.
+  // Value is divisible by 2^p iff all lower 'p' bits are zero.
+  return (value & ((1u << p) - 1u)) == 0;
+}
+
+#endif // RYU_H2S_INTRINSICS_H
+
+#if defined(RYU_H2S_IMPL) && !defined(RYU_H2S_IMPL_C)
+#define RYU_H2S_IMPL_C
+
+#include <assert.h>
+#include <limits.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifdef RYU_DEBUG
+#  include <stdio.h>
+#endif
+
+#define RYU_F16_MANTISSA_BASE 1u
+#define RYU_F16_MANTISSA_BITS 10
+#define RYU_F16_EXPONENT_BITS 5
+#define RYU_F16_BIAS 15
+
+static inline floating_decimal_f16 ryu_f16_parse(const uint16_t ieeeMantissa, const uint16_t ieeeExponent) {
+  int16_t e2;
+  uint16_t m2;
+  if (ieeeExponent == 0) {
+    // We subtract 2 so that the bounds computation has 2 additional bits.
+    e2 = 1 - RYU_F16_BIAS - RYU_F16_MANTISSA_BITS - 2;
+    m2 = ieeeMantissa;
+  } else {
+    e2 = (int32_t)ieeeExponent - RYU_F16_BIAS - RYU_F16_MANTISSA_BITS - 2;
+    m2 = (1u << RYU_F16_MANTISSA_BITS) | ieeeMantissa;
+  }
+  const bool even = (m2 & 1) == 0;
+  const bool acceptBounds = even;
+
+#ifdef RYU_DEBUG
+  printf("-> %u * 2^%d\n", m2, e2 + 2);
+#endif
+
+  // Step 2: Determine the interval of valid decimal representations.
+  const uint16_t mv = m2;
+  const uint16_t mp = m2 + 2;
+  const uint16_t mmShift = (ieeeMantissa != 0 || ieeeExponent <= 1) ? 1 : 0;
+  const uint16_t mm = m2 - 1 - mmShift;
+
+  // Step 3: Convert to a decimal power base using 64-bit arithmetic.
+  uint16_t vr, vp, vm;
+  int8_t e10;
+  bool vmIsTrailingZeros = false;
+  bool vrIsTrailingZeros = false;
+  uint8_t lastRemovedDigit = 0;
+
+  if (e2 >= 0) {
+    const uint8_t q = ryu_log10Pow2_16(e2);
+    e10 = (int8_t)q;
+    // Uses 16-bit pow5 inv bitcount
+    const int16_t k = RYU_F16_POW5_INV_BITCOUNT + ryu_pow5bits_16((int16_t)q) - 1;
+    const int16_t i = -e2 + (int16_t)q + k;
+
+    vr = ryu_mulPow5InvDivPow2_16(mv, q, i);
+    vp = ryu_mulPow5InvDivPow2_16(mp, q, i);
+    vm = ryu_mulPow5InvDivPow2_16(mm, q, i);
+
+    if (q != 0 && (vp - 1) / 10 <= vm / 10) {
+      const int16_t l = RYU_F16_POW5_INV_BITCOUNT + ryu_pow5bits_16((int16_t)(q - 1)) - 1;
+      lastRemovedDigit = (uint8_t)(ryu_mulPow5InvDivPow2_16(mv, q - 1, -e2 + (int16_t)q - 1 + l) % 10);
+    }
+
+    if (mv % 5 == 0) {
+      vrIsTrailingZeros = ryu_multipleOfPowerOf5_16(mv, q);
+    } else if (acceptBounds) {
+      vmIsTrailingZeros = ryu_multipleOfPowerOf5_16(mm, q);
+    } else {
+      vp -= ryu_multipleOfPowerOf5_16(mp, q);
+    }
+  } else {
+    const uint8_t q = ryu_log10Pow5_16(-e2);
+    e10 = (int8_t)q + (int8_t)e2;
+    const int16_t i = -e2 - (int16_t)q;
+    // Uses 16-bit pow5 bitcount
+    const int16_t k = ryu_pow5bits_16(i) - RYU_F16_POW5_BITCOUNT;
+    int16_t j = (int16_t)q - k;
+
+    vr = ryu_mulPow5divPow2_16(mv, (uint16_t)i, j);
+    vp = ryu_mulPow5divPow2_16(mp, (uint16_t)i, j);
+    vm = ryu_mulPow5divPow2_16(mm, (uint16_t)i, j);
+
+    if (q != 0 && (vp - 1) / 10 <= vm / 10) {
+      j = (int16_t)q - 1 - (ryu_pow5bits_16(i + 1) - RYU_F16_POW5_BITCOUNT);
+      lastRemovedDigit = (uint8_t)(ryu_mulPow5divPow2_16(mv, (uint16_t)(i + 1), j) % 10);
+    }
+
+    if (q <= 1) {
+      vrIsTrailingZeros = (q == 0) || ((mv & 1) == 0);
+      if (acceptBounds) {
+        vmIsTrailingZeros = (q == 0) || (mmShift == 1);
+      } else {
+        if ((mp & 1) == 0) {
+          --vp;
+        }
+      }
+    } else if (q < 18) {
+      vrIsTrailingZeros = ryu_multipleOfPowerOf2_16(mv, q - 1);
+    }
+  }
+
+  // Step 4: Find the shortest decimal representation in the interval [vm, vp].
+  int8_t removed = 0;
+  uint16_t output;
+
+  if (vmIsTrailingZeros || vrIsTrailingZeros) {
+    // General case (~4.0% of inputs)
+    while (vp / 10 > vm / 10) {
+#if defined(__clang__) || defined(__GNUC__)
+      vmIsTrailingZeros &= (vm - (vm / 10) * 10) == 0;
+#else
+      vmIsTrailingZeros &= (vm % 10) == 0;
+#endif
+      vrIsTrailingZeros &= (lastRemovedDigit == 0);
+      lastRemovedDigit = (uint8_t)(vr % 10);
+      vr /= 10;
+      vp /= 10;
+      vm /= 10;
+      ++removed;
+    }
+
+    if (vmIsTrailingZeros) {
+      while ((vm % 10) == 0) {
+        vrIsTrailingZeros &= (lastRemovedDigit == 0);
+        lastRemovedDigit = (uint8_t)(vr % 10);
+        vr /= 10;
+        vp /= 10;
+        vm /= 10;
+        ++removed;
+      }
+    }
+
+    if (vrIsTrailingZeros && lastRemovedDigit == 5 && (vr % 2 == 0)) {
+      // Round-to-even when tie-breaking exact .5000...
+      lastRemovedDigit = 4;
+    }
+
+    // Round up if vr hit lower bound invalidly or if digit >= 5
+    const bool roundUp = (vr == vm && (!acceptBounds || !vmIsTrailingZeros)) || (lastRemovedDigit >= 5);
+    output = vr + (roundUp ? 1u : 0u);
+  } else {
+    // Fast path (~96.0% of inputs)
+    // Maximum loop iterations for f16 is 4.
+    while (vp / 10 > vm / 10) {
+      lastRemovedDigit = (uint8_t)(vr % 10);
+      vr /= 10;
+      vp /= 10;
+      vm /= 10;
+      ++removed;
+    }
+
+    // Round up if vr hit lower bound or if digit >= 5
+    const bool roundUp = (vr == vm) || (lastRemovedDigit >= 5);
+    output = vr + (roundUp ? 1u : 0u);
+  }
+  const int16_t exp = (int16_t)e10 + removed;
+
+#ifdef RYU_DEBUG
+  printf("V+=%u\nV =%u\nV-=%u\n", vp, vr, vm);
+  printf("O=%u\n", output);
+  printf("EXP=%d\n", exp);
+#endif
+
+  floating_decimal_f16 fd;
+  fd.exponent = exp;
+  fd.mantissa = output;
+  return fd;
+}
+
+#endif // RYU_H2S_IMPL_C
