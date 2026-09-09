@@ -143,14 +143,6 @@ static inline int32_t ryu_pow5bits(const int32_t e) {
   return (int32_t)(((((uint32_t)e) * 1217359) >> 19) + 1);
 }
 
-// Returns e == 0 ? 1 : ceil(log_2(5^e)); requires 0 <= e <= 26.
-static inline int16_t ryu_pow5bits_16(const int16_t e) {
-  assert(e >= 0);
-  assert(e <= 26);
-  // For e <= 26, (e * 300) >> 7 perfectly matches ceil(log_2(5^e))
-  return (int16_t)(((e * 300) >> 7) + 1);
-}
-
 // Returns e == 0 ? 1 : ceil(log_2(5^e)); requires 0 <= e <= 3528.
 static inline int32_t ryu_ceil_log2pow5(const int32_t e) {
   return ryu_log2pow5(e) + 1;
@@ -164,31 +156,12 @@ static inline uint32_t ryu_log10Pow2(const int32_t e) {
   return (((uint32_t)e) * 78913) >> 18;
 }
 
-// Returns floor(log_10(2^e)); requires 0 <= e <= 13.
-static inline uint8_t ryu_log10Pow2_16(const int16_t e) {
-  assert(e >= 0);
-  assert(e <= 13);
-  // log10(2) ≈ 0.30103. (e * 77) >> 8 matches floor(e * log10(2)) for e in [0, 13].
-  return (uint8_t)(((uint16_t)e * 77) >> 8);
-}
-
 // Returns floor(log_10(5^e)); requires 0 <= e <= 2620.
 static inline uint32_t ryu_log10Pow5(const int32_t e) {
   // The first value this approximation fails for is 5^2621 which is just greater than 10^1832.
   assert(e >= 0);
   assert(e <= 2620);
   return (((uint32_t)e) * 732923) >> 20;
-}
-
-// Returns floor(log_10(5^e)); requires 0 <= e <= 26.
-static inline uint8_t ryu_log10Pow5_16(const uint8_t e) {
-  assert(e <= 26);
-
-  // log10(5) ≈ 0.69897.
-  // The fraction 179 / 256 (0.69921875) perfectly matches floor(e * log10(5))
-  // for all e in [0, 26].
-  // Max intermediate product is 26 * 179 = 4654, which easily fits in a uint16_t.
-  return (uint8_t)(((uint16_t)e * 179) >> 8);
 }
 
 static inline uint16_t ryu_f16_to_bits(const _Float16 f) {
@@ -1414,6 +1387,33 @@ static inline floating_decimal_f32 ryu_f32_parse(const uint32_t ieeeMantissa, co
 #if defined(RYU_H2S_INTRINSICS_INCL) && !defined(RYU_H2S_INTRINSICS_H)
 #define RYU_H2S_INTRINSICS_H
 
+// Returns e == 0 ? 1 : ceil(log_2(5^e)); requires 0 <= e <= 26.
+static inline int16_t ryu_pow5bits_16(const int16_t e) {
+  assert(e >= 0);
+  assert(e <= 26);
+  // For e <= 26, (e * 300) >> 7 perfectly matches ceil(log_2(5^e))
+  return (int16_t)(((e * 300) >> 7) + 1);
+}
+
+// Returns floor(log_10(2^e)); requires 0 <= e <= 13.
+static inline uint8_t ryu_log10Pow2_16(const int16_t e) {
+  assert(e >= 0);
+  assert(e <= 13);
+  // log10(2) ≈ 0.30103. (e * 77) >> 8 matches floor(e * log10(2)) for e in [0, 13].
+  return (uint8_t)(((uint16_t)e * 77) >> 8);
+}
+
+// Returns floor(log_10(5^e)); requires 0 <= e <= 26.
+static inline uint8_t ryu_log10Pow5_16(const uint8_t e) {
+  assert(e <= 26);
+
+  // log10(5) ≈ 0.69897.
+  // The fraction 179 / 256 (0.69921875) perfectly matches floor(e * log10(5))
+  // for all e in [0, 26].
+  // Max intermediate product is 26 * 179 = 4654, which easily fits in a uint16_t.
+  return (uint8_t)(((uint16_t)e * 179) >> 8);
+}
+
 #define RYU_F16_POW5_INV_BITCOUNT 16
 #define RYU_F16_POW5_BITCOUNT 16
 
@@ -1517,10 +1517,14 @@ static inline floating_decimal_f16 ryu_f16_parse(const uint16_t ieeeMantissa, co
 #endif
 
   // Step 2: Determine the interval of valid decimal representations.
-  const uint16_t mv = m2;
-  const uint16_t mp = m2 + 2;
+  // NOTE: e2 was shifted down by 2 above ("2 additional bits"), so the
+  // mantissa must be scaled up by 2^2 = 4 to compensate. Forgetting this
+  // scale factor silently changes the represented value by 4x for every
+  // input -- mv, mp, mm must be computed from 4*m2, not m2.
+  const uint16_t mv = (uint16_t)(4 * m2);
+  const uint16_t mp = (uint16_t)(4 * m2 + 2);
   const uint16_t mmShift = (ieeeMantissa != 0 || ieeeExponent <= 1) ? 1 : 0;
-  const uint16_t mm = m2 - 1 - mmShift;
+  const uint16_t mm = (uint16_t)(4 * m2 - 1 - mmShift);
 
   // Step 3: Convert to a decimal power base using 64-bit arithmetic.
   uint16_t vr, vp, vm;
@@ -1578,7 +1582,9 @@ static inline floating_decimal_f16 ryu_f16_parse(const uint16_t ieeeMantissa, co
           --vp;
         }
       }
-    } else if (q < 18) {
+    } else if (q < 17) {
+      // Bound must stay strictly below ryu_multipleOfPowerOf2_16's
+      // assert(p < 16) contract: p = q - 1, so q must be < 17, not < 18.
       vrIsTrailingZeros = ryu_multipleOfPowerOf2_16(mv, q - 1);
     }
   }
