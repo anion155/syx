@@ -3,9 +3,9 @@
 
 #include <defines.h>
 
-void panicf(const char *file, int line, const char *label, PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(4, 5);
-#define TODO(format, ...) panicf(__FILE__, __LINE__, "TODO", format __VA_OPT__(, ) __VA_ARGS__)
-#define UNREACHABLE(format, ...) panicf(__FILE__, __LINE__, "UNREACHABLE", format __VA_OPT__(, ) __VA_ARGS__)
+[[noreturn]] void panicf(const char *file, int line, const char *label, PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(4, 5);
+#define TODO(...) panicf(__FILE__, __LINE__, "TODO", WITH_DEFAULT("not implemented yet", __VA_ARGS__) EXPAND_WITH_COMMA(REST_ARGS(__VA_ARGS__)))
+#define UNREACHABLE(format, ...) panicf(__FILE__, __LINE__, "UNREACHABLE", WITH_DEFAULT("should never happen", __VA_ARGS__) EXPAND_WITH_COMMA(REST_ARGS(__VA_ARGS__)))
 
 #endif // ABORT_H_
 
