@@ -3,15 +3,23 @@
 #define SB_NUMBER_IMPL
 #include <sb_number.h>
 
+bool print_test_result(const char *test, const char *expected, String actual) {
+  bool passed = strlen(expected) == actual.count && strncmp(actual.data, expected, actual.count) == 0;
+  if (passed) {
+    printf(CLI_BG_GREEN CLI_BOLD CLI_FG_WHITE "[PASS]" CLI_RESET " %-12s => '" SV_FMT "'\n", test, sv_fmt_arg(actual));
+  } else {
+    printf(CLI_BG_RED CLI_BOLD CLI_FG_WHITE "[FAIL]" CLI_RESET " %-12s => Got: '" SV_FMT "' | Expected: '%s'\n", test, sv_fmt_arg(actual), expected);
+  }
+  return passed;
+}
+
 void test_floating_formatting(void) {
-#define VAL(val) val
-#define TEST(val, expected_str) ({                                                                                                                     \
-  String str = stringify(sb_append_floating_f16_fmt, val, (Sb_Floating_Format){0});                                                                    \
-  if (strncmp(str.data, expected_str, str.count) == 0 && strlen(expected_str) == str.count) {                                                          \
-    printf(CLI_BG_GREEN CLI_BOLD CLI_FG_WHITE "[PASS]" CLI_RESET " %-12s => '" SV_FMT "'\n", #val, sv_fmt_arg(str));                                   \
-  } else {                                                                                                                                             \
-    printf(CLI_BG_RED CLI_BOLD CLI_FG_WHITE "[FAIL]" CLI_RESET " %-12s => Got: '" SV_FMT "' | Expected: '%s'\n", #val, sv_fmt_arg(str), expected_str); \
-  }                                                                                                                                                    \
+#define VAL(val) val##L
+#define TEST(val, expected) ({                                               \
+  String actual = stringify(sb_append_floating, val);                        \
+  if (!print_test_result(EXPAND_MACRO(STRINGIFY2, val), expected, actual)) { \
+    printf("printf: '%f'\n", (float)(_Float16)val);                          \
+  }                                                                          \
 })
   printf("=== Starting Stringify Tests ===\n\n");
   // 1. Basic Integers & Zeroes
@@ -22,15 +30,14 @@ void test_floating_formatting(void) {
   TEST(VAL(256.345), "256.345");
   TEST(VAL(0.256), "0.256");
   // 2. IEEE 754 Half-Precision Boundaries
-  TEST(VAL(65504.0), "65504.0");                   // Max positive normal
-  TEST(VAL(-65504.0), "-65504.0");                 // Max negative normal
-  TEST(VAL(0.00006103515625), "0.00006103515625"); // Min positive normal (2^-14)
-  // 3. Subnormals (Denormals)
+  TEST(VAL(65504.0), "65504.0");                                       // Max positive normal
+  TEST(VAL(-65504.0), "-65504.0");                                     // Max negative normal
+  TEST(VAL(0.00006103515625), "0.00006103515625");                     // Min positive normal (2^-14)
   TEST(VAL(0.000000059604644775390625), "0.000000059604644775390625"); // Min positive subnormal (2^-24)
   // 4. Floating Point Rounding & Precision Limits
   TEST(VAL(0.1), "0.1");
   TEST(VAL(0.3), "0.3");
-  TEST((VAL(1.0) / VAL(3.0)), "0.3333333333333333"); // 11-bit mantissa precision truncation
+  TEST((VAL(1.0) / VAL(3.0)), "0.3333"); // 11-bit mantissa precision truncation
   // 5. Special IEEE 754 Values (Inf, -Inf, NaN)
   TEST((VAL(1.0) / VAL(0.0)), "Infinity");
   TEST((VAL(-1.0) / VAL(0.0)), "-Infinity");

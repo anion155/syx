@@ -2,6 +2,7 @@
 #define SB_NUMBER_H
 
 #include <limits.h>
+#include <ryu.h>
 #include <sb.h>
 #include <stdint.h>
 
@@ -95,26 +96,6 @@ typedef struct Sb_Floating_Format {
 #else
 #  error "Unsupported or unknown long double architecture."
 #endif
-
-#pragma pack(push, 1)
-typedef struct f80_canonical_t {
-  uint64_t mantissa;      /* 64-bit significand (includes explicit integer bit 63) */
-  uint16_t exponent_sign; /* Bit 15: Sign, Bits 0-14: Biased Exponent (bias = 16383) */
-} f80_canonical_t;
-typedef struct f128_canonical_t {
-  __uint128_t bits;
-} f128_canonical_t;
-typedef union f64pair_canonical_t {
-  struct {
-    double head;
-    double tail;
-  };
-  __uint128_t bits;
-} f64pair_canonical_t;
-#pragma pack(pop)
-_Static_assert(sizeof(f80_canonical_t) == 10, "Canonical f80 struct must be 10 bytes");
-_Static_assert(sizeof(f128_canonical_t) == 16, "Canonical f128 struct must be 16 bytes");
-_Static_assert(sizeof(f64pair_canonical_t) == 16, "Canonical f64pair struct must be 16 bytes");
 
 #if LD_KIND == LD_KIND_F64
 #  define f80_t f80_canonical_t
@@ -551,37 +532,7 @@ size_t sb_append_integer_u128_fmt(String_Builder *sb, __uint128_t value, Sb_Inte
 #undef sb___stringify_unsigned_integer
 #undef sb___format_padding_unsigned_integer
 
-struct floating_f16 {
-  typeof((struct floating_decimal_f16){0}.mantissa) mantissa;
-  uint32_t exponent;
-  bool sign;
-};
-
-struct floating_f32 {
-  typeof((struct floating_decimal_f32){0}.mantissa) mantissa;
-  uint32_t exponent;
-  bool sign;
-};
-
-struct floating_f64 {
-  typeof((struct floating_decimal_f64){0}.mantissa) mantissa;
-  uint32_t exponent;
-  bool sign;
-};
-
-struct floating_f128 {
-  typeof((struct floating_decimal_f128){0}.mantissa) mantissa;
-  uint32_t exponent;
-  bool sign;
-};
-
-#define sb___ryu_floating_to_bits(value, binary_width) ({                                                                                                             \
-  typeof((struct floating_decimal_f##binary_width){0}.mantissa) bits = ryu_f##binary_width##_to_bits(value);                                                          \
-  bool sign = ((bits >> (RYU_F##binary_width##_MANTISSA_BITS + RYU_F##binary_width##_EXPONENT_BITS)) & 1) != 0;                                                       \
-  typeof((struct floating_decimal_f##binary_width){0}.mantissa) mantissa = bits & ((RYU_F##binary_width##_MANTISSA_BASE << RYU_F##binary_width##_MANTISSA_BITS) - 1); \
-  uint32_t exponent = (bits >> RYU_F##binary_width##_MANTISSA_BITS) & ((1u << RYU_F##binary_width##_EXPONENT_BITS) - 1);                                              \
-  (struct floating_f##binary_width){.mantissa = mantissa, .exponent = exponent, .sign = sign};                                                                        \
-})
+#define sb___mantissa_type(binary_width) typeof((struct floating_decimal_f##binary_width){0}.mantissa)
 
 void sb___floating_format_width(Stringify_State *state, Sb_Floating_Format *fmt, size_t number_start) {
   size_t width = state->count - number_start;
@@ -593,38 +544,39 @@ void sb___floating_format_width(Stringify_State *state, Sb_Floating_Format *fmt,
   memmove(start + unfilled, start, width);
   memset(start, ' ', unfilled);
 }
-#define sb___floating_detect_special(state, f, fmt, binary_width, number_start) ({ \
-  if (f.exponent == ((1u << RYU_F##binary_width##_EXPONENT_BITS) - 1u)) {          \
-    if (f.mantissa) {                                                              \
-      stringify_append(&state, sb_append_strlit, "NaN");                           \
-      sb___floating_format_width(&state, &fmt, number_start);                      \
-      return state.count;                                                          \
-    }                                                                              \
-    if (f.sign) stringify_append(&state, sb_append, '-');                          \
-    stringify_append(&state, sb_append_strlit, "Infinity");                        \
-    sb___floating_format_width(&state, &fmt, number_start);                        \
-    return state.count;                                                            \
-  }                                                                                \
-  if ((f.exponent == 0 && f.mantissa == 0)) {                                      \
-    if (f.sign) stringify_append(&state, sb_append, '-');                          \
-    stringify_append(&state, sb_append_strlit, "0.0");                             \
-    sb___floating_format_width(&state, &fmt, number_start);                        \
-    return state.count;                                                            \
-  }                                                                                \
-  if (f.sign) stringify_append(&state, sb_append, '-');                            \
-  (void)0;                                                                         \
+
+#define sb___floating_detect_special(state, ieee, fmt, type, number_start) ({ \
+  if (ryu_##type##_is_nan(ieee)) {                                            \
+    stringify_append(&state, sb_append_strlit, "NaN");                        \
+    sb___floating_format_width(&state, &fmt, number_start);                   \
+    return state.count;                                                       \
+  }                                                                           \
+  if (ryu_##type##_is_infinity(ieee)) {                                       \
+    if (ieee.sign) stringify_append(&state, sb_append, '-');                  \
+    stringify_append(&state, sb_append_strlit, "Infinity");                   \
+    sb___floating_format_width(&state, &fmt, number_start);                   \
+    return state.count;                                                       \
+  }                                                                           \
+  if (ryu_##type##_is_zero(ieee)) {                                           \
+    if (ieee.sign) stringify_append(&state, sb_append, '-');                  \
+    stringify_append(&state, sb_append_strlit, "0.0");                        \
+    sb___floating_format_width(&state, &fmt, number_start);                   \
+    return state.count;                                                       \
+  }                                                                           \
+  if (ieee.sign) stringify_append(&state, sb_append, '-');                    \
+  (void)0;                                                                    \
 })
 
-#define sb___ryu_floating_to_decimal_chars(state, f, binary_width) ({                             \
-  floating_decimal_f##binary_width v = ryu_f##binary_width##_parse(f.mantissa, f.exponent);       \
-  if (!v.exponent) {                                                                              \
-    stringify_append(&state, sb_append_unsigned_integer, v.mantissa);                             \
+#define sb___ryu_floating_to_decimal_chars(state, ieee, type) ({                                  \
+  floating_decimal_##type decimal = ryu_##type##_parse(ieee);                                     \
+  if (!decimal.exponent) {                                                                        \
+    stringify_append(&state, sb_append_unsigned_integer, decimal.mantissa);                       \
     stringify_append(&state, sb_append_strlit, ".0");                                             \
-  } else if (v.exponent < 0) {                                                                    \
-    size_t exponent = -v.exponent;                                                                \
-    size_t count = ryu_decimalLength_f##binary_width(v.mantissa);                                 \
+  } else if (decimal.exponent < 0) {                                                              \
+    size_t exponent = -decimal.exponent;                                                          \
+    size_t count = ryu_decimalLength_##type(decimal.mantissa);                                    \
     if (exponent >= count) stringify_append(&state, sb_append_repeat, '0', exponent - count + 1); \
-    stringify_append(&state, sb_append_unsigned_integer, v.mantissa);                             \
+    stringify_append(&state, sb_append_unsigned_integer, decimal.mantissa);                       \
     stringify_append(&state, sb_append, '.');                                                     \
     if (state.sb) {                                                                               \
       char *start = state.sb->data + state.sb->count - exponent - 1;                              \
@@ -632,61 +584,65 @@ void sb___floating_format_width(Stringify_State *state, Sb_Floating_Format *fmt,
       *start = '.';                                                                               \
     }                                                                                             \
   } else {                                                                                        \
-    stringify_append(&state, sb_append_unsigned_integer, v.mantissa);                             \
-    stringify_append(&state, sb_append_repeat, '0', v.exponent);                                  \
+    stringify_append(&state, sb_append_unsigned_integer, decimal.mantissa);                       \
+    stringify_append(&state, sb_append_repeat, '0', decimal.exponent);                            \
     stringify_append(&state, sb_append_strlit, ".0");                                             \
   }                                                                                               \
   (void)0;                                                                                        \
 })
 
-#define sb___ryu_floating_to_hex_chars(state, f, binary_width, fmt_kind, fmt_min_width) ({                                                                           \
-  stringify_append(&state, sb_append_strlit, "0x");                                                                                                                  \
-  stringify_append(&state, sb_append, (f.exponent ? '1' : '0'));                                                                                                     \
-  stringify_append(&state, sb_append, '.');                                                                                                                          \
-  size_t mantissa_width = RYU_F##binary_width##_MANTISSA_BITS / 4 + (RYU_F##binary_width##_MANTISSA_BITS % 4 ? 1 : 0);                                               \
-  typeof((struct floating_decimal_f##binary_width){0}.mantissa) mantissa = f.mantissa;                                                                               \
-  if (RYU_F##binary_width##_MANTISSA_BITS % 4 != 0) mantissa = mantissa << (4 - RYU_F##binary_width##_MANTISSA_BITS % 4);                                            \
-  stringify_append(&state, sb_append_unsigned_integer_fmt, mantissa, ((Sb_Integer_Format){.kind = SB_INTEGER_FORMAT_KIND_##fmt_kind, .min_width = mantissa_width})); \
-  stringify_append(&state, sb_append, 'p');                                                                                                                          \
-  int64_t exponent = (int64_t)f.exponent - (int64_t)(((1u << RYU_F##binary_width##_EXPONENT_BITS) - 1u) >> 1);                                                       \
-  if (exponent > 0) stringify_append(&state, sb_append, '+');                                                                                                        \
-  stringify_append(&state, sb_append_signed_integer, exponent);                                                                                                      \
-  (void)0;                                                                                                                                                           \
+#define sb___ryu_floating_to_hex_chars(state, ieee, binary_width, fmt_kind, fmt_min_width) ({                             \
+  stringify_append(&state, sb_append_strlit, "0x");                                                                       \
+  stringify_append(&state, sb_append, (ieee.exponent ? '1' : '0'));                                                       \
+  stringify_append(&state, sb_append, '.');                                                                               \
+  size_t mantissa_width = RYU_F##binary_width##_MANTISSA_BITS / 4 + (RYU_F##binary_width##_MANTISSA_BITS % 4 ? 1 : 0);    \
+  sb___mantissa_type(binary_width) mantissa = ieee.mantissa;                                                              \
+  if (RYU_F##binary_width##_MANTISSA_BITS % 4 != 0) mantissa = mantissa << (4 - RYU_F##binary_width##_MANTISSA_BITS % 4); \
+  Sb_Integer_Format mantissa_fmt = {.kind = SB_INTEGER_FORMAT_KIND_##fmt_kind, .min_width = mantissa_width};              \
+  stringify_append(&state, sb_append_unsigned_integer_fmt, mantissa, mantissa_fmt);                                       \
+  stringify_append(&state, sb_append, 'p');                                                                               \
+  int64_t exponent = (int64_t)ieee.exponent - (int64_t)(((1u << RYU_F##binary_width##_EXPONENT_BITS) - 1u) >> 1);         \
+  if (exponent > 0) stringify_append(&state, sb_append, '+');                                                             \
+  stringify_append(&state, sb_append_signed_integer, exponent);                                                           \
+  (void)0;                                                                                                                \
 })
 
-#define sb___append_ryu_floating(sb, value, fmt, binary_width, max_width) ({                                                     \
-  Stringify_State state = make_stringify_state(sb, max_width);                                                                   \
-  struct floating_f##binary_width f = sb___ryu_floating_to_bits(value, binary_width);                                            \
-  size_t number_start = state.count;                                                                                             \
-  sb___floating_detect_special(state, f, fmt, binary_width, number_start);                                                       \
-  switch (fmt.kind) {                                                                                                            \
-    case SB_FLOATING_FORMAT_KIND_DECIMAL: sb___ryu_floating_to_decimal_chars(state, f, binary_width); break;                     \
-    case SB_FLOATING_FORMAT_KIND_FIXED: TODO(); break;                                                                           \
-    case SB_FLOATING_FORMAT_KIND_HEX: sb___ryu_floating_to_hex_chars(state, f, binary_width, HEX, fmt.min_width); break;         \
-    case SB_FLOATING_FORMAT_KIND_HEX_BIG: sb___ryu_floating_to_hex_chars(state, f, binary_width, HEX_BIG, fmt.min_width); break; \
-  }                                                                                                                              \
-  sb___floating_format_width(&state, &fmt, number_start);                                                                        \
-  state.count;                                                                                                                   \
+#define sb___append_ryu_floating(sb, value, fmt, binary_width, max_width) ({                                                        \
+  Stringify_State state = make_stringify_state(sb, max_width);                                                                      \
+  struct floating_ieee_f##binary_width ieee = ryu_f##binary_width##_to_ieee(value);                                                 \
+  size_t number_start = state.count;                                                                                                \
+  sb___floating_detect_special(state, ieee, fmt, f##binary_width, number_start);                                                    \
+  switch (fmt.kind) {                                                                                                               \
+    case SB_FLOATING_FORMAT_KIND_DECIMAL: sb___ryu_floating_to_decimal_chars(state, ieee, f##binary_width); break;                  \
+    case SB_FLOATING_FORMAT_KIND_FIXED: TODO(); break;                                                                              \
+    case SB_FLOATING_FORMAT_KIND_HEX: sb___ryu_floating_to_hex_chars(state, ieee, binary_width, HEX, fmt.min_width); break;         \
+    case SB_FLOATING_FORMAT_KIND_HEX_BIG: sb___ryu_floating_to_hex_chars(state, ieee, binary_width, HEX_BIG, fmt.min_width); break; \
+  }                                                                                                                                 \
+  sb___floating_format_width(&state, &fmt, number_start);                                                                           \
+  state.count;                                                                                                                      \
 })
 
-size_t sb_append_floating_f16_fmt(String_Builder *sb, _Float16 value, Sb_Floating_Format fmt) { return sb___append_ryu_floating(sb, value, fmt, 16, 8); }
+#define sb___append_ryu_generic_floating(sb, value, fmt, type, max_width) ({                               \
+  Stringify_State state = make_stringify_state(sb, max_width);                                             \
+  struct floating_ieee_generic ieee = ryu_##type##_to_ieee(value);                                         \
+  size_t number_start = state.count;                                                                       \
+  sb___floating_detect_special(state, ieee, fmt, generic, number_start);                                   \
+  switch (fmt.kind) {                                                                                      \
+    case SB_FLOATING_FORMAT_KIND_DECIMAL: sb___ryu_floating_to_decimal_chars(state, ieee, generic); break; \
+    case SB_FLOATING_FORMAT_KIND_FIXED: TODO(); break;                                                     \
+    case SB_FLOATING_FORMAT_KIND_HEX: TODO(); break;                                                       \
+    case SB_FLOATING_FORMAT_KIND_HEX_BIG: TODO(); break;                                                   \
+  }                                                                                                        \
+  sb___floating_format_width(&state, &fmt, number_start);                                                  \
+  state.count;                                                                                             \
+})
+
+size_t sb_append_floating_f16_fmt(String_Builder *sb, _Float16 value, Sb_Floating_Format fmt) { return sb___append_ryu_generic_floating(sb, value, fmt, f16, 8); }
 size_t sb_append_floating_f32_fmt(String_Builder *sb, float value, Sb_Floating_Format fmt) { return sb___append_ryu_floating(sb, value, fmt, 32, 16); }
 size_t sb_append_floating_f64_fmt(String_Builder *sb, double value, Sb_Floating_Format fmt) { return sb___append_ryu_floating(sb, value, fmt, 64, 27); }
-size_t sb_append_floating_f80_fmt(String_Builder *sb, f80_t value, Sb_Floating_Format fmt) {
-  UNUSED(sb, value, fmt);
-  TODO();
-  // return sb___append_ryu_floating(sb, value, fmt, 128, 36);
-}
-size_t sb_append_floating_f128_fmt(String_Builder *sb, f128_t value, Sb_Floating_Format fmt) {
-  UNUSED(sb, value, fmt);
-  TODO();
-  // return sb___append_ryu_floating(sb, value, fmt, 128, 36);
-}
-size_t sb_append_floating_f64pair_fmt(String_Builder *sb, f64pair_t value, Sb_Floating_Format fmt) {
-  UNUSED(sb, value, fmt);
-  TODO();
-  // return sb___append_ryu_floating(sb, value, fmt, 128, 36);
-}
+size_t sb_append_floating_f80_fmt(String_Builder *sb, f80_t value, Sb_Floating_Format fmt) { return sb___append_ryu_generic_floating(sb, value, fmt, f80, 36); }
+size_t sb_append_floating_f128_fmt(String_Builder *sb, f128_t value, Sb_Floating_Format fmt) { return sb___append_ryu_generic_floating(sb, value, fmt, f128, 36); }
+size_t sb_append_floating_f64pair_fmt(String_Builder *sb, f64pair_t value, Sb_Floating_Format fmt) { return sb___append_ryu_generic_floating(sb, value, fmt, f64pair, 36); }
 
 size_t sb_append_floating_f80_canonical_fmt(String_Builder *sb, f80_canonical_t value, Sb_Floating_Format fmt) {
 #if LD_KIND == LD_KIND_F80
@@ -718,6 +674,7 @@ size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_cano
 #endif
 }
 
+#undef sb___mantissa_type
 #undef sb___ryu_floating_to_bits
 #undef sb___floating_detect_special
 #undef sb___ryu_floating_to_decimal_chars
