@@ -270,8 +270,33 @@ Syx_Type *make_syx_type(Syx_Type_Kind kind, size_t size, size_t alignment, Syx_S
   return type;
 }
 
+Syx_Type *make_syx_type_embed_types(Syx_Type_Kind kind, size_t size, size_t alignment, Syx_Symbol *name, ffi_type ffi_t, size_t additional_size) {
+  Da(ffi_type) ffi_types = {0};
+  da_append(&ffi_types, ffi_t);
+  Da_Slice(ffi_type) queue = da_slice_init(ffi_types);
+  while (queue.count) {
+    ffi_type current = da_slice_shift(&queue);
+    if (current.type != FFI_TYPE_STRUCT) continue;
+    ffi_type **element = current.elements;
+    while (*element != NULL) {
+      queue.count += da_append(&ffi_types, **element);
+      element += 1;
+    }
+  }
+  Syx_Type *type = make_syx_type(kind, size, alignment, name, NULL, sizeof(ffi_type) * ffi_types.count + additional_size);
+  type->ffi_t = (ffi_type *)(type + 1);
+  memcpy(type->ffi_t, ffi_types.data, sizeof(ffi_type) * ffi_types.count);
+  return type;
+}
+
 Syx_Type *make_syx_type_primitive(Syx_Primitive_Type_Kind kind, size_t size, size_t alignment, Syx_Symbol *name, ffi_type *ffi_t) {
   Syx_Type *type = make_syx_type(SYX_TYPE_KIND_PRIMITIVE, size, alignment, name, ffi_t, 0);
+  type->primitive = kind;
+  return type;
+}
+
+Syx_Type *make_syx_type_primitive_embed_types(Syx_Primitive_Type_Kind kind, size_t size, size_t alignment, Syx_Symbol *name, ffi_type ffi_t) {
+  Syx_Type *type = make_syx_type_embed_types(SYX_TYPE_KIND_PRIMITIVE, size, alignment, name, ffi_t, 0);
   type->primitive = kind;
   return type;
 }
@@ -311,7 +336,14 @@ void syx_type_structure_graph_visitor(Rc_Circulars *circulars, const void *data,
 }
 
 Syx_Type *make_syx_type_structure(Syx_Symbol *name, Syx_Type_Structure structure) {
-  Syx_Type *type = make_syx_type(SYX_TYPE_KIND_STRUCTURE, 0, 0, name, NULL, sizeof(Syx_Type_Structure) + sizeof(Syx_Type_Structure_Field) * structure.fields.count + sizeof(ffi_type) + sizeof(ffi_type) * (structure.fields.count + 1));
+  ffi_type ffi_t = {.type = FFI_TYPE_STRUCT};
+  ffi_type *ffi_elements[structure.fields.count + 1];
+  for (size_t index = 0; index < structure.fields.count; index += 1) {
+    ffi_elements[index] = structure.fields.data[index].type->ffi_t;
+  }
+  ffi_elements[structure.fields.count] = NULL;
+  ffi_t.elements = ffi_elements;
+  Syx_Type *type = make_syx_type_embed_types(SYX_TYPE_KIND_STRUCTURE, 0, 0, name, ffi_t, sizeof(Syx_Type_Structure) + sizeof(Syx_Type_Structure_Field) * structure.fields.count);
   rc_get(type)->methods = (Rc_Methods){.destructor = syx_type_structure_destructor, .graph_visitor = syx_type_structure_graph_visitor};
   type->structure = (Syx_Type_Structure *)(type + 1);
   *type->structure = structure;
@@ -330,15 +362,6 @@ Syx_Type *make_syx_type_structure(Syx_Symbol *name, Syx_Type_Structure structure
   type->structure->fields = da_slice(fields, Syx_Type_Structure_Fields);
   type->size = (offset + max_alignment - 1) & ~(max_alignment - 1);
   type->alignment = type->alignment;
-  type->ffi_t = (ffi_type *)(fields.data + structure.fields.count);
-  type->ffi_t->type = FFI_TYPE_STRUCT;
-  type->ffi_t->size = 0;
-  type->ffi_t->alignment = 0;
-  type->ffi_t->elements = (ffi_type **)(type->ffi_t + 1);
-  for (size_t index = 0; index < fields.count; index += 1) {
-    type->ffi_t->elements[index] = fields.data[index].type->ffi_t;
-  }
-  type->ffi_t->elements[fields.count] = NULL;
   return type;
 }
 
@@ -459,90 +482,71 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
 }
 
 syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
-  static const ffi_type *ffi_type_char_ref = CHAR_MIN < 0 ? &ffi_type_schar : &ffi_type_uchar;
-
-  static const ffi_type *ffi_type_sint128_elements[] = {&ffi_type_sint64, &ffi_type_sint64, NULL};
-  static const ffi_type ffi_type_sint128 = {.type = FFI_TYPE_STRUCT, .elements = ffi_type_sint128_elements};
-
-  static const ffi_type *ffi_type_uint128_elements[] = {&ffi_type_uint64, &ffi_type_uint64, NULL};
-  static const ffi_type ffi_type_uint128 = {.type = FFI_TYPE_STRUCT, .elements = ffi_type_uint128_elements};
-
-  static const ffi_type *ffi_type_f16_elements[] = {&ffi_type_uint16, NULL};
-  static const ffi_type ffi_type_f16 = {.type = FFI_TYPE_STRUCT, .elements = ffi_type_f16_elements};
-
-  static const ffi_type *ffi_type_f32_ref = &ffi_type_float;
-  static const ffi_type *ffi_type_f64_ref = &ffi_type_double;
-
-  static const ffi_type *ffi_type_f80_elements[] = {&ffi_type_uint64, &ffi_type_uint16, NULL};
-  static const ffi_type ffi_type_f80 = {.type = FFI_TYPE_STRUCT, .elements = ffi_type_f80_elements};
-
-  static const ffi_type ffi_type_f128 = ffi_type_uint128;
-
   SYX_KNOWN_TYPES->c_void = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void);
-  SYX_KNOWN_TYPES->c_char = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_CHAR, sizeof(char), alignof(char), NULL, ffi_type_char_ref);
+  SYX_KNOWN_TYPES->c_char = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_CHAR, sizeof(char), alignof(char), NULL, CHAR_MIN < 0 ? &ffi_type_schar : &ffi_type_uchar);
   SYX_KNOWN_TYPES->c_i8 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I8, sizeof(int8_t), alignof(int8_t), NULL, &ffi_type_sint8);
   SYX_KNOWN_TYPES->c_i16 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I16, sizeof(int16_t), alignof(int16_t), NULL, &ffi_type_sint16);
   SYX_KNOWN_TYPES->c_i32 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I32, sizeof(int32_t), alignof(int32_t), NULL, &ffi_type_sint32);
   SYX_KNOWN_TYPES->c_i64 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I64, sizeof(int64_t), alignof(int64_t), NULL, &ffi_type_sint64);
-  SYX_KNOWN_TYPES->c_i128 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I128, sizeof(__int128_t), alignof(__int128_t), NULL, &ffi_type_sint128);
+  SYX_KNOWN_TYPES->c_i128 = make_syx_type_primitive_embed_types(SYX_PRIMITIVE_TYPE_KIND_I128, sizeof(__int128_t), alignof(__int128_t), NULL, (ffi_type){.type = FFI_TYPE_STRUCT, .elements = (ffi_type *[]){&ffi_type_sint64, &ffi_type_sint64, NULL}});
   SYX_KNOWN_TYPES->c_u8 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U8, sizeof(uint8_t), alignof(uint8_t), NULL, &ffi_type_uint8);
   SYX_KNOWN_TYPES->c_u16 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U16, sizeof(uint16_t), alignof(uint16_t), NULL, &ffi_type_uint16);
   SYX_KNOWN_TYPES->c_u32 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U32, sizeof(uint32_t), alignof(uint32_t), NULL, &ffi_type_uint32);
   SYX_KNOWN_TYPES->c_u64 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U64, sizeof(uint64_t), alignof(uint64_t), NULL, &ffi_type_uint64);
-  SYX_KNOWN_TYPES->c_u128 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U128, sizeof(__uint128_t), alignof(__uint128_t), NULL, &ffi_type_uint128);
-  SYX_KNOWN_TYPES->c_f16 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F16, sizeof(f16_canonical_t), alignof(f16_canonical_t), NULL, &ffi_type_f16);
-  SYX_KNOWN_TYPES->c_f32 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F32, sizeof(float), alignof(float), NULL, ffi_type_f32_ref);
-  SYX_KNOWN_TYPES->c_f64 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F64, sizeof(double), alignof(double), NULL, ffi_type_f64_ref);
-  SYX_KNOWN_TYPES->c_f80 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F80, sizeof(f80_canonical_t), alignof(f80_canonical_t), NULL, &ffi_type_f80);
-  SYX_KNOWN_TYPES->c_f128 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F128, sizeof(f128_canonical_t), alignof(f128_canonical_t), NULL, &ffi_type_f128);
-  SYX_KNOWN_TYPES->c_f64pair = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F64PAIR, sizeof(f64pair_canonical_t), alignof(f64pair_canonical_t), NULL, &ffi_type_f128);
+  SYX_KNOWN_TYPES->c_u128 = make_syx_type_primitive_embed_types(SYX_PRIMITIVE_TYPE_KIND_U128, sizeof(__uint128_t), alignof(__uint128_t), NULL, (ffi_type){.type = FFI_TYPE_STRUCT, .elements = (ffi_type *[]){&ffi_type_uint64, &ffi_type_uint64, NULL}});
+  SYX_KNOWN_TYPES->c_f16 = make_syx_type_primitive_embed_types(SYX_PRIMITIVE_TYPE_KIND_F16, sizeof(f16_canonical_t), alignof(f16_canonical_t), NULL, (ffi_type){.type = FFI_TYPE_STRUCT, .elements = (ffi_type *[]){&ffi_type_uint16, NULL}});
+  SYX_KNOWN_TYPES->c_f32 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F32, sizeof(float), alignof(float), NULL, &ffi_type_float);
+  SYX_KNOWN_TYPES->c_f64 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F64, sizeof(double), alignof(double), NULL, &ffi_type_double);
+  SYX_KNOWN_TYPES->c_f80 = make_syx_type_primitive_embed_types(SYX_PRIMITIVE_TYPE_KIND_F80, sizeof(f80_canonical_t), alignof(f80_canonical_t), NULL, (ffi_type){.type = FFI_TYPE_STRUCT, .elements = (ffi_type *[]){&ffi_type_uint64, &ffi_type_uint16, NULL}});
+  SYX_KNOWN_TYPES->c_f128 = make_syx_type_primitive_embed_types(SYX_PRIMITIVE_TYPE_KIND_F128, sizeof(f128_canonical_t), alignof(f128_canonical_t), NULL, (ffi_type){.type = FFI_TYPE_STRUCT, .elements = (ffi_type *[]){&ffi_type_uint64, &ffi_type_uint64, NULL}});
+  SYX_KNOWN_TYPES->c_f64pair = make_syx_type_primitive_embed_types(SYX_PRIMITIVE_TYPE_KIND_F64PAIR, sizeof(f64pair_canonical_t), alignof(f64pair_canonical_t), NULL, (ffi_type){.type = FFI_TYPE_STRUCT, .elements = (ffi_type *[]){&ffi_type_uint64, &ffi_type_uint64, NULL}});
 
 #if LLONG_MAX == 9223372036854775807
-  static const ffi_type *ffi_type_sllong_ref = &ffi_type_sint64;
-  static const ffi_type *ffi_type_ullong_ref = &ffi_type_uint64;
-  static const ffi_type *ffi_type_llong_ref = &ffi_type_sint64;
+  ffi_type *ffi_type_sllong_ref = &ffi_type_sint64;
+  ffi_type *ffi_type_ullong_ref = &ffi_type_uint64;
+  ffi_type *ffi_type_llong_ref = &ffi_type_sint64;
 #else
 #  error "long size not supported"
 #endif
 
 #if UINTPTR_MAX == 65535
-  static const ffi_type *ffi_type_uintptr_ref = &ffi_type_uint16;
+  ffi_type *ffi_type_uintptr_ref = &ffi_type_uint16;
 #elif UINTPTR_MAX == 4294967295U
-  static const ffi_type *ffi_type_uintptr_ref = &ffi_type_uint32;
+  ffi_type *ffi_type_uintptr_ref = &ffi_type_uint32;
 #elif UINTPTR_MAX == 18446744073709551615ULL
-  static const ffi_type *ffi_type_uintptr_ref = &ffi_type_uint64;
+  ffi_type *ffi_type_uintptr_ref = &ffi_type_uint64;
 #else
 #  error "uintptr_t size not supported"
 #endif
 
 #if PTRDIFF_MAX == 32767
-  static const ffi_type *ffi_type_ptrdiff_ref = &ffi_type_sint16;
+  ffi_type *ffi_type_ptrdiff_ref = &ffi_type_sint16;
 #elif PTRDIFF_MAX == 2147483647
-  static const ffi_type *ffi_type_ptrdiff_ref = &ffi_type_sint32;
+  ffi_type *ffi_type_ptrdiff_ref = &ffi_type_sint32;
 #elif PTRDIFF_MAX == 9223372036854775807
-  static const ffi_type *ffi_type_ptrdiff_ref = &ffi_type_sint64;
+  ffi_type *ffi_type_ptrdiff_ref = &ffi_type_sint64;
 #else
 #  error "ptrdiff_t size not supported"
 #endif
 
 #if SIZE_MAX == 65535
-  static const ffi_type *ffi_type_size_ref = &ffi_type_uint16;
+  ffi_type *ffi_type_size_ref = &ffi_type_uint16;
 #elif SIZE_MAX == 4294967295U
-  static const ffi_type *ffi_type_size_ref = &ffi_type_uint32;
+  ffi_type *ffi_type_size_ref = &ffi_type_uint32;
 #elif SIZE_MAX == 18446744073709551615ULL
-  static const ffi_type *ffi_type_size_ref = &ffi_type_uint64;
+  ffi_type *ffi_type_size_ref = &ffi_type_uint64;
 #else
 #  error "size_t size not supported"
 #endif
 
 #if LD_KIND == LD_KIND_F64
-  static const ffi_type *ffi_type_ldouble_ref = &ffi_type_double;
+  ffi_type *ffi_type_ldouble_ref = &ffi_type_double;
 #elif LD_KIND == LD_KIND_F80
-  static const ffi_type *ffi_type_ldouble_ref = &ffi_type_f80;
+  ffi_type *ffi_type_ldouble_ref = &ffi_type_f80;
 #elif LD_KIND == LD_KIND_F128
-  static const ffi_type *ffi_type_ldouble_ref = &ffi_type_f128;
+  ffi_type *ffi_type_ldouble_ref = &ffi_type_f128;
 #elif LD_KIND == LD_KIND_F64PAIR
-  static const ffi_type *ffi_type_ldouble_ref = &ffi_type_f128;
+  ffi_type *ffi_type_ldouble_ref = &ffi_type_f128;
 #else
 #  error "Unsupported or unknown long double architecture."
 #endif
@@ -566,13 +570,12 @@ syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
   SYX_KNOWN_TYPES->c_double = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_DOUBLE, sizeof(double), alignof(double), NULL, &ffi_type_double);
   SYX_KNOWN_TYPES->c_ldouble = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LDOUBLE, sizeof(long double), alignof(long double), NULL, ffi_type_ldouble_ref);
 
-  Syx_Type_Structure_Fields string_fields = make_syx_type_structure_fields(
-      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("data")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_str},
-      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_size});
-
   SYX_KNOWN_TYPES->c_value = make_syx_type(SYX_TYPE_KIND_VALUE_PTR, sizeof(Syx_Value *), alignof(Syx_Value *), NULL, &ffi_type_pointer, 0);
   SYX_KNOWN_TYPES->c_str = make_syx_type_pointer(NULL, SYX_KNOWN_TYPES->c_char);
-  SYX_KNOWN_TYPES->c_string = make_syx_type_structure(NULL, (Syx_Type_Structure){.fields = string_fields});
+  SYX_KNOWN_TYPES->c_string = make_syx_type_structure(NULL, (Syx_Type_Structure){
+                                                                .fields = make_syx_type_structure_fields(
+                                                                    (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("data")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_str},
+                                                                    (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_size})});
   SYX_KNOWN_TYPES->c_file = make_syx_type_pointer(NULL, SYX_KNOWN_TYPES->c_void);
 
   SYX_KNOWN_TYPES->registry.hasheq = ht_cstr_hasheq;

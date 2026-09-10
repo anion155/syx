@@ -160,6 +160,8 @@
   index;                                            \
 })
 
+#define da_slice_init(da, ...) {.data = (da).data + WITH_DEFAULT(0, __VA_ARGS__), .count = WITH_DEFAULT(((da).count - WITH_DEFAULT(0, __VA_ARGS__)), SECOND_ARG(__VA_ARGS__, ))}
+
 #define da_slice(da, Slice_Type, ...) ({                                                                       \
   typeof(da) _da_s_ = (da);                                                                                    \
   size_t start = WITH_DEFAULT(0, __VA_ARGS__);                                                                 \
