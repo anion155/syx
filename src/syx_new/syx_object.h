@@ -66,10 +66,9 @@ void syx_object_set(Syx_Object *object, Syx_Symbol *field_name, Syx_Value *form)
 
 void syx_object_delete(Syx_Object *object, Syx_Symbol *field_name) {
   Syx_Value **field = ht_find(&object->fields, field_name);
-  if (field) {
-    rc_release(syx_value_from_symbol(field_name));
-    rc_release(*field);
-  }
+  if (!field) return;
+  rc_release(syx_value_from_symbol(field_name));
+  rc_release(*field);
 }
 
 #endif // SYX_OBJECT_IMPL_C

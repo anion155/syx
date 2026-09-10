@@ -185,10 +185,8 @@ void syx_env_graph_visitor(Rc_Circulars *circulars, const void *data, const void
 Syx_Env *make_syx_env(Syx_Symbol *name, Syx_Env *parent) {
   Syx_Env *env = rc_malloc(sizeof(Syx_Env), .destructor = syx_env_destructor);
   assert(env);
-  if (name) {
-    rc_acquire(syx_value_from_symbol(name));
-    env->name = name;
-  }
+  rc_acquire(syx_value_from_symbol(name));
+  env->name = name;
   env->parent = rc_acquire(parent);
   env->symbols.hasheq = ht_syx_symbol_hasheq;
   return env;

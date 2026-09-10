@@ -236,17 +236,17 @@ Syx_Value *make_syx_value_exit_thrown(Syx_Value *reason, Syx_Frame *stack_frame)
 Syx_Value *make_syx_value_prefixed(Syx_Prefixed_Kind kind, Syx_Value *inner_value);
 
 static inline Syx_Value *syx_value_from_pair(Syx_Pair *pair) { return pair ? (Syx_Value *)pair - 1 : NULL; }
-static inline Syx_Value *syx_value_from_symbol(Syx_Symbol *symbol) { return (Syx_Value *)symbol - 1; }
-static inline Syx_Value *syx_value_from_number(Syx_Number *number) { return (Syx_Value *)number - 1; }
-static inline Syx_Value *syx_value_from_string(Syx_String *string) { return (Syx_Value *)string - 1; }
-static inline Syx_Value *syx_value_from_object(Syx_Object *object) { return (Syx_Value *)object - 1; }
-static inline Syx_Value *syx_value_from_closure(Syx_Closure *closure) { return (Syx_Value *)closure - 1; }
-static inline Syx_Closure *syx_closure_from_specialf(Syx_Closure_Special_Form *specialf) { return (Syx_Closure *)((char *)specialf - offsetof(Syx_Closure, specialf)); }
-static inline Syx_Closure *syx_closure_from_builtin(Syx_Closure_Builtin *builtin) { return (Syx_Closure *)((char *)builtin - offsetof(Syx_Closure, builtin)); }
-static inline Syx_Closure *syx_closure_from_lambda(Syx_Closure_Lambda *lambda) { return (Syx_Closure *)lambda - 1; }
-static inline Syx_Value *syx_value_from_native(Syx_Native *native) { return (Syx_Value *)native - 1; }
-static inline Syx_Value *syx_value_from_exit(Syx_Exit *exit) { return (Syx_Value *)exit - 1; }
-static inline Syx_Value *syx_value_from_prefixed(Syx_Prefixed *prefixed) { return (Syx_Value *)prefixed - 1; }
+static inline Syx_Value *syx_value_from_symbol(Syx_Symbol *symbol) { return symbol ? (Syx_Value *)symbol - 1 : NULL; }
+static inline Syx_Value *syx_value_from_number(Syx_Number *number) { return number ? (Syx_Value *)number - 1 : NULL; }
+static inline Syx_Value *syx_value_from_string(Syx_String *string) { return string ? (Syx_Value *)string - 1 : NULL; }
+static inline Syx_Value *syx_value_from_object(Syx_Object *object) { return object ? (Syx_Value *)object - 1 : NULL; }
+static inline Syx_Value *syx_value_from_closure(Syx_Closure *closure) { return closure ? (Syx_Value *)closure - 1 : NULL; }
+static inline Syx_Closure *syx_closure_from_specialf(Syx_Closure_Special_Form *specialf) { return specialf ? (Syx_Closure *)((char *)specialf - offsetof(Syx_Closure, specialf)) : NULL; }
+static inline Syx_Closure *syx_closure_from_builtin(Syx_Closure_Builtin *builtin) { return builtin ? (Syx_Closure *)((char *)builtin - offsetof(Syx_Closure, builtin)) : NULL; }
+static inline Syx_Closure *syx_closure_from_lambda(Syx_Closure_Lambda *lambda) { return lambda ? (Syx_Closure *)lambda - 1 : NULL; }
+static inline Syx_Value *syx_value_from_native(Syx_Native *native) { return native ? (Syx_Value *)native - 1 : NULL; }
+static inline Syx_Value *syx_value_from_exit(Syx_Exit *exit) { return exit ? (Syx_Value *)exit - 1 : NULL; }
+static inline Syx_Value *syx_value_from_prefixed(Syx_Prefixed *prefixed) { return prefixed ? (Syx_Value *)prefixed - 1 : NULL; }
 
 bool syx_list_for_each_next(Syx_Value **current, Syx_Value **next, Syx_Value **value, Syx_Value **cdr);
 #define syx_list_for_each(list, value, ...)       \
@@ -487,7 +487,7 @@ Syx_Value *make_syx_value_stringf_dup(const char *format, ...) {
 
 void syx_value_object_destructor(void *data) {
   Syx_Value *value = data;
-  if (value->object->proto) rc_release(syx_value_from_object(value->object->proto));
+  rc_release(syx_value_from_object(value->object->proto));
   Syx_Symbols_Ht *fields = &value->object->fields;
   ht_foreach(value, fields) {
     Syx_Symbol *symbol = ht_key(fields, value);
@@ -501,14 +501,14 @@ Syx_Value *make_syx_value_object(Syx_Object *proto) {
   rc_get(value)->methods.destructor = syx_value_object_destructor;
   value->object = (Syx_Object *)(value + 1);
   value->object->fields.hasheq = ht_syx_symbol_hasheq;
-  if (proto) rc_acquire(syx_value_from_object(proto));
+  rc_acquire(syx_value_from_object(proto));
   value->object->proto = proto;
   return value;
 }
 
 void syx_value_closure_destructor(void *data) {
   Syx_Value *value = data;
-  if (value->closure->name) rc_release(syx_value_from_symbol(value->closure->name));
+  rc_release(syx_value_from_symbol(value->closure->name));
 }
 
 Syx_Value *make_syx_value_closure(Syx_Symbol *name, Syx_Closure_Kind kind, size_t additional_size) {
@@ -516,14 +516,14 @@ Syx_Value *make_syx_value_closure(Syx_Symbol *name, Syx_Closure_Kind kind, size_
   rc_get(value)->methods.destructor = syx_value_closure_destructor;
   value->closure = (Syx_Closure *)(value + 1);
   value->closure->kind = kind;
-  if (name) rc_acquire(syx_value_from_symbol(name));
+  rc_acquire(syx_value_from_symbol(name));
   value->closure->name = name;
   return value;
 }
 
 void syx_value_closure_rename(Syx_Closure *closure, Syx_Symbol *name) {
   rc_acquire(syx_value_from_symbol(name));
-  if (closure->name) rc_release(syx_value_from_symbol(closure->name));
+  rc_release(syx_value_from_symbol(closure->name));
   closure->name = name;
 }
 
@@ -604,7 +604,7 @@ Syx_Value *make_syx_value_native_nested(Syx_Native *parent, Syx_Type *type, void
   Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NATIVE, sizeof(Syx_Native));
   rc_get(value)->methods.destructor = syx_value_native_destructor;
   value->native = (Syx_Native *)(value + 1);
-  if (parent) rc_acquire(syx_value_from_native(parent));
+  rc_acquire(syx_value_from_native(parent));
   value->native->parent = (parent);
   value->native->type = rc_acquire(type);
   value->native->data = data;

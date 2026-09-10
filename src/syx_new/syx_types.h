@@ -254,7 +254,7 @@ void syx_env_define_types(Syx_Env *env);
 
 void syx_type_destructor(void *data) {
   Syx_Type *type = data;
-  if (type->name) rc_release(syx_value_from_symbol(type->name));
+  rc_release(syx_value_from_symbol(type->name));
 }
 
 Syx_Type *make_syx_type(Syx_Type_Kind kind, size_t size, size_t alignment, Syx_Symbol *name, ffi_type *ffi_t, size_t additional_size) {
@@ -264,7 +264,7 @@ Syx_Type *make_syx_type(Syx_Type_Kind kind, size_t size, size_t alignment, Syx_S
   type->kind = kind;
   type->size = size;
   type->alignment = alignment;
-  if (name) rc_acquire(syx_value_from_symbol(name));
+  rc_acquire(syx_value_from_symbol(name));
   type->name = name;
   type->ffi_t = ffi_t;
   return type;
@@ -323,7 +323,7 @@ void syx_type_structure_destructor(void *data) {
   syx_type_destructor(data);
   Syx_Type_Structure *structure = ((Syx_Type *)data)->structure;
   da_foreach(&structure->fields, field) {
-    if (field->name) rc_release(syx_value_from_symbol(field->name));
+    rc_release(syx_value_from_symbol(field->name));
     rc_release(field->type);
   }
 }
@@ -354,7 +354,7 @@ Syx_Type *make_syx_type_structure(Syx_Symbol *name, Syx_Type_Structure structure
     if (field->type->alignment > 0) offset = (offset + field->type->alignment - 1) & ~(field->type->alignment - 1);
     if (field->offset == 0) field->offset = offset;
     offset += field->type->size;
-    if (field->name) rc_acquire(syx_value_from_symbol(field->name));
+    rc_acquire(syx_value_from_symbol(field->name));
     rc_acquire(field->type);
     da_append(&fields, *field);
   }

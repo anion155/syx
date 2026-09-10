@@ -332,7 +332,7 @@ Syx_Value *syx_special_form_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       Syx_Value *proto = rc_acquire(syx_eval(ctx, proto_form));
       syx_value_early_exit(proto, (value, proto_symbol));
       if (proto->kind != SYX_VALUE_KIND_OBJECT) SYX_EVAL_THROW(ctx, "expected object as prototype", (), (value, proto_symbol, proto));
-      if (value->object->proto) rc_release(syx_value_from_object(value->object->proto));
+      rc_release(syx_value_from_object(value->object->proto));
       value->object->proto = proto->object;
       continue;
     }
