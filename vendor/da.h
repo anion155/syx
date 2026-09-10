@@ -141,7 +141,8 @@
 
 #define da_foreach(da, it)                                        \
   for (typeof(*(da)) *_da_##it = (da); _da_##it; _da_##it = NULL) \
-    for (typeof(*_da_##it->data) *it = _da_##it->data, *_last_##it = it + _da_##it->count; it < _last_##it; ++it)
+    for (size_t it##_index = 0; !it##_index; it##_index += 1)     \
+      for (typeof(*_da_##it->data) *it = _da_##it->data, *_last_##it = it + _da_##it->count; it < _last_##it; ++it, it##_index += 1)
 
 #define da_find_macro(da, item_var, predicate) ({   \
   typeof(da) _da_fm_ = (da);                        \
