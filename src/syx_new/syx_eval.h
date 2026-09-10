@@ -355,21 +355,18 @@ Syx_Value *syx_eval_in_environment(Syx_Eval_Ctx *ctx, Syx_Symbol *env_name, Syx_
 }
 
 Syx_Value *syx_eval_object(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Pair *arguments) {
-  Syx_Value *result = NULL;
-  while (arguments) {
-    if (!object) break;
-    Syx_Value *argument = syx_list_next_nullable(&arguments);
-    if (argument->kind != SYX_VALUE_KIND_PREFIXED) break;
-    if (argument->prefixed->kind != SYX_PREFIXED_KIND_COLON) break;
-    if (argument->prefixed->value->kind != SYX_VALUE_KIND_SYMBOL) break;
-    Syx_Symbol *field_name = argument->prefixed->value->symbol;
-    rc_release(result);
-    result = syx_object_get(ctx, object, field_name);
-    if (result->kind == SYX_VALUE_KIND_OBJECT) object = result->object;
-    else object = NULL;
-  }
-  if (arguments) SYX_EVAL_THROW(ctx, "field getter expected", (), (result));
-  return rc_move(result);
+  Syx_Value *argument = syx_list_next_nullable(&arguments);
+  SYX_EVAL_ASSERT(ctx, argument->kind == SYX_VALUE_KIND_PREFIXED, "object evaluation in progress, prefixed field name expected");
+  SYX_EVAL_ASSERT(ctx, argument->prefixed->kind == SYX_PREFIXED_KIND_COLON, "object evaluation in progress, prefixed field name expected");
+  SYX_EVAL_ASSERT(ctx, argument->prefixed->value->kind == SYX_VALUE_KIND_SYMBOL, "object evaluation in progress, prefixed field name expected");
+  Syx_Symbol *field_name = argument->prefixed->value->symbol;
+  Syx_Value *value = rc_acquire(syx_object_get(ctx, object, field_name));
+  if (!arguments) return rc_move(value);
+  Syx_Value *next = rc_acquire(make_syx_value_pair(rc_move(value), syx_value_from_pair(arguments)));
+  Syx_Value *result = rc_acquire(syx_eval(ctx, next));
+  syx_value_early_exit(result, (next));
+  rc_release(next);
+  return result;
 }
 
 Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
@@ -390,18 +387,20 @@ Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
         default:;
       }
     }
-    case SYX_VALUE_KIND_OBJECT: return syx_eval_object(ctx, head->object, arguments);
+    case SYX_VALUE_KIND_OBJECT: {
+      return syx_eval_object(ctx, head->object, arguments);
+    }
     case SYX_VALUE_KIND_NATIVE: {
       switch (head->native->type->kind) {
         // case SYX_TYPE_KIND_PRIMITIVE:
-        // case SYX_TYPE_KIND_STRUCTURE:
+        case SYX_TYPE_KIND_STRUCTURE:
         // case SYX_TYPE_KIND_PTR:
         // case SYX_TYPE_KIND_FUNCTION_PTR:
         // case SYX_TYPE_KIND_VALUE_PTR:
         default:
       }
     }
-    default:;
+    default:
   }
   SYX_EVAL_THROW(ctx, "is not callable");
 }

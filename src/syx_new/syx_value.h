@@ -720,20 +720,21 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
     case SYX_VALUE_KIND_PAIR: {
       if (!value->pair) {
         stringify_append(&state, sb_append_strlit, "#n");
+      } else {
+        stringify_append(&state, sb_append, '(');
+        Syx_Pair *pair = value->pair;
+        stringify_append(&state, sb_append_syx_value, syx_list_next_nullable(&pair));
+        Syx_Value *last = NULL;
+        syx_list_for_each(pair, item, &last) {
+          stringify_append(&state, sb_append, ' ');
+          stringify_append(&state, sb_append_syx_value, syx_list_next_nullable(&pair));
+        }
+        if (last) {
+          stringify_append(&state, sb_append_strlit, " . ");
+          stringify_append(&state, sb_append_syx_value, last);
+        }
+        stringify_append(&state, sb_append, ')');
       }
-      stringify_append(&state, sb_append, '(');
-      Syx_Pair *pair = value->pair;
-      stringify_append(&state, sb_append_syx_value, syx_list_next(&pair));
-      Syx_Value *last = NULL;
-      syx_list_for_each(pair, item, &last) {
-        stringify_append(&state, sb_append, ' ');
-        stringify_append(&state, sb_append_syx_value, syx_list_next(&pair));
-      }
-      if (last) {
-        stringify_append(&state, sb_append_strlit, " . ");
-        stringify_append(&state, sb_append_syx_value, last);
-      }
-      stringify_append(&state, sb_append, ')');
     } break;
     case SYX_VALUE_KIND_CONST: {
       if (value == syx_value_bool_true()) {
