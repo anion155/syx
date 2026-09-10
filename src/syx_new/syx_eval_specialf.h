@@ -337,8 +337,14 @@ Syx_Value *syx_special_form_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       continue;
     }
     if (field_name->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", (), (value, proto_symbol));
-    Syx_Value *form = syx_list_next_nullable(&arguments);
-    syx_object_set(value->object, field_name->symbol, form);
+    Syx_Value *form = rc_acquire(syx_list_next_nullable(&arguments));
+    if (form->kind == SYX_VALUE_KIND_PREFIXED && form->prefixed->kind == SYX_PREFIXED_KIND_UNQUOTE) {
+      Syx_Value *result = rc_acquire(syx_eval(ctx, form->prefixed->value));
+      syx_value_early_exit(result, (value, proto_symbol, form));
+      rc_release(form);
+      form = result;
+    }
+    syx_object_set(value->object, field_name->symbol, rc_move(form));
   }
   rc_release(proto_symbol);
   return rc_move(value);
