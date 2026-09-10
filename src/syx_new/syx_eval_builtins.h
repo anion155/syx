@@ -462,7 +462,7 @@ FILE *parse_optional_file_descriptor(Syx_Pair **arguments) {
       f = constant->stream;
     } break;
     case SYX_VALUE_KIND_NATIVE: {
-      if (argument->native->type != *ht_find(SYX_KNOWN_TYPES(), "FILE*")) return f;
+      if (argument->native->type != SYX_KNOWN_TYPES()->c_file) return f;
       f = *(FILE **)argument->native->data;
     } break;
     default:

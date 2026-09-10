@@ -484,19 +484,18 @@ Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value) {
             case SYX_PRIMITIVE_TYPE_KIND_I16: return syx_value_bool(*(int16_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_I32: return syx_value_bool(*(int32_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_I64: return syx_value_bool(*(int64_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_I128: return syx_value_bool(*(__int128_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U8: return syx_value_bool(*(uint8_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U16: return syx_value_bool(*(uint16_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U32: return syx_value_bool(*(uint32_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U64: return syx_value_bool(*(uint64_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_INT: return syx_value_bool(*(int *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_LONG: return syx_value_bool(*(long *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_LLONG: return syx_value_bool(*(long long *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_UINT: return syx_value_bool(*(unsigned int *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_ULONG: return syx_value_bool(*(unsigned long *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_ULLONG: return syx_value_bool(*(unsigned long long *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_FLOAT: return syx_value_bool(*(float *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_DOUBLE: return syx_value_bool(*(double *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_SIZE: return syx_value_bool(*(size_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_U128: return syx_value_bool(*(__uint128_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_F16: return syx_value_bool(f16_canonical_to_float(*(f16_canonical_t *)native->data));
+            case SYX_PRIMITIVE_TYPE_KIND_F32: return syx_value_bool(*(float *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_F64: return syx_value_bool(*(double *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_F80: return syx_value_bool(f80_canonical_to_long_double(*(f80_canonical_t *)native->data));
+            case SYX_PRIMITIVE_TYPE_KIND_F128: return syx_value_bool(f128_canonical_to_long_double(*(f128_canonical_t *)native->data));
+            case SYX_PRIMITIVE_TYPE_KIND_F64PAIR: return syx_value_bool(f64pair_canonical_to_long_double(*(f64pair_canonical_t *)native->data));
           }
         }
         case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to bool");
@@ -535,19 +534,18 @@ Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value) {
             case SYX_PRIMITIVE_TYPE_KIND_I16: return make_syx_value_number_integer(*(int16_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_I32: return make_syx_value_number_integer(*(int32_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_I64: return make_syx_value_number_integer(*(int64_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_I128: return make_syx_value_number_integer(*(__int128_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U8: return make_syx_value_number_integer(*(uint8_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U16: return make_syx_value_number_integer(*(uint16_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U32: return make_syx_value_number_integer(*(uint32_t *)native->data);
             case SYX_PRIMITIVE_TYPE_KIND_U64: return make_syx_value_number_integer(*(uint64_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_INT: return make_syx_value_number_integer(*(int *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_LONG: return make_syx_value_number_integer(*(long *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_LLONG: return make_syx_value_number_integer(*(long long *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_UINT: return make_syx_value_number_integer(*(unsigned int *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_ULONG: return make_syx_value_number_integer(*(unsigned long *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_ULLONG: return make_syx_value_number_integer(*(unsigned long long *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_FLOAT: return make_syx_value_number_fractional(*(float *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_DOUBLE: return make_syx_value_number_fractional(*(double *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_SIZE: return make_syx_value_number_integer(*(size_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_U128: return make_syx_value_number_integer(*(__uint128_t *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_F16: return make_syx_value_number_fractional(f16_canonical_to_float(*(f16_canonical_t *)native->data));
+            case SYX_PRIMITIVE_TYPE_KIND_F32: return make_syx_value_number_fractional(*(float *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_F64: return make_syx_value_number_fractional(*(double *)native->data);
+            case SYX_PRIMITIVE_TYPE_KIND_F80: return make_syx_value_number_fractional(f80_canonical_to_float(*(f80_canonical_t *)native->data));
+            case SYX_PRIMITIVE_TYPE_KIND_F128: return make_syx_value_number_fractional(f128_canonical_to_float(*(f128_canonical_t *)native->data));
+            case SYX_PRIMITIVE_TYPE_KIND_F64PAIR: return make_syx_value_number_fractional(f64pair_canonical_to_float(*(f64pair_canonical_t *)native->data));
           }
         }
         case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to number");
@@ -581,10 +579,10 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value) {
         case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to string");
         case SYX_TYPE_KIND_PTR: {
           if (native->type) {
-            if (native->type == *ht_find(SYX_KNOWN_TYPES(), "c_str")) {
+            if (native->type == SYX_KNOWN_TYPES()->c_str) {
               return make_syx_value_string_cstr_dup(*(char **)native->data);
             }
-            if (native->type == *ht_find(SYX_KNOWN_TYPES(), "string")) {
+            if (native->type == SYX_KNOWN_TYPES()->c_string) {
               return make_syx_value_string((String *)native->data);
             }
           }

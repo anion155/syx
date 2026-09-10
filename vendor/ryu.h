@@ -32,6 +32,7 @@
 #define RYU_H
 
 #include <inttypes.h>
+#include <long_double.h>
 
 typedef struct floating_ieee_f32 {
   uint32_t mantissa;
@@ -68,38 +69,6 @@ typedef struct floating_decimal_generic {
   __uint128_t mantissa;
   int64_t exponent;
 } floating_decimal_generic;
-
-#pragma pack(push, 1)
-typedef struct f80_canonical_t {
-  struct {
-    uint64_t mantissa;
-    uint16_t exponent_sign;
-  };
-} f80_canonical_t;
-
-typedef union f128_canonical_t {
-  __uint128_t bits;
-  struct {
-    uint64_t low;
-    uint64_t high;
-  };
-} f128_canonical_t;
-
-typedef union f64pair_canonical_t {
-  struct {
-    double head;
-    double tail;
-  };
-  struct {
-    uint64_t low;
-    uint64_t high;
-  };
-  __uint128_t bits;
-} f64pair_canonical_t;
-#pragma pack(pop)
-_Static_assert(sizeof(f80_canonical_t) == 10, "Canonical f80 struct must be 10 bytes");
-_Static_assert(sizeof(f128_canonical_t) == 16, "Canonical f128 struct must be 16 bytes");
-_Static_assert(sizeof(f64pair_canonical_t) == 16, "Canonical f64pair struct must be 16 bytes");
 
 #endif // RYU_H
 

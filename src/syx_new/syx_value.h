@@ -787,24 +787,23 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
         case SYX_TYPE_KIND_PRIMITIVE: {
           switch (native->type->primitive) {
             case SYX_PRIMITIVE_TYPE_KIND_VOID: stringify_append(&state, sb_append_strlit, "#n"); break;
-            case SYX_PRIMITIVE_TYPE_KIND_CHAR: stringify_append(&state, sb_append, *(char *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_CHAR: stringify_append(&state, sb_append_number, *(char *)native->data); break;
             case SYX_PRIMITIVE_TYPE_KIND_I8: stringify_append(&state, sb_append_number, *(int8_t *)native->data); break;
             case SYX_PRIMITIVE_TYPE_KIND_I16: stringify_append(&state, sb_append_number, *(int16_t *)native->data); break;
             case SYX_PRIMITIVE_TYPE_KIND_I32: stringify_append(&state, sb_append_number, *(int32_t *)native->data); break;
             case SYX_PRIMITIVE_TYPE_KIND_I64: stringify_append(&state, sb_append_number, *(int64_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_I128: stringify_append(&state, sb_append_number, *(__int128_t *)native->data); break;
             case SYX_PRIMITIVE_TYPE_KIND_U8: stringify_append(&state, sb_append_number, *(uint8_t *)native->data); break;
             case SYX_PRIMITIVE_TYPE_KIND_U16: stringify_append(&state, sb_append_number, *(uint16_t *)native->data); break;
             case SYX_PRIMITIVE_TYPE_KIND_U32: stringify_append(&state, sb_append_number, *(uint32_t *)native->data); break;
             case SYX_PRIMITIVE_TYPE_KIND_U64: stringify_append(&state, sb_append_number, *(uint64_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_INT: stringify_append(&state, sb_append_number, *(int *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_LONG: stringify_append(&state, sb_append_number, *(long *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_LLONG: stringify_append(&state, sb_append_number, *(long long *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_UINT: stringify_append(&state, sb_append_number, *(unsigned int *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_ULONG: stringify_append(&state, sb_append_number, *(unsigned long *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_ULLONG: stringify_append(&state, sb_append_number, *(unsigned long long *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_FLOAT: stringify_append(&state, sb_append_number, *(float *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_DOUBLE: stringify_append(&state, sb_append_number, *(double *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_SIZE: stringify_append(&state, sb_append_number, *(size_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_U128: stringify_append(&state, sb_append_number, *(__uint128_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_F16: stringify_append(&state, sb_append_number, *(f16_canonical_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_F32: stringify_append(&state, sb_append_number, *(float *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_F64: stringify_append(&state, sb_append_number, *(double *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_F80: stringify_append(&state, sb_append_number, *(f80_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_F128: stringify_append(&state, sb_append_number, *(f128_t *)native->data); break;
+            case SYX_PRIMITIVE_TYPE_KIND_F64PAIR: stringify_append(&state, sb_append_number, *(f64pair_t *)native->data); break;
           }
         } break;
         case SYX_TYPE_KIND_STRUCTURE: TODO("sb_append_syx_value: structure to string");

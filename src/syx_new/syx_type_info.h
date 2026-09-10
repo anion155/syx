@@ -21,26 +21,117 @@ typedef enum Syx_Type_Kind : unsigned int {
 } Syx_Type_Kind;
 
 typedef enum Syx_Primitive_Type_Kind : unsigned int {
-  SYX_PRIMITIVE_TYPE_KIND_VOID,   // void
-  SYX_PRIMITIVE_TYPE_KIND_CHAR,   // char
-  SYX_PRIMITIVE_TYPE_KIND_I8,     // int8_t
-  SYX_PRIMITIVE_TYPE_KIND_I16,    // int16_t
-  SYX_PRIMITIVE_TYPE_KIND_I32,    // int32_t
-  SYX_PRIMITIVE_TYPE_KIND_I64,    // int64_t
-  SYX_PRIMITIVE_TYPE_KIND_U8,     // uint8_t
-  SYX_PRIMITIVE_TYPE_KIND_U16,    // uint16_t
-  SYX_PRIMITIVE_TYPE_KIND_U32,    // uint32_t
-  SYX_PRIMITIVE_TYPE_KIND_U64,    // uint64_t
-  SYX_PRIMITIVE_TYPE_KIND_INT,    // int
-  SYX_PRIMITIVE_TYPE_KIND_LONG,   // long
-  SYX_PRIMITIVE_TYPE_KIND_LLONG,  // long long
-  SYX_PRIMITIVE_TYPE_KIND_UINT,   // unsigned int
-  SYX_PRIMITIVE_TYPE_KIND_ULONG,  // unsigned long
-  SYX_PRIMITIVE_TYPE_KIND_ULLONG, // unsigned long long
-  SYX_PRIMITIVE_TYPE_KIND_FLOAT,  // float
-  SYX_PRIMITIVE_TYPE_KIND_DOUBLE, // double
-  SYX_PRIMITIVE_TYPE_KIND_SIZE,   // size_t
+  SYX_PRIMITIVE_TYPE_KIND_VOID,    // void
+  SYX_PRIMITIVE_TYPE_KIND_CHAR,    // char
+  SYX_PRIMITIVE_TYPE_KIND_I8,      // int8_t
+  SYX_PRIMITIVE_TYPE_KIND_I16,     // int16_t
+  SYX_PRIMITIVE_TYPE_KIND_I32,     // int32_t
+  SYX_PRIMITIVE_TYPE_KIND_I64,     // int64_t
+  SYX_PRIMITIVE_TYPE_KIND_I128,    // __int128_t
+  SYX_PRIMITIVE_TYPE_KIND_U8,      // uint8_t
+  SYX_PRIMITIVE_TYPE_KIND_U16,     // uint16_t
+  SYX_PRIMITIVE_TYPE_KIND_U32,     // uint32_t
+  SYX_PRIMITIVE_TYPE_KIND_U64,     // uint64_t
+  SYX_PRIMITIVE_TYPE_KIND_U128,    // __uint128_t
+  SYX_PRIMITIVE_TYPE_KIND_F16,     // f16_canonical_t _Float16
+  SYX_PRIMITIVE_TYPE_KIND_F32,     // _Float32 float
+  SYX_PRIMITIVE_TYPE_KIND_F64,     // _Float64 double
+  SYX_PRIMITIVE_TYPE_KIND_F80,     // f80_canonical_t
+  SYX_PRIMITIVE_TYPE_KIND_F128,    // f128_canonical_t _Float128
+  SYX_PRIMITIVE_TYPE_KIND_F64PAIR, // f64pair_canonical_t
 } Syx_Primitive_Type_Kind;
+
+#if SHRT_MAX == 32767
+#  define SYX_PRIMITIVE_TYPE_KIND_SHORT SYX_PRIMITIVE_TYPE_KIND_I16
+#  define SYX_PRIMITIVE_TYPE_KIND_SSHORT SYX_PRIMITIVE_TYPE_KIND_I16
+#  define SYX_PRIMITIVE_TYPE_KIND_USHORT SYX_PRIMITIVE_TYPE_KIND_U16
+#elif SHRT_MAX == 2147483647
+#  define SYX_PRIMITIVE_TYPE_KIND_SHORT SYX_PRIMITIVE_TYPE_KIND_I32
+#  define SYX_PRIMITIVE_TYPE_KIND_SSHORT SYX_PRIMITIVE_TYPE_KIND_I32
+#  define SYX_PRIMITIVE_TYPE_KIND_USHORT SYX_PRIMITIVE_TYPE_KIND_U32
+#else
+#  error "short size not supported"
+#endif
+
+#if INT_MAX == 32767
+#  define SYX_PRIMITIVE_TYPE_KIND_INT SYX_PRIMITIVE_TYPE_KIND_I16
+#  define SYX_PRIMITIVE_TYPE_KIND_SINT SYX_PRIMITIVE_TYPE_KIND_I16
+#  define SYX_PRIMITIVE_TYPE_KIND_UINT SYX_PRIMITIVE_TYPE_KIND_U16
+#elif INT_MAX == 2147483647
+#  define SYX_PRIMITIVE_TYPE_KIND_INT SYX_PRIMITIVE_TYPE_KIND_I32
+#  define SYX_PRIMITIVE_TYPE_KIND_SINT SYX_PRIMITIVE_TYPE_KIND_I32
+#  define SYX_PRIMITIVE_TYPE_KIND_UINT SYX_PRIMITIVE_TYPE_KIND_U32
+#elif INT_MAX == 9223372036854775807
+#  define SYX_PRIMITIVE_TYPE_KIND_INT SYX_PRIMITIVE_TYPE_KIND_I64
+#  define SYX_PRIMITIVE_TYPE_KIND_SINT SYX_PRIMITIVE_TYPE_KIND_I64
+#  define SYX_PRIMITIVE_TYPE_KIND_UINT SYX_PRIMITIVE_TYPE_KIND_U64
+#else
+#  error "int size not supported"
+#endif
+
+#if LONG_MAX == 2147483647
+#  define SYX_PRIMITIVE_TYPE_KIND_LONG SYX_PRIMITIVE_TYPE_KIND_I32
+#  define SYX_PRIMITIVE_TYPE_KIND_SLONG SYX_PRIMITIVE_TYPE_KIND_I32
+#  define SYX_PRIMITIVE_TYPE_KIND_ULONG SYX_PRIMITIVE_TYPE_KIND_U32
+#elif LONG_MAX == 9223372036854775807
+#  define SYX_PRIMITIVE_TYPE_KIND_LONG SYX_PRIMITIVE_TYPE_KIND_I64
+#  define SYX_PRIMITIVE_TYPE_KIND_SLONG SYX_PRIMITIVE_TYPE_KIND_I64
+#  define SYX_PRIMITIVE_TYPE_KIND_ULONG SYX_PRIMITIVE_TYPE_KIND_U64
+#else
+#  error "long size not supported"
+#endif
+
+#if LLONG_MAX == 9223372036854775807
+#  define SYX_PRIMITIVE_TYPE_KIND_LLONG SYX_PRIMITIVE_TYPE_KIND_I64
+#  define SYX_PRIMITIVE_TYPE_KIND_SLLONG SYX_PRIMITIVE_TYPE_KIND_I64
+#  define SYX_PRIMITIVE_TYPE_KIND_ULLONG SYX_PRIMITIVE_TYPE_KIND_U64
+#else
+#  error "long size not supported"
+#endif
+
+#if UINTPTR_MAX == 65535
+#  define SYX_PRIMITIVE_TYPE_KIND_UINTPTR SYX_PRIMITIVE_TYPE_KIND_U16
+#elif UINTPTR_MAX == 4294967295U
+#  define SYX_PRIMITIVE_TYPE_KIND_UINTPTR SYX_PRIMITIVE_TYPE_KIND_U32
+#elif UINTPTR_MAX == 18446744073709551615ULL
+#  define SYX_PRIMITIVE_TYPE_KIND_UINTPTR SYX_PRIMITIVE_TYPE_KIND_U64
+#else
+#  error "uintptr_t size not supported"
+#endif
+
+#if PTRDIFF_MAX == 32767
+#  define SYX_PRIMITIVE_TYPE_KIND_PTRDIFF SYX_PRIMITIVE_TYPE_KIND_I16
+#elif PTRDIFF_MAX == 2147483647
+#  define SYX_PRIMITIVE_TYPE_KIND_PTRDIFF SYX_PRIMITIVE_TYPE_KIND_I32
+#elif PTRDIFF_MAX == 9223372036854775807
+#  define SYX_PRIMITIVE_TYPE_KIND_PTRDIFF SYX_PRIMITIVE_TYPE_KIND_I64
+#else
+#  error "ptrdiff_t size not supported"
+#endif
+
+#if SIZE_MAX == 65535
+#  define SYX_PRIMITIVE_TYPE_KIND_SIZE SYX_PRIMITIVE_TYPE_KIND_U16
+#elif SIZE_MAX == 4294967295U
+#  define SYX_PRIMITIVE_TYPE_KIND_SIZE SYX_PRIMITIVE_TYPE_KIND_U32
+#elif SIZE_MAX == 18446744073709551615ULL
+#  define SYX_PRIMITIVE_TYPE_KIND_SIZE SYX_PRIMITIVE_TYPE_KIND_U64
+#else
+#  error "size_t size not supported"
+#endif
+
+#define SYX_PRIMITIVE_TYPE_KIND_FLOAT SYX_PRIMITIVE_TYPE_KIND_F32
+#define SYX_PRIMITIVE_TYPE_KIND_DOUBLE SYX_PRIMITIVE_TYPE_KIND_F64
+#if LD_KIND == LD_KIND_F64
+#  define SYX_PRIMITIVE_TYPE_KIND_LDOUBLE SYX_PRIMITIVE_TYPE_KIND_F64
+#elif LD_KIND == LD_KIND_F80
+#  define SYX_PRIMITIVE_TYPE_KIND_LDOUBLE SYX_PRIMITIVE_TYPE_KIND_F80
+#elif LD_KIND == LD_KIND_F128
+#  define SYX_PRIMITIVE_TYPE_KIND_LDOUBLE SYX_PRIMITIVE_TYPE_KIND_F128
+#elif LD_KIND == LD_KIND_F64PAIR
+#  define SYX_PRIMITIVE_TYPE_KIND_LDOUBLE SYX_PRIMITIVE_TYPE_KIND_F64PAIR
+#else
+#  error "Unsupported or unknown long double architecture."
+#endif
 
 typedef struct Syx_Type_Structure Syx_Type_Structure;
 typedef struct Syx_Type_Function Syx_Type_Function;
@@ -105,7 +196,49 @@ void *syx_type_function_ffi_call(Syx_Type_Function *func, void (*func_ptr)(void)
 
 size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type);
 
-typedef Ht(const char *, Syx_Type *, SYX_KNOWN_TYPES_t) SYX_KNOWN_TYPES_t;
+typedef struct {
+  Syx_Type *c_void;
+  Syx_Type *c_char;
+  Syx_Type *c_i8;
+  Syx_Type *c_i16;
+  Syx_Type *c_i32;
+  Syx_Type *c_i64;
+  Syx_Type *c_i128;
+  Syx_Type *c_u8;
+  Syx_Type *c_u16;
+  Syx_Type *c_u32;
+  Syx_Type *c_u64;
+  Syx_Type *c_u128;
+  Syx_Type *c_f16;
+  Syx_Type *c_f32;
+  Syx_Type *c_f64;
+  Syx_Type *c_f80;
+  Syx_Type *c_f128;
+  Syx_Type *c_f64pair;
+  Syx_Type *c_short;
+  Syx_Type *c_sshort;
+  Syx_Type *c_ushort;
+  Syx_Type *c_int;
+  Syx_Type *c_sint;
+  Syx_Type *c_uint;
+  Syx_Type *c_long;
+  Syx_Type *c_slong;
+  Syx_Type *c_ulong;
+  Syx_Type *c_llong;
+  Syx_Type *c_sllong;
+  Syx_Type *c_ullong;
+  Syx_Type *c_uintptr;
+  Syx_Type *c_ptrdiff;
+  Syx_Type *c_size;
+  Syx_Type *c_float;
+  Syx_Type *c_double;
+  Syx_Type *c_ldouble;
+  Syx_Type *c_value;
+  Syx_Type *c_str;
+  Syx_Type *c_string;
+  Syx_Type *c_file;
+  Ht(Syx_Symbol *, Syx_Type *) registry;
+} SYX_KNOWN_TYPES_t;
 syx_predefine_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES);
 void syx_env_define_types(Syx_Env *env);
 
@@ -319,58 +452,181 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
       stringify_append(&state, sb_append, ')');
     } break;
     case SYX_TYPE_KIND_VALUE_PTR: {
-      stringify_append(&state, sb_append_strlit, "value");
+      stringify_append(&state, sb_append_strlit, "c_value");
     } break;
   }
   return state.count;
 }
 
 syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
-  SYX_KNOWN_TYPES->hasheq = ht_cstr_hasheq;
-  *ht_put(SYX_KNOWN_TYPES, "c_void") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void);
-  *ht_put(SYX_KNOWN_TYPES, "c_char") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_CHAR, sizeof(char), alignof(char), NULL,
-#if CHAR_MIN < 0
-                                                               &ffi_type_schar
+  static const ffi_type *ffi_type_char_ref = CHAR_MIN < 0 ? &ffi_type_schar : &ffi_type_uchar;
+
+  static const ffi_type *ffi_type_sint128_elements[] = {&ffi_type_sint64, &ffi_type_sint64, NULL};
+  static const ffi_type ffi_type_sint128 = {.type = FFI_TYPE_STRUCT, .elements = ffi_type_sint128_elements};
+
+  static const ffi_type *ffi_type_uint128_elements[] = {&ffi_type_uint64, &ffi_type_uint64, NULL};
+  static const ffi_type ffi_type_uint128 = {.type = FFI_TYPE_STRUCT, .elements = ffi_type_uint128_elements};
+
+  static const ffi_type *ffi_type_f16_elements[] = {&ffi_type_uint16, NULL};
+  static const ffi_type ffi_type_f16 = {.type = FFI_TYPE_STRUCT, .elements = ffi_type_f16_elements};
+
+  static const ffi_type *ffi_type_f32_ref = &ffi_type_float;
+  static const ffi_type *ffi_type_f64_ref = &ffi_type_double;
+
+  static const ffi_type *ffi_type_f80_elements[] = {&ffi_type_uint64, &ffi_type_uint16, NULL};
+  static const ffi_type ffi_type_f80 = {.type = FFI_TYPE_STRUCT, .elements = ffi_type_f80_elements};
+
+  static const ffi_type ffi_type_f128 = ffi_type_uint128;
+
+  SYX_KNOWN_TYPES->c_void = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void);
+  SYX_KNOWN_TYPES->c_char = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_CHAR, sizeof(char), alignof(char), NULL, ffi_type_char_ref);
+  SYX_KNOWN_TYPES->c_i8 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I8, sizeof(int8_t), alignof(int8_t), NULL, &ffi_type_sint8);
+  SYX_KNOWN_TYPES->c_i16 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I16, sizeof(int16_t), alignof(int16_t), NULL, &ffi_type_sint16);
+  SYX_KNOWN_TYPES->c_i32 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I32, sizeof(int32_t), alignof(int32_t), NULL, &ffi_type_sint32);
+  SYX_KNOWN_TYPES->c_i64 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I64, sizeof(int64_t), alignof(int64_t), NULL, &ffi_type_sint64);
+  SYX_KNOWN_TYPES->c_i128 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I128, sizeof(__int128_t), alignof(__int128_t), NULL, &ffi_type_sint128);
+  SYX_KNOWN_TYPES->c_u8 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U8, sizeof(uint8_t), alignof(uint8_t), NULL, &ffi_type_uint8);
+  SYX_KNOWN_TYPES->c_u16 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U16, sizeof(uint16_t), alignof(uint16_t), NULL, &ffi_type_uint16);
+  SYX_KNOWN_TYPES->c_u32 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U32, sizeof(uint32_t), alignof(uint32_t), NULL, &ffi_type_uint32);
+  SYX_KNOWN_TYPES->c_u64 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U64, sizeof(uint64_t), alignof(uint64_t), NULL, &ffi_type_uint64);
+  SYX_KNOWN_TYPES->c_u128 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U128, sizeof(__uint128_t), alignof(__uint128_t), NULL, &ffi_type_uint128);
+  SYX_KNOWN_TYPES->c_f16 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F16, sizeof(f16_canonical_t), alignof(f16_canonical_t), NULL, &ffi_type_f16);
+  SYX_KNOWN_TYPES->c_f32 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F32, sizeof(float), alignof(float), NULL, ffi_type_f32_ref);
+  SYX_KNOWN_TYPES->c_f64 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F64, sizeof(double), alignof(double), NULL, ffi_type_f64_ref);
+  SYX_KNOWN_TYPES->c_f80 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F80, sizeof(f80_canonical_t), alignof(f80_canonical_t), NULL, &ffi_type_f80);
+  SYX_KNOWN_TYPES->c_f128 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F128, sizeof(f128_canonical_t), alignof(f128_canonical_t), NULL, &ffi_type_f128);
+  SYX_KNOWN_TYPES->c_f64pair = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_F64PAIR, sizeof(f64pair_canonical_t), alignof(f64pair_canonical_t), NULL, &ffi_type_f128);
+
+#if LLONG_MAX == 9223372036854775807
+  static const ffi_type *ffi_type_sllong_ref = &ffi_type_sint64;
+  static const ffi_type *ffi_type_ullong_ref = &ffi_type_uint64;
+  static const ffi_type *ffi_type_llong_ref = &ffi_type_sint64;
 #else
-                                                               &ffi_type_uchar
+#  error "long size not supported"
 #endif
-  );
-  *ht_put(SYX_KNOWN_TYPES, "c_i8") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I8, sizeof(int8_t), alignof(int8_t), NULL, &ffi_type_sint8);
-  *ht_put(SYX_KNOWN_TYPES, "c_i16") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I16, sizeof(int16_t), alignof(int16_t), NULL, &ffi_type_sint16);
-  *ht_put(SYX_KNOWN_TYPES, "c_i32") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I32, sizeof(int32_t), alignof(int32_t), NULL, &ffi_type_sint32);
-  *ht_put(SYX_KNOWN_TYPES, "c_i64") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I64, sizeof(int64_t), alignof(int64_t), NULL, &ffi_type_sint64);
-  *ht_put(SYX_KNOWN_TYPES, "c_u8") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U8, sizeof(uint8_t), alignof(uint8_t), NULL, &ffi_type_uint8);
-  *ht_put(SYX_KNOWN_TYPES, "c_u16") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U16, sizeof(uint16_t), alignof(uint16_t), NULL, &ffi_type_uint16);
-  *ht_put(SYX_KNOWN_TYPES, "c_u32") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U32, sizeof(uint32_t), alignof(uint32_t), NULL, &ffi_type_uint32);
-  *ht_put(SYX_KNOWN_TYPES, "c_u64") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_U64, sizeof(uint64_t), alignof(uint64_t), NULL, &ffi_type_uint64);
-  *ht_put(SYX_KNOWN_TYPES, "c_int") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_INT, sizeof(int), alignof(int), NULL, &ffi_type_sint);
-  *ht_put(SYX_KNOWN_TYPES, "c_long") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LONG, sizeof(signed long), alignof(signed long), NULL, &ffi_type_slong);
-  *ht_put(SYX_KNOWN_TYPES, "c_llong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LLONG, sizeof(signed long long), alignof(signed long long), NULL, &ffi_type_sint64);
-  *ht_put(SYX_KNOWN_TYPES, "c_uint") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_UINT, sizeof(unsigned), alignof(unsigned), NULL, &ffi_type_uint);
-  *ht_put(SYX_KNOWN_TYPES, "c_ulong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULONG, sizeof(unsigned long), alignof(unsigned long), NULL, &ffi_type_ulong);
-  *ht_put(SYX_KNOWN_TYPES, "c_ullong") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULLONG, sizeof(unsigned long long), alignof(unsigned long long), NULL, &ffi_type_uint64);
-  *ht_put(SYX_KNOWN_TYPES, "c_float") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_FLOAT, sizeof(float), alignof(float), NULL, &ffi_type_float);
-  *ht_put(SYX_KNOWN_TYPES, "c_double") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_DOUBLE, sizeof(double), alignof(double), NULL, &ffi_type_double);
-  *ht_put(SYX_KNOWN_TYPES, "c_size") = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_SIZE, sizeof(size_t), alignof(size_t), NULL, &ffi_type_pointer);
 
-  *ht_put(SYX_KNOWN_TYPES, "value") = make_syx_type(SYX_TYPE_KIND_VALUE_PTR, sizeof(Syx_Value *), alignof(Syx_Value *), NULL, &ffi_type_pointer, 0);
-  *ht_put(SYX_KNOWN_TYPES, "c_str") = make_syx_type_pointer(NULL, *ht_find(SYX_KNOWN_TYPES, "c_char"));
+#if UINTPTR_MAX == 65535
+  static const ffi_type *ffi_type_uintptr_ref = &ffi_type_uint16;
+#elif UINTPTR_MAX == 4294967295U
+  static const ffi_type *ffi_type_uintptr_ref = &ffi_type_uint32;
+#elif UINTPTR_MAX == 18446744073709551615ULL
+  static const ffi_type *ffi_type_uintptr_ref = &ffi_type_uint64;
+#else
+#  error "uintptr_t size not supported"
+#endif
+
+#if PTRDIFF_MAX == 32767
+  static const ffi_type *ffi_type_ptrdiff_ref = &ffi_type_sint16;
+#elif PTRDIFF_MAX == 2147483647
+  static const ffi_type *ffi_type_ptrdiff_ref = &ffi_type_sint32;
+#elif PTRDIFF_MAX == 9223372036854775807
+  static const ffi_type *ffi_type_ptrdiff_ref = &ffi_type_sint64;
+#else
+#  error "ptrdiff_t size not supported"
+#endif
+
+#if SIZE_MAX == 65535
+  static const ffi_type *ffi_type_size_ref = &ffi_type_uint16;
+#elif SIZE_MAX == 4294967295U
+  static const ffi_type *ffi_type_size_ref = &ffi_type_uint32;
+#elif SIZE_MAX == 18446744073709551615ULL
+  static const ffi_type *ffi_type_size_ref = &ffi_type_uint64;
+#else
+#  error "size_t size not supported"
+#endif
+
+#if LD_KIND == LD_KIND_F64
+  static const ffi_type *ffi_type_ldouble_ref = &ffi_type_double;
+#elif LD_KIND == LD_KIND_F80
+  static const ffi_type *ffi_type_ldouble_ref = &ffi_type_f80;
+#elif LD_KIND == LD_KIND_F128
+  static const ffi_type *ffi_type_ldouble_ref = &ffi_type_f128;
+#elif LD_KIND == LD_KIND_F64PAIR
+  static const ffi_type *ffi_type_ldouble_ref = &ffi_type_f128;
+#else
+#  error "Unsupported or unknown long double architecture."
+#endif
+
+  SYX_KNOWN_TYPES->c_short = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_SHORT, sizeof(short), alignof(short), NULL, &ffi_type_sshort);
+  SYX_KNOWN_TYPES->c_sshort = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_SSHORT, sizeof(signed short), alignof(signed short), NULL, &ffi_type_sshort);
+  SYX_KNOWN_TYPES->c_ushort = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_USHORT, sizeof(unsigned short), alignof(unsigned short), NULL, &ffi_type_ushort);
+  SYX_KNOWN_TYPES->c_int = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_INT, sizeof(int), alignof(int), NULL, &ffi_type_sint);
+  SYX_KNOWN_TYPES->c_sint = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_SINT, sizeof(signed int), alignof(signed int), NULL, &ffi_type_sint);
+  SYX_KNOWN_TYPES->c_uint = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_UINT, sizeof(unsigned int), alignof(unsigned int), NULL, &ffi_type_uint);
+  SYX_KNOWN_TYPES->c_long = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LONG, sizeof(long), alignof(long), NULL, &ffi_type_slong);
+  SYX_KNOWN_TYPES->c_slong = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_SLONG, sizeof(signed long), alignof(signed long), NULL, &ffi_type_slong);
+  SYX_KNOWN_TYPES->c_ulong = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULONG, sizeof(unsigned long), alignof(unsigned long), NULL, &ffi_type_ulong);
+  SYX_KNOWN_TYPES->c_llong = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LLONG, sizeof(long long), alignof(long long), NULL, ffi_type_llong_ref);
+  SYX_KNOWN_TYPES->c_sllong = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_SLLONG, sizeof(signed long), alignof(signed long), NULL, ffi_type_sllong_ref);
+  SYX_KNOWN_TYPES->c_ullong = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_ULLONG, sizeof(unsigned long), alignof(unsigned long), NULL, ffi_type_ullong_ref);
+  SYX_KNOWN_TYPES->c_uintptr = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_UINTPTR, sizeof(uintptr_t), alignof(uintptr_t), NULL, ffi_type_uintptr_ref);
+  SYX_KNOWN_TYPES->c_ptrdiff = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_PTRDIFF, sizeof(ptrdiff_t), alignof(ptrdiff_t), NULL, ffi_type_ptrdiff_ref);
+  SYX_KNOWN_TYPES->c_size = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_SIZE, sizeof(size_t), alignof(size_t), NULL, ffi_type_size_ref);
+  SYX_KNOWN_TYPES->c_float = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_FLOAT, sizeof(float), alignof(float), NULL, &ffi_type_float);
+  SYX_KNOWN_TYPES->c_double = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_DOUBLE, sizeof(double), alignof(double), NULL, &ffi_type_double);
+  SYX_KNOWN_TYPES->c_ldouble = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LDOUBLE, sizeof(long double), alignof(long double), NULL, ffi_type_ldouble_ref);
+
   Syx_Type_Structure_Fields string_fields = make_syx_type_structure_fields(
-      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("data")->symbol, .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_str")},
-      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count")->symbol, .readonly = true, .type = *ht_find(SYX_KNOWN_TYPES, "c_size")});
-  *ht_put(SYX_KNOWN_TYPES, "string") = make_syx_type_structure(NULL, (Syx_Type_Structure){.fields = string_fields});
-  *ht_put(SYX_KNOWN_TYPES, "FILE*") = make_syx_type_pointer(NULL, *ht_find(SYX_KNOWN_TYPES, "c_void"));
-}
+      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("data")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_str},
+      (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_size});
 
-void syx_env_define_types(Syx_Env *env) {
-  ht_foreach(type, SYX_KNOWN_TYPES()) {
-    const char *key = ht_key(SYX_KNOWN_TYPES(), type);
-    rc_acquire(*type);
+  SYX_KNOWN_TYPES->c_value = make_syx_type(SYX_TYPE_KIND_VALUE_PTR, sizeof(Syx_Value *), alignof(Syx_Value *), NULL, &ffi_type_pointer, 0);
+  SYX_KNOWN_TYPES->c_str = make_syx_type_pointer(NULL, SYX_KNOWN_TYPES->c_char);
+  SYX_KNOWN_TYPES->c_string = make_syx_type_structure(NULL, (Syx_Type_Structure){.fields = string_fields});
+  SYX_KNOWN_TYPES->c_file = make_syx_type_pointer(NULL, SYX_KNOWN_TYPES->c_void);
+
+  SYX_KNOWN_TYPES->registry.hasheq = ht_cstr_hasheq;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_void") = SYX_KNOWN_TYPES->c_void;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_char") = SYX_KNOWN_TYPES->c_char;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_i8") = SYX_KNOWN_TYPES->c_i8;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_i16") = SYX_KNOWN_TYPES->c_i16;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_i32") = SYX_KNOWN_TYPES->c_i32;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_i64") = SYX_KNOWN_TYPES->c_i64;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_i128") = SYX_KNOWN_TYPES->c_i128;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_u8") = SYX_KNOWN_TYPES->c_u8;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_u16") = SYX_KNOWN_TYPES->c_u16;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_u32") = SYX_KNOWN_TYPES->c_u32;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_u64") = SYX_KNOWN_TYPES->c_u64;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_u128") = SYX_KNOWN_TYPES->c_u128;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_f16") = SYX_KNOWN_TYPES->c_f16;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_f32") = SYX_KNOWN_TYPES->c_f32;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_f64") = SYX_KNOWN_TYPES->c_f64;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_f80") = SYX_KNOWN_TYPES->c_f80;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_f128") = SYX_KNOWN_TYPES->c_f128;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_f64pair") = SYX_KNOWN_TYPES->c_f64pair;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_short") = SYX_KNOWN_TYPES->c_short;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_sshort") = SYX_KNOWN_TYPES->c_sshort;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_ushort") = SYX_KNOWN_TYPES->c_ushort;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_int") = SYX_KNOWN_TYPES->c_int;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_sint") = SYX_KNOWN_TYPES->c_sint;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_uint") = SYX_KNOWN_TYPES->c_uint;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_long") = SYX_KNOWN_TYPES->c_long;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_slong") = SYX_KNOWN_TYPES->c_slong;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_ulong") = SYX_KNOWN_TYPES->c_ulong;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_llong") = SYX_KNOWN_TYPES->c_llong;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_sllong") = SYX_KNOWN_TYPES->c_sllong;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_ullong") = SYX_KNOWN_TYPES->c_ullong;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_uintptr") = SYX_KNOWN_TYPES->c_uintptr;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_ptrdiff") = SYX_KNOWN_TYPES->c_ptrdiff;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_size") = SYX_KNOWN_TYPES->c_size;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_float") = SYX_KNOWN_TYPES->c_float;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_double") = SYX_KNOWN_TYPES->c_double;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_ldouble") = SYX_KNOWN_TYPES->c_ldouble;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_value") = SYX_KNOWN_TYPES->c_value;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_str") = SYX_KNOWN_TYPES->c_str;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_string") = SYX_KNOWN_TYPES->c_string;
+  *ht_put(&SYX_KNOWN_TYPES->registry, "c_file") = SYX_KNOWN_TYPES->c_file;
+
+  ht_foreach(type, &SYX_KNOWN_TYPES->registry) {
+    const char *key = ht_key(&SYX_KNOWN_TYPES->registry, type);
     Syx_Value *name = rc_acquire(make_syx_value_symbol_cstr(key));
     (*type)->name = name->symbol;
   }
+}
+
+void syx_env_define_types(Syx_Env *env) {
 #define DEFINE(name_lit) ({                                                               \
-  Syx_Type *type = *ht_find(SYX_KNOWN_TYPES(), name_lit);                                 \
+  Syx_Type *type = *ht_find(&SYX_KNOWN_TYPES()->registry, name_lit);                      \
   syx_env_define(env, type->name, make_syx_value_closure_native_constructor(NULL, type)); \
 })
   DEFINE("c_void");
@@ -379,19 +635,40 @@ void syx_env_define_types(Syx_Env *env) {
   DEFINE("c_i16");
   DEFINE("c_i32");
   DEFINE("c_i64");
+  DEFINE("c_i128");
   DEFINE("c_u8");
   DEFINE("c_u16");
   DEFINE("c_u32");
   DEFINE("c_u64");
+  DEFINE("c_u128");
+  DEFINE("c_f16");
+  DEFINE("c_f32");
+  DEFINE("c_f64");
+  DEFINE("c_f80");
+  DEFINE("c_f128");
+  DEFINE("c_f64pair");
+  DEFINE("c_short");
+  DEFINE("c_sshort");
+  DEFINE("c_ushort");
   DEFINE("c_int");
-  DEFINE("c_long");
-  DEFINE("c_llong");
+  DEFINE("c_sint");
   DEFINE("c_uint");
+  DEFINE("c_long");
+  DEFINE("c_slong");
   DEFINE("c_ulong");
+  DEFINE("c_llong");
+  DEFINE("c_sllong");
   DEFINE("c_ullong");
+  DEFINE("c_uintptr");
+  DEFINE("c_ptrdiff");
+  DEFINE("c_size");
   DEFINE("c_float");
   DEFINE("c_double");
-  DEFINE("c_size");
+  DEFINE("c_ldouble");
+  DEFINE("c_value");
+  DEFINE("c_str");
+  DEFINE("c_string");
+  DEFINE("c_file");
 #undef DEFINE
 }
 

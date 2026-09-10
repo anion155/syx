@@ -51,4 +51,10 @@
 #  define PRINTF_FMT_PARAM
 #endif
 
+#ifndef __STDC_VERSION__
+#  define constexpr static const
+#elif __STDC_VERSION__ < 202311L
+#  define constexpr static const
+#endif
+
 #endif // DEFINES_H_
