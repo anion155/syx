@@ -773,6 +773,10 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
       //     __str_append_with(str_append_syxv, it->pair.left);
       //     it = it->pair.right;
       //   }
+      // case SYXV_KIND_CONSTRUCTOR: {
+      //   __str_append_cstr("new ");
+      //   __str_append_with(str_append_syx_type_info, value->constructor.typeinfo);
+      // } break;
     } break;
     case SYX_VALUE_KIND_NATIVE: {
       Syx_Native *native = value->native;
@@ -809,8 +813,10 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
         case SYX_TYPE_KIND_STRUCTURE: TODO("sb_append_syx_value: structure to string");
         case SYX_TYPE_KIND_PTR:
         case SYX_TYPE_KIND_FUNCTION_PTR:
-        case SYX_TYPE_KIND_VALUE_PTR:
           TODO("sb_append_syx_value: pointer to string");
+        case SYX_TYPE_KIND_VALUE_PTR: {
+          stringify_append(&state, sb_append_syx_value, *(Syx_Value **)native->data);
+        } break;
       }
       stringify_append(&state, sb_append, ')');
     } break;
@@ -822,13 +828,6 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
       stringify_append(&state, sb_append_syx_value, value->prefixed->value);
     } break;
   }
-  // case SYXV_KIND_BOXED_METHOD: {
-  //   __str_append_with(str_append_boxed_method, value->boxed_method);
-  // } break;
-  // case SYXV_KIND_CONSTRUCTOR: {
-  //   __str_append_cstr("new ");
-  //   __str_append_with(str_append_syx_type_info, value->constructor.typeinfo);
-  // } break;
   return state.count;
 }
 
