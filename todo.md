@@ -1,6 +1,6 @@
-- value: call native structure
+- value: SYX_TYPE_KIND_VALUE_PTR -> specific pointer type
+- value: lvalue support
 - value: call primitives as objects with specific prototypes
-- ffi: call fn pointers
 - value: object stringify
 - value: closure stringify
 - error: attach stack frame to error object on throw

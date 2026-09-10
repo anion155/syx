@@ -299,8 +299,8 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value);
 #include <sb_number.h>
 #define SYX_UTILS_IMPL
 #include <syx_new/syx_utils.h>
-#define SYX_TYPE_INFO_IMPL
-#include <syx_new/syx_type_info.h>
+#define SYX_TYPES_IMPL
+#include <syx_new/syx_types.h>
 
 syx_define_constant(struct { Syx_Value *nil; Syx_Value *bool_true; Syx_Value *bool_false; }, SYX_VALUE_CONSTANTS) {
   SYX_VALUE_CONSTANTS->nil = rc_acquire(make_syx_value(SYX_VALUE_KIND_PAIR, 0));

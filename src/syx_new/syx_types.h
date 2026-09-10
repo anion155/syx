@@ -1,5 +1,5 @@
-#ifndef SYX_TYPE_INFO_H
-#define SYX_TYPE_INFO_H
+#ifndef SYX_TYPES_H
+#define SYX_TYPES_H
 
 #include <defines.h>
 #include <ffi/ffi.h>
@@ -244,10 +244,10 @@ typedef struct {
 syx_predefine_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES);
 void syx_env_define_types(Syx_Env *env);
 
-#endif // SYX_TYPE_INFO_H
+#endif // SYX_TYPES_H
 
-#if defined(SYX_TYPE_INFO_IMPL) && !defined(SYX_TYPE_INFO_IMPL_C)
-#define SYX_TYPE_INFO_IMPL_C
+#if defined(SYX_TYPES_IMPL) && !defined(SYX_TYPES_IMPL_C)
+#define SYX_TYPES_IMPL_C
 
 #define SYX_VALUE_IMPL
 #include <syx_new/syx_value.h>
@@ -709,4 +709,4 @@ void syx_env_define_types(Syx_Env *env) {
 #undef DEFINE
 }
 
-#endif // SYX_TYPE_INFO_IMPL
+#endif // SYX_TYPES_IMPL
