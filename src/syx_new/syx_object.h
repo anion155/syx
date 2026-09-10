@@ -32,7 +32,7 @@ Syx_Value **syx_object_lookup(Syx_Object *object, Syx_Symbol *field_name) {
 Syx_Value *syx_object_get(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Symbol *field_name) {
   Syx_Value **field = syx_object_lookup(object, field_name);
   if (!field) {
-    return syx_value_nil();
+    return NULL;
   } else if ((*field)->kind == SYX_VALUE_KIND_PREFIXED && (*field)->prefixed->kind == SYX_PREFIXED_KIND_QUOTE) {
     return (*field)->prefixed->value;
   } else {

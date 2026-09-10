@@ -332,17 +332,6 @@ Syx_Value *syx_eval_closure_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda
   return rc_move(result);
 }
 
-Syx_Value *syx_eval_closure(Syx_Eval_Ctx *ctx, Syx_Closure *closure, Syx_Pair *arguments) {
-  Syx_Value *result;
-  switch (closure->kind) {
-    case SYX_CLOSURE_KIND_SPECIALF: result = syx_eval_closure_specialf(ctx, &closure->specialf, arguments); break;
-    case SYX_CLOSURE_KIND_BUILTIN: result = syx_eval_closure_builtin(ctx, &closure->builtin, arguments); break;
-    case SYX_CLOSURE_KIND_LAMBDA: result = syx_eval_closure_lambda(ctx, closure->lambda, arguments); break;
-    case SYX_CLOSURE_KIND_NATIVE_CONSTRUCTOR: result = syx_eval_construct_native(ctx, closure->native, arguments); break;
-  }
-  return result;
-}
-
 Syx_Value *syx_eval_in_environment(Syx_Eval_Ctx *ctx, Syx_Symbol *env_name, Syx_Pair *arguments) {
   Syx_Env *env = ctx->env;
   while (env && env->name != env_name) env = env->parent;
@@ -356,50 +345,60 @@ Syx_Value *syx_eval_in_environment(Syx_Eval_Ctx *ctx, Syx_Symbol *env_name, Syx_
 
 Syx_Value *syx_eval_object(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Pair *arguments) {
   Syx_Value *argument = syx_list_next_nullable(&arguments);
-  SYX_EVAL_ASSERT(ctx, argument->kind == SYX_VALUE_KIND_PREFIXED, "object evaluation in progress, prefixed field name expected");
-  SYX_EVAL_ASSERT(ctx, argument->prefixed->kind == SYX_PREFIXED_KIND_COLON, "object evaluation in progress, prefixed field name expected");
-  SYX_EVAL_ASSERT(ctx, argument->prefixed->value->kind == SYX_VALUE_KIND_SYMBOL, "object evaluation in progress, prefixed field name expected");
+  SYX_EVAL_ASSERT(ctx, argument->kind == SYX_VALUE_KIND_PREFIXED, "object evaluation expects prefixed field name");
+  SYX_EVAL_ASSERT(ctx, argument->prefixed->kind == SYX_PREFIXED_KIND_COLON, "object evaluation expects prefixed field name");
+  SYX_EVAL_ASSERT(ctx, argument->prefixed->value->kind == SYX_VALUE_KIND_SYMBOL, "object evaluation expects prefixed field name");
   Syx_Symbol *field_name = argument->prefixed->value->symbol;
   Syx_Value *value = rc_acquire(syx_object_get(ctx, object, field_name));
+  if (!value) value = rc_acquire(syx_value_nil());
   if (!arguments) return rc_move(value);
-  Syx_Value *next = rc_acquire(make_syx_value_pair(rc_move(value), syx_value_from_pair(arguments)));
-  Syx_Value *result = rc_acquire(syx_eval(ctx, next));
-  syx_value_early_exit(result, (next));
-  rc_release(next);
+  Syx_Value *result = rc_acquire(syx_eval_pair(ctx, value, arguments));
+  rc_release(value);
   return result;
 }
 
-Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  Syx_Value *head = rc_acquire(syx_eval(ctx, syx_list_next(&arguments)));
-  syx_value_early_exit(head);
-  switch (head->kind) {
+Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Value *evaluator, Syx_Pair *arguments) {
+  switch (evaluator->kind) {
     case SYX_VALUE_KIND_CLOSURE: {
-      Syx_Value *result = rc_acquire(syx_eval_closure(ctx, head->closure, arguments));
-      rc_release(head);
-      return rc_move(result);
-    }
-    case SYX_VALUE_KIND_PREFIXED: {
-      switch (head->prefixed->kind) {
-        case SYX_PREFIXED_KIND_DOLLAR: {
-          if (head->prefixed->value->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "is not callable");
-          return syx_eval_in_environment(ctx, head->prefixed->value->symbol, arguments);
-        }
-        default:;
+      switch (evaluator->closure->kind) {
+        case SYX_CLOSURE_KIND_SPECIALF: return syx_eval_closure_specialf(ctx, &evaluator->closure->specialf, arguments);
+        case SYX_CLOSURE_KIND_BUILTIN: return syx_eval_closure_builtin(ctx, &evaluator->closure->builtin, arguments);
+        case SYX_CLOSURE_KIND_LAMBDA: return syx_eval_closure_lambda(ctx, evaluator->closure->lambda, arguments);
+        case SYX_CLOSURE_KIND_NATIVE_CONSTRUCTOR: return syx_eval_construct_native(ctx, evaluator->closure->native, arguments);
+        default:
       }
-    }
-    case SYX_VALUE_KIND_OBJECT: {
-      return syx_eval_object(ctx, head->object, arguments);
-    }
-    case SYX_VALUE_KIND_NATIVE: {
-      switch (head->native->type->kind) {
-        // case SYX_TYPE_KIND_PRIMITIVE:
-        case SYX_TYPE_KIND_STRUCTURE:
-        // case SYX_TYPE_KIND_PTR:
-        // case SYX_TYPE_KIND_FUNCTION_PTR:
-        // case SYX_TYPE_KIND_VALUE_PTR:
+    } break;
+    case SYX_VALUE_KIND_PREFIXED: {
+      switch (evaluator->prefixed->kind) {
+        case SYX_PREFIXED_KIND_DOLLAR: {
+          if (evaluator->prefixed->value->kind == SYX_VALUE_KIND_SYMBOL) {
+            return syx_eval_in_environment(ctx, evaluator->prefixed->value->symbol, arguments);
+          }
+        } break;
         default:
       }
     }
+    case SYX_VALUE_KIND_OBJECT: {
+      return syx_eval_object(ctx, evaluator->object, arguments);
+    } break;
+    case SYX_VALUE_KIND_NATIVE: {
+      switch (evaluator->native->type->kind) {
+        // case SYX_TYPE_KIND_PRIMITIVE:
+        case SYX_TYPE_KIND_STRUCTURE: {
+          return syx_eval_native_structure(ctx, evaluator->native, evaluator->native->type->structure, arguments);
+        } break;
+        case SYX_TYPE_KIND_PTR: {
+          return syx_eval_native_pointer(ctx, evaluator->native, evaluator->native->type->pointer, arguments);
+        } break;
+        case SYX_TYPE_KIND_FUNCTION_PTR: {
+          return syx_eval_native_function(ctx, evaluator->native, evaluator->native->type->function, arguments);
+        } break;
+        case SYX_TYPE_KIND_VALUE_PTR: {
+          return syx_eval_native_value(ctx, evaluator->native, arguments);
+        } break;
+        default:
+      }
+    } break;
     default:
   }
   SYX_EVAL_THROW(ctx, "is not callable");
@@ -421,7 +420,12 @@ Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input) {
     }
     case SYX_VALUE_KIND_PAIR: {
       if (!input->pair) return input;
-      return syx_eval_pair(ctx, input->pair);
+      Syx_Pair *arguments = input->pair;
+      Syx_Value *head = rc_acquire(syx_eval(ctx, syx_list_next(&arguments)));
+      syx_value_early_exit(head);
+      Syx_Value *result = rc_acquire(syx_eval_pair(ctx, head, arguments));
+      rc_release(head);
+      return rc_move(result);
     }
     default: return input;
   }

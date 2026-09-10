@@ -11,7 +11,7 @@ Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair
 #define SYX_NATIVE_IMPL_C
 
 Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair *arguments) {
-  Syx_Value *value = make_syx_value_native(type, 0);
+  Syx_Value *value = make_syx_value_native_instance(type);
   void *data = value->native->data;
   switch (type->kind) {
     case SYX_TYPE_KIND_PRIMITIVE: {
@@ -55,6 +55,8 @@ Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair
         Syx_Value *result = rc_acquire(type->structure->constructor(ctx, data, arguments));
         syx_value_early_exit(result, (value));
         rc_release(result);
+      } else {
+        SYX_EVAL_TODO(ctx, "default constructor");
       }
       rc_get(value)->methods.destructor = syx_value_native_structure_destructor;
     } break;

@@ -191,8 +191,10 @@ Syx_Type_Structure_Fields make__syx_type_structure_fields(const Syx_Type_Structu
 })
 Syx_Type *make_syx_type_function(Syx_Symbol *name, Syx_Type_Function func);
 
-ffi_status syx_type_function_ffi_prep(Syx_Type_Function *func);
-void *syx_type_function_ffi_call(Syx_Type_Function *func, void (*func_ptr)(void), void **arg_values);
+Syx_Value *syx_eval_native_structure(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type_Structure *structure_type, Syx_Pair *arguments);
+Syx_Value *syx_eval_native_pointer(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type *stored_type, Syx_Pair *arguments);
+Syx_Value *syx_eval_native_value(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Pair *arguments);
+Syx_Value *syx_eval_native_function(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type_Function *function, Syx_Pair *arguments);
 
 size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type);
 
@@ -399,44 +401,76 @@ Syx_Type *make_syx_type_function(Syx_Symbol *name, Syx_Type_Function func) {
   return type;
 }
 
-ffi_status syx_type_function_ffi_prep(Syx_Type_Function *func) {
-  if (func->ffi_f) return FFI_OK;
-  ffi_cif *ffi_f = (ffi_cif *)(func + 1);
-  ffi_status result = ffi_prep_cif(ffi_f, FFI_DEFAULT_ABI, func->arg_types.count, func->return_type->ffi_t, (ffi_type **)func->arg_types.data);
-  if (result == FFI_OK) func->ffi_f = ffi_f;
+Syx_Value *syx_eval_native_structure(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type_Structure *structure_type, Syx_Pair *arguments) {
+  Syx_Value *argument = syx_list_next_nullable(&arguments);
+  SYX_EVAL_ASSERT(ctx, argument->kind == SYX_VALUE_KIND_PREFIXED, "native structure evaluation expects prefixed field name");
+  SYX_EVAL_ASSERT(ctx, argument->prefixed->kind == SYX_PREFIXED_KIND_COLON, "native structure evaluation expects prefixed field name");
+  SYX_EVAL_ASSERT(ctx, argument->prefixed->value->kind == SYX_VALUE_KIND_SYMBOL, "native structure evaluation expects prefixed field name");
+  Syx_Symbol *field_name = argument->prefixed->value->symbol;
+  size_t field_index = da_find_macro(structure_type->fields, field, field->name == field_name);
+  SYX_EVAL_ASSERT(ctx, field_index < structure_type->fields.count, "native structure has no such field");
+  Syx_Type_Structure_Field *field = &structure_type->fields.data[field_index];
+  Syx_Value *value = rc_acquire(make_syx_value_native_nested(syx_value_from_native(native), field->type, (void *)((char *)native->data + field->offset)));
+  if (!arguments) return rc_move(value);
+  Syx_Value *result = rc_acquire(syx_eval_pair(ctx, value, arguments));
+  rc_release(value);
+  return rc_move(result);
+}
+
+Syx_Value *syx_eval_native_pointer(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type *stored_type, Syx_Pair *arguments) {
+  Syx_Value *argument = syx_list_next_nullable(&arguments);
+  SYX_EVAL_ASSERT(ctx, argument->kind == SYX_VALUE_KIND_SYMBOL, "native pointer evaluation expects symbol argument");
+  Syx_Value *asterisk_symbol = rc_acquire(make_syx_value_symbol_strlit("*"));
+  Syx_Value *unref_symbol = rc_acquire(make_syx_value_symbol_strlit("unref"));
+  Syx_Value *value = NULL;
+  if (argument == asterisk_symbol || argument == unref_symbol) {
+    value = rc_acquire(make_syx_value_native_nested(syx_value_from_native(native), stored_type, *(void **)native->data));
+  } else {
+    SYX_EVAL_THROW(ctx, "unknown method call: '" SV_FMT "'", (sv_fmt_arg(*argument->symbol)), (asterisk_symbol, unref_symbol));
+  }
+  if (!arguments) return rc_move(value);
+  Syx_Value *result = rc_acquire(syx_eval_pair(ctx, value, arguments));
+  rc_release_all(value, asterisk_symbol, unref_symbol);
   return result;
 }
 
-void *syx_type_function_ffi_call(Syx_Type_Function *func, void (*func_ptr)(void), void **arg_values) {
-  void *return_buffer = malloc(func->return_type->size);
-  memset(return_buffer, 0, func->return_type->size);
-  ffi_call(func->ffi_f, func_ptr, return_buffer, arg_values);
-  return return_buffer;
+Syx_Value *syx_eval_native_value(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Pair *arguments) {
+  Syx_Value *argument = syx_list_next_nullable(&arguments);
+  SYX_EVAL_ASSERT(ctx, argument->kind == SYX_VALUE_KIND_SYMBOL, "native value evaluation expects symbol argument");
+  Syx_Value *asterisk_symbol = rc_acquire(make_syx_value_symbol_strlit("*"));
+  Syx_Value *unref_symbol = rc_acquire(make_syx_value_symbol_strlit("unref"));
+  Syx_Value *value = NULL;
+  if (argument == asterisk_symbol || argument == unref_symbol) {
+    value = *(Syx_Value **)native->data;
+  } else {
+    SYX_EVAL_THROW(ctx, "unknown method call: '" SV_FMT "'", (sv_fmt_arg(*argument->symbol)), (asterisk_symbol, unref_symbol));
+  }
+  if (!arguments) return rc_move(value);
+  Syx_Value *result = rc_acquire(syx_eval_pair(ctx, value, arguments));
+  rc_release_all(value, asterisk_symbol, unref_symbol);
+  return result;
 }
 
-// Syx_Value *syx_eval_native_function(Syx_Eval_Ctx *ctx, Syx_Boxed *boxed, SyxV *arguments) {
-//   if (boxed->typeinfo->kind != SYX_TYPE_INFO_KIND_FUNCTION_PTR) RUNTIME_ERROR(ctx, "boxed function pointer expected");
-//   Syx_Type_Info_Function *function = &boxed->typeinfo->function;
-//   size_t argc = function->argc ? function->argc : 1;
-//   if (function->cif.arg_types == NULL) {
-//     if (ffi_prep_cif(&function->cif, FFI_DEFAULT_ABI, function->argc, function->cif_return_type, function->cif_argv_types) != FFI_OK) {
-//       RUNTIME_ERROR(ctx, "invalid c function descriptor");
-//     }
-//   }
-//   void *arg_values[argc];
-//   for (size_t index = 0; index < function->argc; index += 1) {
-//     SyxV *argument = syxv_list_next(&arguments);
-//     Syx_Type_Info *argument_type = function->argv_types[index];
-//     if (argument->kind != SYXV_KIND_BOXED) TODO("implement values conversion to boxed values");
-//     if (argument_type->kind != argument->boxed->typeinfo->kind) TODO("implement values conversion to boxed values");
-//     arg_values[index] = &argument->boxed->data;
-//   }
-//   if (arguments && arguments->kind == SYXV_KIND_PAIR) TODO("implement vaargs support");
-//   void **return_buffer = malloc(function->return_type->size);
-//   memset(return_buffer, 0, function->return_type->size);
-//   ffi_call(&function->cif, FFI_FN(*(void **)boxed->data), return_buffer, arg_values);
-//   return make_syxv_boxed(make_syx_boxed(.typeinfo = function->return_type, .data = return_buffer, .parent = NULL));
-// }
+Syx_Value *syx_eval_native_function(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type_Function *function, Syx_Pair *arguments) {
+  if (!function->ffi_f) {
+    ffi_cif *ffi_f = (ffi_cif *)(function + 1);
+    if (ffi_prep_cif(ffi_f, FFI_DEFAULT_ABI, function->arg_types.count, function->return_type->ffi_t, (ffi_type **)function->arg_types.data) != FFI_OK) {
+      SYX_EVAL_THROW(ctx, "invalid native function descriptor");
+    }
+  }
+  void *args_storage[function->arg_types.count];
+  da_foreach(&function->arg_types, arg_type) {
+    Syx_Value *argument = syxv_list_next(&arguments);
+    if (argument->kind != SYX_VALUE_KIND_NATIVE) SYX_EVAL_TODO(ctx, "convert arguments to native values");
+    if ((*arg_type) != argument->native->type) SYX_EVAL_TODO(ctx, "convert arguments to native values");
+    args_storage[arg_type_index] = &argument->native->data;
+  }
+  if (arguments) SYX_EVAL_TODO(ctx, "vaargs support");
+  Syx_Value *result = rc_acquire(make_syx_value_native_instance(function->return_type));
+  memset(result->native->data, 0, function->return_type->size);
+  ffi_call(function->ffi_f, *(void (**)(void))native->data, result->native->data, args_storage);
+  return rc_move(result);
+}
 
 size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
   Stringify_State state = make_stringify_state(sb, 256);

@@ -163,6 +163,7 @@ typedef struct Syx_Closure_Lambda {
 
 typedef struct Syx_Type Syx_Type;
 typedef struct Syx_Native {
+  Syx_Native *parent;
   Syx_Type *type;
   void *data;
 } Syx_Native;
@@ -228,7 +229,8 @@ Syx_Value *make_syx_value_closure_builtin(Syx_Symbol *name, Syx_Closure_Builtin 
 Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda lambda);
 Syx_Value *make_syx_value_closure_native_constructor(Syx_Symbol *name, Syx_Type *type);
 void syx_value_native_structure_destructor(void *data);
-Syx_Value *make_syx_value_native(Syx_Type *type, size_t additional_size);
+Syx_Value *make_syx_value_native_instance(Syx_Type *type);
+Syx_Value *make_syx_value_native_nested(Syx_Native *parent, Syx_Type *type, void *data);
 Syx_Value *make_syx_value_exit_returned(Syx_Value *returned);
 Syx_Value *make_syx_value_exit_thrown(Syx_Value *reason, Syx_Frame *stack_frame);
 Syx_Value *make_syx_value_prefixed(Syx_Prefixed_Kind kind, Syx_Value *inner_value);
@@ -242,6 +244,7 @@ static inline Syx_Value *syx_value_from_closure(Syx_Closure *closure) { return (
 static inline Syx_Closure *syx_closure_from_specialf(Syx_Closure_Special_Form *specialf) { return (Syx_Closure *)((char *)specialf - offsetof(Syx_Closure, specialf)); }
 static inline Syx_Closure *syx_closure_from_builtin(Syx_Closure_Builtin *builtin) { return (Syx_Closure *)((char *)builtin - offsetof(Syx_Closure, builtin)); }
 static inline Syx_Closure *syx_closure_from_lambda(Syx_Closure_Lambda *lambda) { return (Syx_Closure *)lambda - 1; }
+static inline Syx_Value *syx_value_from_native(Syx_Native *native) { return (Syx_Value *)native - 1; }
 static inline Syx_Value *syx_value_from_exit(Syx_Exit *exit) { return (Syx_Value *)exit - 1; }
 static inline Syx_Value *syx_value_from_prefixed(Syx_Prefixed *prefixed) { return (Syx_Value *)prefixed - 1; }
 
@@ -576,6 +579,7 @@ Syx_Value *make_syx_value_closure_native_constructor(Syx_Symbol *name, Syx_Type 
 
 void syx_value_native_destructor(void *data) {
   Syx_Value *value = data;
+  rc_release(value->native->parent);
   rc_release(value->native->type);
 }
 
@@ -587,12 +591,22 @@ void syx_value_native_structure_destructor(void *data) {
   syx_value_native_destructor(data);
 }
 
-Syx_Value *make_syx_value_native(Syx_Type *type, size_t additional_size) {
-  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NATIVE, sizeof(Syx_Native) + type->size + additional_size);
+Syx_Value *make_syx_value_native_instance(Syx_Type *type) {
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NATIVE, sizeof(Syx_Native) + type->size);
   rc_get(value)->methods.destructor = syx_value_native_destructor;
   value->native = (Syx_Native *)(value + 1);
   value->native->type = rc_acquire(type);
   value->native->data = (void *)(value->native + 1);
+  return value;
+}
+
+Syx_Value *make_syx_value_native_nested(Syx_Native *parent, Syx_Type *type, void *data) {
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NATIVE, sizeof(Syx_Native));
+  rc_get(value)->methods.destructor = syx_value_native_destructor;
+  value->native = (Syx_Native *)(value + 1);
+  value->native->parent = rc_acquire(parent);
+  value->native->type = rc_acquire(type);
+  value->native->data = data;
   return value;
 }
 
