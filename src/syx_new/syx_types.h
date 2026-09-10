@@ -17,7 +17,6 @@ typedef enum Syx_Type_Kind : unsigned int {
   SYX_TYPE_KIND_STRUCTURE,
   SYX_TYPE_KIND_PTR,
   SYX_TYPE_KIND_FUNCTION_PTR,
-  SYX_TYPE_KIND_VALUE_PTR,
 } Syx_Type_Kind;
 
 typedef enum Syx_Primitive_Type_Kind : unsigned int {
@@ -193,7 +192,6 @@ Syx_Type *make_syx_type_function(Syx_Symbol *name, Syx_Type_Function func);
 
 Syx_Value *syx_eval_native_structure(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type_Structure *structure_type, Syx_Pair *arguments);
 Syx_Value *syx_eval_native_pointer(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type *stored_type, Syx_Pair *arguments);
-Syx_Value *syx_eval_native_value(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Pair *arguments);
 Syx_Value *syx_eval_native_function(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type_Function *function, Syx_Pair *arguments);
 
 size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type);
@@ -410,7 +408,7 @@ Syx_Value *syx_eval_native_structure(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_
   size_t field_index = da_find_macro(structure_type->fields, field, field->name == field_name);
   SYX_EVAL_ASSERT(ctx, field_index < structure_type->fields.count, "native structure has no such field");
   Syx_Type_Structure_Field *field = &structure_type->fields.data[field_index];
-  Syx_Value *value = rc_acquire(make_syx_value_native_nested(syx_value_from_native(native), field->type, (void *)((char *)native->data + field->offset)));
+  Syx_Value *value = rc_acquire(make_syx_value_native_nested(native, field->type, (void *)((char *)native->data + field->offset)));
   if (!arguments) return rc_move(value);
   Syx_Value *result = rc_acquire(syx_eval_pair(ctx, value, arguments));
   rc_release(value);
@@ -424,24 +422,11 @@ Syx_Value *syx_eval_native_pointer(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Ty
   Syx_Value *unref_symbol = rc_acquire(make_syx_value_symbol_strlit("unref"));
   Syx_Value *value = NULL;
   if (argument == asterisk_symbol || argument == unref_symbol) {
-    value = rc_acquire(make_syx_value_native_nested(syx_value_from_native(native), stored_type, *(void **)native->data));
-  } else {
-    SYX_EVAL_THROW(ctx, "unknown method call: '" SV_FMT "'", (sv_fmt_arg(*argument->symbol)), (asterisk_symbol, unref_symbol));
-  }
-  if (!arguments) return rc_move(value);
-  Syx_Value *result = rc_acquire(syx_eval_pair(ctx, value, arguments));
-  rc_release_all(value, asterisk_symbol, unref_symbol);
-  return result;
-}
-
-Syx_Value *syx_eval_native_value(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Pair *arguments) {
-  Syx_Value *argument = syx_list_next_nullable(&arguments);
-  SYX_EVAL_ASSERT(ctx, argument->kind == SYX_VALUE_KIND_SYMBOL, "native value evaluation expects symbol argument");
-  Syx_Value *asterisk_symbol = rc_acquire(make_syx_value_symbol_strlit("*"));
-  Syx_Value *unref_symbol = rc_acquire(make_syx_value_symbol_strlit("unref"));
-  Syx_Value *value = NULL;
-  if (argument == asterisk_symbol || argument == unref_symbol) {
-    value = *(Syx_Value **)native->data;
+    if (stored_type == SYX_KNOWN_TYPES()->c_value) {
+      value = *(Syx_Value **)native->data;
+    } else {
+      value = rc_acquire(make_syx_value_native_nested(native, stored_type, *(void **)native->data));
+    }
   } else {
     SYX_EVAL_THROW(ctx, "unknown method call: '" SV_FMT "'", (sv_fmt_arg(*argument->symbol)), (asterisk_symbol, unref_symbol));
   }
@@ -460,7 +445,7 @@ Syx_Value *syx_eval_native_function(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_T
   }
   void *args_storage[function->arg_types.count];
   da_foreach(&function->arg_types, arg_type) {
-    Syx_Value *argument = syxv_list_next(&arguments);
+    Syx_Value *argument = syx_list_next(&arguments);
     if (argument->kind != SYX_VALUE_KIND_NATIVE) SYX_EVAL_TODO(ctx, "convert arguments to native values");
     if ((*arg_type) != argument->native->type) SYX_EVAL_TODO(ctx, "convert arguments to native values");
     args_storage[arg_type_index] = &argument->native->data;
@@ -507,9 +492,6 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
       }
       stringify_append(&state, sb_append, ')');
       stringify_append(&state, sb_append, ')');
-    } break;
-    case SYX_TYPE_KIND_VALUE_PTR: {
-      stringify_append(&state, sb_append_strlit, "c_value");
     } break;
   }
   return state.count;
@@ -604,7 +586,7 @@ syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
   SYX_KNOWN_TYPES->c_double = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_DOUBLE, sizeof(double), alignof(double), NULL, &ffi_type_double);
   SYX_KNOWN_TYPES->c_ldouble = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_LDOUBLE, sizeof(long double), alignof(long double), NULL, ffi_type_ldouble_ref);
 
-  SYX_KNOWN_TYPES->c_value = make_syx_type(SYX_TYPE_KIND_VALUE_PTR, sizeof(Syx_Value *), alignof(Syx_Value *), NULL, &ffi_type_pointer, 0);
+  SYX_KNOWN_TYPES->c_value = make_syx_type_pointer(NULL, SYX_KNOWN_TYPES->c_void);
   SYX_KNOWN_TYPES->c_str = make_syx_type_pointer(NULL, SYX_KNOWN_TYPES->c_char);
   SYX_KNOWN_TYPES->c_string = make_syx_type_structure(NULL, (Syx_Type_Structure){
                                                                 .fields = make_syx_type_structure_fields(

@@ -30,7 +30,9 @@ Syx_Value *syx_builtin_cons(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 /** Evaluates each argument and constructs a new list containing the results. */
 Syx_Value *syx_builtin_list(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   UNUSED(ctx);
-  return syx_value_from_pair(arguments);
+  Syx_Value *list = syx_value_from_pair(arguments);
+  if (!list) list = syx_value_nil();
+  return list;
 }
 
 /** Returns the left element of a pair. */

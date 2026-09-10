@@ -1,4 +1,3 @@
-- value: SYX_TYPE_KIND_VALUE_PTR -> specific pointer type
 - value: lvalue support
 - value: call primitives as objects with specific prototypes
 - value: object stringify

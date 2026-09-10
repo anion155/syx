@@ -61,8 +61,7 @@ Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair
       rc_get(value)->methods.destructor = syx_value_native_structure_destructor;
     } break;
     case SYX_TYPE_KIND_PTR:
-    case SYX_TYPE_KIND_FUNCTION_PTR:
-    case SYX_TYPE_KIND_VALUE_PTR: {
+    case SYX_TYPE_KIND_FUNCTION_PTR: {
       *(void **)data = NULL;
       Syx_Value *argument = syx_list_next(&arguments);
       switch (argument->kind) {
@@ -104,8 +103,7 @@ Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair
             } break;
             case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "invalid argument type", (), (value));
             case SYX_TYPE_KIND_PTR:
-            case SYX_TYPE_KIND_FUNCTION_PTR:
-            case SYX_TYPE_KIND_VALUE_PTR: {
+            case SYX_TYPE_KIND_FUNCTION_PTR: {
               *(void **)data = *(void **)argument->native->data;
             } break;
           }

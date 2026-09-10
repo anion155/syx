@@ -55,6 +55,7 @@ Syx_Eval_Ctx *inherit_syx_eval_ctx(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
 #define SYX_EVAL_TODO(ctx, message, ...) SYX_TODO(message, WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)), WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), (ctx)->frames_stack->latest)
 #define SYX_EVAL_ASSERT(ctx, condition, message, ...) SYX_ASSERT((condition), message, WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)), WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), (ctx)->frames_stack->latest)
 
+Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Value *evaluator, Syx_Pair *arguments);
 Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input);
 Syx_Value *syx_eval_unquote(Syx_Eval_Ctx *ctx, Syx_Value *unevaluated);
 Syx_Value *syx_eval_map_list(Syx_Eval_Ctx *ctx, Syx_Pair *list);
@@ -296,7 +297,7 @@ Syx_Value *syx_eval_closure_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda
        *defines_list = syx_value_from_pair(lambda->defines);
        syx_list_for_each_next(&arg_current, &arg_next, &arg, NULL);) {
     if (arg->kind == SYX_VALUE_KIND_PREFIXED && arg->prefixed->kind == SYX_PREFIXED_KIND_COLON) SYX_EVAL_TODO(ctx, "named param bindings");
-    SYX_EVAL_ASSERT(ctx, defines_list->kind == SYX_VALUE_KIND_PAIR && defines_list->pair, "list of defines expected");
+    SYX_EVAL_ASSERT(ctx, defines_list && defines_list->kind == SYX_VALUE_KIND_PAIR && defines_list->pair, "list of defines expected");
     define = defines_list->pair->left;
     if (define->kind == SYX_VALUE_KIND_PAIR && define->pair) define = define->pair->left;
     SYX_EVAL_ASSERT(ctx, define->kind == SYX_VALUE_KIND_SYMBOL, "argument name expected");
@@ -392,9 +393,6 @@ Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Value *evaluator, Syx_Pair *argu
         } break;
         case SYX_TYPE_KIND_FUNCTION_PTR: {
           return syx_eval_native_function(ctx, evaluator->native, evaluator->native->type->function, arguments);
-        } break;
-        case SYX_TYPE_KIND_VALUE_PTR: {
-          return syx_eval_native_value(ctx, evaluator->native, arguments);
         } break;
         default:
       }
@@ -504,7 +502,6 @@ Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value) {
         case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to bool");
         case SYX_TYPE_KIND_PTR:
         case SYX_TYPE_KIND_FUNCTION_PTR:
-        case SYX_TYPE_KIND_VALUE_PTR:
           return syx_value_bool(*(void **)native->data);
       }
     }
@@ -553,9 +550,11 @@ Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value) {
         }
         case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to number");
         case SYX_TYPE_KIND_PTR:
+          if (native->type == SYX_KNOWN_TYPES()->c_value) {
+            return syx_convert_to_number(ctx, *(Syx_Value **)native->data);
+          }
         case SYX_TYPE_KIND_FUNCTION_PTR:
           return make_syx_value_number_integer((uintptr_t)*(void **)native->data);
-        case SYX_TYPE_KIND_VALUE_PTR: return syx_convert_to_number(ctx, *(Syx_Value **)native->data);
       }
     }
     case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to number");
@@ -581,18 +580,18 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value) {
         case SYX_TYPE_KIND_PRIMITIVE: SYX_EVAL_THROW(ctx, "native can't be converted to string");
         case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to string");
         case SYX_TYPE_KIND_PTR: {
-          if (native->type) {
-            if (native->type == SYX_KNOWN_TYPES()->c_str) {
-              return make_syx_value_string_cstr_dup(*(char **)native->data);
-            }
-            if (native->type == SYX_KNOWN_TYPES()->c_string) {
-              return make_syx_value_string((String *)native->data);
-            }
+          if (native->type == SYX_KNOWN_TYPES()->c_value) {
+            return syx_convert_to_string(ctx, *(Syx_Value **)native->data);
+          }
+          if (native->type == SYX_KNOWN_TYPES()->c_str) {
+            return make_syx_value_string_cstr_dup(*(char **)native->data);
+          }
+          if (native->type == SYX_KNOWN_TYPES()->c_string) {
+            return make_syx_value_string((String *)native->data);
           }
           SYX_EVAL_THROW(ctx, "native pointer can't be converted to string");
         }
         case SYX_TYPE_KIND_FUNCTION_PTR: SYX_EVAL_THROW(ctx, "native function pointer can't be converted to string");
-        case SYX_TYPE_KIND_VALUE_PTR: return syx_convert_to_string(ctx, *(Syx_Value **)native->data);
       }
     }
     case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to string");

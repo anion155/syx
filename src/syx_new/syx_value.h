@@ -235,7 +235,7 @@ Syx_Value *make_syx_value_exit_returned(Syx_Value *returned);
 Syx_Value *make_syx_value_exit_thrown(Syx_Value *reason, Syx_Frame *stack_frame);
 Syx_Value *make_syx_value_prefixed(Syx_Prefixed_Kind kind, Syx_Value *inner_value);
 
-static inline Syx_Value *syx_value_from_pair(Syx_Pair *pair) { return pair ? (Syx_Value *)pair - 1 : syx_value_nil(); }
+static inline Syx_Value *syx_value_from_pair(Syx_Pair *pair) { return pair ? (Syx_Value *)pair - 1 : NULL; }
 static inline Syx_Value *syx_value_from_symbol(Syx_Symbol *symbol) { return (Syx_Value *)symbol - 1; }
 static inline Syx_Value *syx_value_from_number(Syx_Number *number) { return (Syx_Value *)number - 1; }
 static inline Syx_Value *syx_value_from_string(Syx_String *string) { return (Syx_Value *)string - 1; }
@@ -604,7 +604,8 @@ Syx_Value *make_syx_value_native_nested(Syx_Native *parent, Syx_Type *type, void
   Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NATIVE, sizeof(Syx_Native));
   rc_get(value)->methods.destructor = syx_value_native_destructor;
   value->native = (Syx_Native *)(value + 1);
-  value->native->parent = rc_acquire(parent);
+  if (parent) rc_acquire(syx_value_from_native(parent));
+  value->native->parent = (parent);
   value->native->type = rc_acquire(type);
   value->native->data = data;
   return value;
@@ -656,6 +657,10 @@ Syx_Value *make_syx_value_prefixed(Syx_Prefixed_Kind kind, Syx_Value *inner_valu
 }
 
 bool syx_list_for_each_next(Syx_Value **current, Syx_Value **next, Syx_Value **value, Syx_Value **cdr) {
+  if (!(*next)) {
+    if (cdr != NULL) (*cdr) = NULL;
+    return false;
+  }
   if ((*next)->kind != SYX_VALUE_KIND_PAIR) {
     if (cdr != NULL) (*cdr) = *next;
     else if ((*next)->kind != SYX_VALUE_KIND_PAIR) UNREACHABLE("list expected");
@@ -672,6 +677,11 @@ bool syx_list_for_each_next(Syx_Value **current, Syx_Value **next, Syx_Value **v
 }
 
 bool syx_list_map_next(Syx_Value **source_it, Syx_Value ***target_it, Syx_Value ***value, Syx_Value ***cdr) {
+  if (!(*source_it)) {
+    if (cdr != NULL) (*cdr) = (*target_it);
+    else (**target_it) = rc_acquire(syx_value_nil());
+    return false;
+  }
   if ((*source_it)->kind != SYX_VALUE_KIND_PAIR) {
     if (cdr != NULL) (*cdr) = (*target_it);
     else if ((*source_it)->kind != SYX_VALUE_KIND_PAIR) UNREACHABLE("list expected");
@@ -827,11 +837,12 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
         } break;
         case SYX_TYPE_KIND_STRUCTURE: TODO("sb_append_syx_value: structure to string");
         case SYX_TYPE_KIND_PTR:
+          if (native->type == SYX_KNOWN_TYPES()->c_value) {
+            stringify_append(&state, sb_append_syx_value, *(Syx_Value **)native->data);
+            break;
+          }
         case SYX_TYPE_KIND_FUNCTION_PTR: {
           stringify_append(&state, sb_append_unsigned_integer, (uintptr_t)(void **)native->data, .kind = SB_INTEGER_FORMAT_KIND_HEX_BIG, .prefix = true, .min_width = sizeof(void *) * 2);
-        } break;
-        case SYX_TYPE_KIND_VALUE_PTR: {
-          stringify_append(&state, sb_append_syx_value, *(Syx_Value **)native->data);
         } break;
       }
       stringify_append(&state, sb_append, ')');
