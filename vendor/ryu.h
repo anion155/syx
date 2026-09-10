@@ -2022,23 +2022,20 @@ static inline floating_ieee_generic ryu_generic_to_ieee(const __uint128_t bits, 
   const uint32_t exponent = (uint32_t)((bits >> mantissaBits) & ((ONE << exponentBits) - 1u));
   return (floating_ieee_generic){.mantissa = mantissa, .exponent = exponent, .sign = sign, .mantissaBits = mantissaBits, .exponentBits = exponentBits, .explicitLeadingBit = explicitLeadingBit};
 }
-static inline floating_ieee_generic ryu_f16_to_ieee(const _Float16 value) {
-  __uint128_t bits = 0;
-  memcpy(&bits, &value, sizeof(value));
-  return ryu_generic_to_ieee(bits, 10, 5, false);
+static inline floating_ieee_generic ryu_f16_to_ieee(const f16_t value) {
+  return ryu_generic_to_ieee(f16_to_bits(value), 10, 5, false);
 }
-static inline floating_ieee_generic ryu_f80_to_ieee(const f80_canonical_t value) {
-  __uint128_t bits = 0;
-  memcpy(&bits, &value, sizeof(value));
-  return ryu_generic_to_ieee(bits, 64, 15, true);
+static inline floating_ieee_generic ryu_f80_to_ieee(const f80_t value) {
+  return ryu_generic_to_ieee(f80_to_bits(value), 64, 15, true);
 }
-static inline floating_ieee_generic ryu_f128_to_ieee(const f128_canonical_t value) {
-  return ryu_generic_to_ieee(value.bits, 112, 15, false);
+static inline floating_ieee_generic ryu_f128_to_ieee(const f128_t value) {
+  return ryu_generic_to_ieee(f128_to_bits(value), 112, 15, false);
 }
-static inline floating_ieee_generic ryu_f64pair_to_ieee(const f64pair_canonical_t value) {
-  bool sign = ((value.high >> 63) & 1) != 0;
-  uint32_t exponent = (uint32_t)((value.high >> 52) & 0x7FF);
-  __uint128_t mantissa = ((__uint128_t)(value.high & 0xFFFFFFFFFFFFF) << 52) | (value.low & 0xFFFFFFFFFFFFF);
+static inline floating_ieee_generic ryu_f64pair_to_ieee(const f64pair_t value) {
+  f64pair_canonical_t f64pair = f64pair_canonical_from(value);
+  bool sign = ((f64pair.high >> 63) & 1) != 0;
+  uint32_t exponent = (uint32_t)((f64pair.high >> 52) & 0x7FF);
+  __uint128_t mantissa = ((__uint128_t)(f64pair.high & 0xFFFFFFFFFFFFF) << 52) | (f64pair.low & 0xFFFFFFFFFFFFF);
   return (floating_ieee_generic){.mantissa = mantissa, .exponent = exponent, .sign = sign, .mantissaBits = 104, .exponentBits = 11, .explicitLeadingBit = false};
 }
 

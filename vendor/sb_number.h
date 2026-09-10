@@ -66,7 +66,7 @@ typedef struct Sb_Floating_Format {
   size_t precision;
 } Sb_Floating_Format;
 
-size_t sb_append_floating_f16_fmt(String_Builder *sb, _Float16 value, Sb_Floating_Format fmt);
+size_t sb_append_floating_f16_fmt(String_Builder *sb, f16_t value, Sb_Floating_Format fmt);
 size_t sb_append_floating_f32_fmt(String_Builder *sb, float value, Sb_Floating_Format fmt);
 size_t sb_append_floating_f64_fmt(String_Builder *sb, double value, Sb_Floating_Format fmt);
 size_t sb_append_floating_f80_fmt(String_Builder *sb, f80_t value, Sb_Floating_Format fmt);
@@ -144,74 +144,68 @@ size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_cano
 #if defined(__SIZEOF_INT128__)
 #  define SB_APPEND_NUMBER_FN_SI128_CASE , __int128_t : sb_append_integer_i128_fmt
 #  define SB_APPEND_NUMBER_FN_UI128_CASE , __uint128_t : sb_append_integer_u128_fmt
-#  define SB_APPEND_NUMBER_FMT_SI128_CASE(...) \
-    , __int128_t : ((Sb_Integer_Format){__VA_ARGS__})
-#  define SB_APPEND_NUMBER_FMT_UI128_CASE(...) \
-    , __uint128_t : ((Sb_Integer_Format){__VA_ARGS__})
+#  define SB_APPEND_NUMBER_FMT_SI128_CASE , __int128_t : ((Sb_Integer_Format){0})
+#  define SB_APPEND_NUMBER_FMT_UI128_CASE , __uint128_t : ((Sb_Integer_Format){0})
 #else
 #  error "128bit integer type not supported"
 #endif
 #define SB_APPEND_NUMBER_FN_I128_CASE SB_APPEND_NUMBER_FN_SI128_CASE SB_APPEND_NUMBER_FN_UI128_CASE
-#define SB_APPEND_NUMBER_FMT_I128_CASE(...) SB_APPEND_NUMBER_FMT_SI128_CASE(__VA_ARGS__) SB_APPEND_NUMBER_FMT_UI128_CASE(__VA_ARGS__)
+#define SB_APPEND_NUMBER_FMT_I128_CASE SB_APPEND_NUMBER_FMT_SI128_CASE SB_APPEND_NUMBER_FMT_UI128_CASE
 
 #if defined(__FLT16_MAX__)
 #  define SB_APPEND_NUMBER_FN_F16_CASE , _Float16 : sb_append_floating_f16_fmt, f16_canonical_t : sb_append_floating_f16_canonical_fmt
-#  define SB_APPEND_NUMBER_FMT_F16_CASE(...) \
-    , _Float16 : ((Sb_Floating_Format){__VA_ARGS__}), f16_canonical_t : ((Sb_Floating_Format){__VA_ARGS__})
+#  define SB_APPEND_NUMBER_FMT_F16_CASE , _Float16 : ((Sb_Floating_Format){0}), f16_canonical_t : ((Sb_Floating_Format){0})
 #else
 #  define SB_APPEND_NUMBER_FN_F16_CASE , f16_canonical_t : sb_append_floating_f16_canonical_fmt
-#  define SB_APPEND_NUMBER_FMT_F16_CASE(...) , f16_canonical_t : ((Sb_Floating_Format){__VA_ARGS__})
+#  define SB_APPEND_NUMBER_FMT_F16_CASE , f16_canonical_t : ((Sb_Floating_Format){0})
 #endif
 #if defined(__FLT32_MAX__)
 #  define SB_APPEND_NUMBER_FN_F32_CASE , _Float32 : sb_append_floating_f32_fmt
-#  define SB_APPEND_NUMBER_FMT_F32_CASE(...) \
-    , _Float32 : ((Sb_Floating_Format){__VA_ARGS__})
+#  define SB_APPEND_NUMBER_FMT_F32_CASE , _Float32 : ((Sb_Floating_Format){0})
 #else
 #  define SB_APPEND_NUMBER_FN_F32_CASE
-#  define SB_APPEND_NUMBER_FMT_F32_CASE(...)
+#  define SB_APPEND_NUMBER_FMT_F32_CASE
 #endif
 #if defined(__FLT64_MAX__)
 #  define SB_APPEND_NUMBER_FN_F64_CASE , _Float64 : sb_append_floating_f64_fmt
-#  define SB_APPEND_NUMBER_FMT_F64_CASE(...) \
-    , _Float64 : ((Sb_Floating_Format){__VA_ARGS__})
+#  define SB_APPEND_NUMBER_FMT_F64_CASE , _Float64 : ((Sb_Floating_Format){0})
 #else
 #  define SB_APPEND_NUMBER_FN_F64_CASE
-#  define SB_APPEND_NUMBER_FMT_F64_CASE(...)
+#  define SB_APPEND_NUMBER_FMT_F64_CASE
 #endif
 #if defined(__FLT128_MAX__)
 #  define SB_APPEND_NUMBER_FN_F128_CASE , _Float128 : sb_append_floating_f128_fmt
-#  define SB_APPEND_NUMBER_FMT_F128_CASE(...) \
-    , _Float128 : ((Sb_Floating_Format){__VA_ARGS__})
+#  define SB_APPEND_NUMBER_FMT_F128_CASE , _Float128 : ((Sb_Floating_Format){0})
 #else
 #  define SB_APPEND_NUMBER_FN_F128_CASE
-#  define SB_APPEND_NUMBER_FMT_F128_CASE(...)
+#  define SB_APPEND_NUMBER_FMT_F128_CASE
 #endif
 #define SB_APPEND_NUMBER_FN_FIXED_FLOATS_CASE SB_APPEND_NUMBER_FN_F16_CASE SB_APPEND_NUMBER_FN_F32_CASE SB_APPEND_NUMBER_FN_F64_CASE SB_APPEND_NUMBER_FN_F128_CASE
-#define SB_APPEND_NUMBER_FMT_FIXED_FLOATS_CASE(...) SB_APPEND_NUMBER_FMT_F16_CASE(__VA_ARGS__) SB_APPEND_NUMBER_FMT_F32_CASE(__VA_ARGS__) SB_APPEND_NUMBER_FMT_F64_CASE(__VA_ARGS__) SB_APPEND_NUMBER_FMT_F128_CASE(__VA_ARGS__)
+#define SB_APPEND_NUMBER_FMT_FIXED_FLOATS_CASE SB_APPEND_NUMBER_FMT_F16_CASE SB_APPEND_NUMBER_FMT_F32_CASE SB_APPEND_NUMBER_FMT_F64_CASE SB_APPEND_NUMBER_FMT_F128_CASE
 
 #if LD_KIND == LD_KIND_F64
 #  define SB_APPEND_NUMBER_FN_LDOUBLE_CASE long double : sb_append_floating_f64_fmt
-#  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE(...) long double : ((Sb_Floating_Format){__VA_ARGS__})
+#  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE long double : ((Sb_Floating_Format){0})
 #elif LD_KIND == LD_KIND_F80
 #  define SB_APPEND_NUMBER_FN_LDOUBLE_CASE \
   f80_canonical_t:                         \
     sb_append_floating_f80_canonical_fmt
-#  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE(...) \
-  f80_canonical_t:                               \
-    ((Sb_Floating_Format){__VA_ARGS__})
+#  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE \
+  f80_canonical_t:                          \
+    ((Sb_Floating_Format){0})
 #elif LD_KIND == LD_KIND_F128
 #  define SB_APPEND_NUMBER_FN_LDOUBLE_CASE \
   f128_canonical_t:                        \
     sb_append_floating_f128_canonical_fmt
-#  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE(...) \
-  f128_canonical_t:                              \
+#  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE \
+  f128_canonical_t:                         \
     ((Sb_Floating_Format){__VA_ARGS__})
 #elif LD_KIND == LD_KIND_F64PAIR
 #  define SB_APPEND_NUMBER_FN_LDOUBLE_CASE \
   f64pair_canonical_t:                     \
     sb_append_floating_f64pair_canonical_fmt
-#  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE(...) \
-  f64pair_canonical_t:                           \
+#  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE \
+  f64pair_canonical_t:                      \
     ((Sb_Floating_Format){__VA_ARGS__})
 #else
 #  error "Unsupported or unknown long double architecture."
@@ -236,7 +230,7 @@ size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_cano
   SB_APPEND_NUMBER_FN_ULLONG_CASE                                        \
   SB_APPEND_NUMBER_FN_UCHAR_CASE                                         \
   SB_APPEND_NUMBER_FN_UI128_CASE)((sb), (value), (fmt))
-#define sb_append_unsigned_integer(sb, value, ...) sb_append_unsigned_integer_fmt(sb, value, ((Sb_Integer_Format){__VA_ARGS__}))
+#define sb_append_unsigned_integer(sb, value, ...) sb_append_unsigned_integer_fmt(sb, value, ((Sb_Integer_Format){ __VA_ARGS__ }))
 
 #define sb_append_integer_fmt(sb, value, fmt) _Generic((value), \
   SB_APPEND_NUMBER_FN_CHAR_CASE,                                \
@@ -275,26 +269,26 @@ size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_cano
   f64pair_t: sb_append_floating_f64pair_fmt                    \
   SB_APPEND_NUMBER_FN_I128_CASE                                \
   SB_APPEND_NUMBER_FN_FIXED_FLOATS_CASE)((sb), (value), (fmt))
-#define sb_append_number(sb, value, ...) sb_append_number_fmt(sb, value, _Generic((value), \
-    char: ((Sb_Integer_Format){__VA_ARGS__}),                                              \
-    signed char: ((Sb_Integer_Format){__VA_ARGS__}),                                       \
-    unsigned char: ((Sb_Integer_Format){__VA_ARGS__}),                                     \
-    signed short: ((Sb_Integer_Format){__VA_ARGS__}),                                      \
-    unsigned short: ((Sb_Integer_Format){__VA_ARGS__}),                                    \
-    signed int: ((Sb_Integer_Format){__VA_ARGS__}),                                        \
-    unsigned int: ((Sb_Integer_Format){__VA_ARGS__}),                                      \
-    signed long: ((Sb_Integer_Format){__VA_ARGS__}),                                       \
-    unsigned long: ((Sb_Integer_Format){__VA_ARGS__}),                                     \
-    signed long long: ((Sb_Integer_Format){__VA_ARGS__}),                                  \
-    unsigned long long: ((Sb_Integer_Format){__VA_ARGS__}),                                \
-    float: ((Sb_Floating_Format){__VA_ARGS__}),                                            \
-    double: ((Sb_Floating_Format){__VA_ARGS__}),                                           \
-    SB_APPEND_NUMBER_FMT_LDOUBLE_CASE(__VA_ARGS__),                                        \
-    f80_t: ((Sb_Floating_Format){__VA_ARGS__}),                                            \
-    f128_t: ((Sb_Floating_Format){__VA_ARGS__}),                                           \
-    f64pair_t: ((Sb_Floating_Format){__VA_ARGS__})                                         \
-    SB_APPEND_NUMBER_FMT_FIXED_FLOATS_CASE(__VA_ARGS__)                                    \
-    SB_APPEND_NUMBER_FMT_I128_CASE(__VA_ARGS__)                                            \
+#define sb_append_number(sb, value) sb_append_number_fmt(sb, value, _Generic((value), \
+    char: ((Sb_Integer_Format){0}),                \
+    signed char: ((Sb_Integer_Format){0}),         \
+    unsigned char: ((Sb_Integer_Format){0}),       \
+    signed short: ((Sb_Integer_Format){0}),        \
+    unsigned short: ((Sb_Integer_Format){0}),      \
+    signed int: ((Sb_Integer_Format){0}),          \
+    unsigned int: ((Sb_Integer_Format){0}),        \
+    signed long: ((Sb_Integer_Format){0}),         \
+    unsigned long: ((Sb_Integer_Format){0}),       \
+    signed long long: ((Sb_Integer_Format){0}),    \
+    unsigned long long: ((Sb_Integer_Format){0}),  \
+    float: ((Sb_Floating_Format){0}),              \
+    double: ((Sb_Floating_Format){0}),             \
+    SB_APPEND_NUMBER_FMT_LDOUBLE_CASE,             \
+    f80_t: ((Sb_Floating_Format){0}),              \
+    f128_t: ((Sb_Floating_Format){0}),             \
+    f64pair_t: ((Sb_Floating_Format){0})           \
+    SB_APPEND_NUMBER_FMT_FIXED_FLOATS_CASE         \
+    SB_APPEND_NUMBER_FMT_I128_CASE                 \
   ))
 // clang-format on
 
@@ -588,7 +582,7 @@ void sb___floating_format_width(Stringify_State *state, Sb_Floating_Format *fmt,
   state.count;                                                                                             \
 })
 
-size_t sb_append_floating_f16_fmt(String_Builder *sb, _Float16 value, Sb_Floating_Format fmt) { return sb___append_ryu_generic_floating(sb, value, fmt, f16, 8); }
+size_t sb_append_floating_f16_fmt(String_Builder *sb, f16_t value, Sb_Floating_Format fmt) { return sb___append_ryu_generic_floating(sb, value, fmt, f16, 8); }
 size_t sb_append_floating_f32_fmt(String_Builder *sb, float value, Sb_Floating_Format fmt) { return sb___append_ryu_floating(sb, value, fmt, 32, 16); }
 size_t sb_append_floating_f64_fmt(String_Builder *sb, double value, Sb_Floating_Format fmt) { return sb___append_ryu_floating(sb, value, fmt, 64, 27); }
 size_t sb_append_floating_f80_fmt(String_Builder *sb, f80_t value, Sb_Floating_Format fmt) { return sb___append_ryu_generic_floating(sb, value, fmt, f80, 36); }
@@ -596,12 +590,12 @@ size_t sb_append_floating_f128_fmt(String_Builder *sb, f128_t value, Sb_Floating
 size_t sb_append_floating_f64pair_fmt(String_Builder *sb, f64pair_t value, Sb_Floating_Format fmt) { return sb___append_ryu_generic_floating(sb, value, fmt, f64pair, 36); }
 
 size_t sb_append_floating_f16_canonical_fmt(String_Builder *sb, f16_canonical_t value, Sb_Floating_Format fmt) {
-#if defined()
-  long double native = 0;
+#if defined(__FLT16_MAX__)
+  _Float16 native = 0;
   memcpy(&native, &value, sizeof(native));
-  return sb_append_floating_f80_fmt(sb, native, fmt);
+  return sb_append_floating_f16_fmt(sb, native, fmt);
 #else
-  return sb_append_floating_f80_fmt(sb, value, fmt);
+  return sb_append_floating_f16_fmt(sb, native, fmt);
 #endif
 }
 

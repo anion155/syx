@@ -237,7 +237,7 @@ typedef struct {
   Syx_Type *c_str;
   Syx_Type *c_string;
   Syx_Type *c_file;
-  Ht(Syx_Symbol *, Syx_Type *) registry;
+  Ht(const char *, Syx_Type *) registry;
 } SYX_KNOWN_TYPES_t;
 syx_predefine_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES);
 void syx_env_define_types(Syx_Env *env);

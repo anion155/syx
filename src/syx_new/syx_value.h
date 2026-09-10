@@ -812,8 +812,9 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
         } break;
         case SYX_TYPE_KIND_STRUCTURE: TODO("sb_append_syx_value: structure to string");
         case SYX_TYPE_KIND_PTR:
-        case SYX_TYPE_KIND_FUNCTION_PTR:
-          TODO("sb_append_syx_value: pointer to string");
+        case SYX_TYPE_KIND_FUNCTION_PTR: {
+          stringify_append(&state, sb_append_unsigned_integer, (uintptr_t)(void **)native->data, .kind = SB_INTEGER_FORMAT_KIND_HEX_BIG, .prefix = true, .min_width = sizeof(void *) * 2);
+        } break;
         case SYX_TYPE_KIND_VALUE_PTR: {
           stringify_append(&state, sb_append_syx_value, *(Syx_Value **)native->data);
         } break;

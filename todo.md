@@ -1,9 +1,8 @@
-- value: native values stringify
-- value: object stringify
-- value: closure stringify
 - value: call native structure
 - value: call primitives as objects with specific prototypes
 - ffi: call fn pointers
+- value: object stringify
+- value: closure stringify
 - error: attach stack frame to error object on throw
 - language: defer execution
 - language: return from upper function
