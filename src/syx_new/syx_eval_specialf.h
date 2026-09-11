@@ -50,52 +50,72 @@ Syx_Value *syx_special_form_lambda(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 /** Binds a name in the current environment. */
 Syx_Value *syx_special_form_define(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  Syx_Value *name_s = syx_list_next(&arguments);
-  Syx_Value *value;
-  if (name_s->kind == SYX_VALUE_KIND_PAIR) {
-    if (!name_s->pair) SYX_EVAL_THROW(ctx, "malformed lambda definition");
-    Syx_Value *defines = name_s->pair->right;
-    name_s = name_s->pair->left;
-    if (name_s->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "symbol expression expected as lambda name");
-    if (defines->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "malformed lambda rest argument");
-    value = rc_acquire(syx__special_form_make_lambda(ctx, name_s->symbol, defines->pair, arguments));
-  } else if (name_s->kind != SYX_VALUE_KIND_SYMBOL) {
-    SYX_EVAL_THROW(ctx, "Symbol expression expected as name");
-  } else {
-    value = rc_acquire(syx_eval(ctx, syx_list_next(&arguments)));
-    syx_value_early_exit(value);
+  Syx_Value *target = rc_acquire(syx_eval_unquote(ctx, syx_list_next(&arguments)));
+  syx_value_early_exit(target);
+  Syx_Value *value = NULL;
+  switch (target->kind) {
+    case SYX_VALUE_KIND_SYMBOL: {
+      Syx_Value *tmp = rc_acquire(syx_eval_unquote(ctx, syx_list_next(&arguments)));
+      syx_value_early_exit(tmp, (target));
+      if (tmp->kind == SYX_VALUE_KIND_PREFIXED && tmp->prefixed->kind == SYX_PREFIXED_KIND_COLON) {
+        // (define <object-name> :a <a-value> :b (:c <value> :d <value> :e (:f <value>)))
+        value = rc_acquire(syx_define_object(ctx, &arguments, tmp));
+        syx_value_early_exit(value, (target));
+      } else {
+        // (define <symbol> <value>)
+        value = rc_acquire(syx_eval(ctx, tmp));
+        syx_value_early_exit(value, (target, tmp));
+      }
+      rc_release(tmp);
+    } break;
+    case SYX_VALUE_KIND_PAIR: {
+      // (define (...<lambda-argument-name>) ...<lambda-body-form>)
+      SYX_EVAL_ASSERT(ctx, target->pair, "malformed lambda definition", (), (target));
+      Syx_Value *defines = target->pair->right;
+      target = target->pair->left;
+      SYX_EVAL_ASSERT(ctx, target->kind == SYX_VALUE_KIND_SYMBOL, "symbol expression expected as lambda name", (), (target));
+      SYX_EVAL_ASSERT(ctx, defines->kind == SYX_VALUE_KIND_PAIR, "malformed lambda rest argument", (), (target));
+      value = rc_acquire(syx__special_form_make_lambda(ctx, target->symbol, defines->pair, arguments));
+    } break;
+    case SYX_VALUE_KIND_OBJECT: {
+      // (define <object> [:proto <proto-object>] :a (:b (:c <value> :d <value> :e (:f <value>))))
+      value = rc_acquire(syx_update_object(ctx, target->object, &arguments, NULL));
+      syx_value_early_exit(value, (target));
+      rc_release(target);
+      return rc_move(value);
+    } break;
+    default: {
+      SYX_EVAL_THROW(ctx, "malformed define expression", (), (target));
+    }
   }
-  syx_env_define(ctx->env, name_s->symbol, rc_move(value));
-  return syx_value_nil();
+  syx_env_define(ctx->env, target->symbol, rc_move(value));
+  rc_release(target);
+  return value;
 }
 
 /** Mutate an existing binding or creates new one in current environment. */
 Syx_Value *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *target = rc_acquire(syx_eval_unquote(ctx, syx_list_next(&arguments)));
   syx_value_early_exit(target);
+  SYX_EVAL_ASSERT(ctx, target->kind == SYX_VALUE_KIND_SYMBOL, "malformed set expression");
   Syx_Value *value = rc_acquire(syx_eval(ctx, syx_list_next(&arguments)));
   syx_value_early_exit(value, (target));
-  // if (target->lvalue) {
-  //   Syx_Value *result = target->lvalue->callback(ctx, target, target->lvalue->data, value);
-  //   if (!result) result = syx_value_nil();
-  //   rc_acquire(result);
-  //   rc_release(target);
-  //   rc_release(value);
-  //   return rc_move(result);
-  // } else if (target->kind == SYXV_KIND_BOXED) {
-  //   Syx_Value *result = syx_boxed_set(ctx, target->boxed, value);
-  //   if (!result) result = syx_value_nil();
-  //   rc_acquire(result);
-  //   rc_release(target);
-  //   rc_release(value);
-  //   return rc_move(result);
-  // } else
-  if (target->kind == SYX_VALUE_KIND_SYMBOL) {
-    syx_env_set(ctx->env, target->symbol, rc_move(value));
-    rc_release(target);
-    return syx_value_nil();
-  }
-  SYX_EVAL_THROW(ctx, "unsupported set expression", (), (target));
+  syx_env_set(ctx->env, target->symbol, (value));
+  rc_release(target);
+  return rc_move(value);
+}
+
+/** Mutate an existing object. */
+Syx_Value *syx_special_form_update(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  Syx_Value *target = rc_acquire(syx_eval_unquote(ctx, syx_list_next(&arguments)));
+  syx_value_early_exit(target);
+  SYX_EVAL_ASSERT(ctx, target->kind == SYX_VALUE_KIND_SYMBOL, "malformed update expression");
+  Syx_Value *value = syx_env_lookup_get(ctx, target->symbol);
+  syx_value_early_exit(value, (target));
+  SYX_EVAL_ASSERT(ctx, target->kind == SYX_VALUE_KIND_OBJECT, "object expected");
+  Syx_Value *result = rc_acquire(syx_update_object(ctx, target->object, &arguments, NULL));
+  syx_value_early_exit(result, (target, value));
+  return rc_move(result);
 }
 
 /** Checks if environment has binding. */
@@ -319,35 +339,7 @@ Syx_Value *syx_special_form_return(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 /** Creates object with of named fields. */
 Syx_Value *syx_special_form_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  Syx_Value *value = rc_acquire(make_syx_value_object(NULL));
-  Syx_Value *proto_symbol = rc_acquire(make_syx_value_symbol_strlit("proto"));
-  while (arguments) {
-    Syx_Value *field_name = syx_list_next_nullable(&arguments);
-    if (!arguments) SYX_EVAL_THROW(ctx, "malformed object key-value pair", (), (value, proto_symbol));
-    if (field_name->kind != SYX_VALUE_KIND_PREFIXED) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", (), (value, proto_symbol));
-    if (field_name->prefixed->kind != SYX_PREFIXED_KIND_COLON) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", (), (value, proto_symbol));
-    field_name = field_name->prefixed->value;
-    if (field_name == proto_symbol) {
-      Syx_Value *proto_form = syx_list_next_nullable(&arguments);
-      Syx_Value *proto = rc_acquire(syx_eval(ctx, proto_form));
-      syx_value_early_exit(proto, (value, proto_symbol));
-      if (proto->kind != SYX_VALUE_KIND_OBJECT) SYX_EVAL_THROW(ctx, "expected object as prototype", (), (value, proto_symbol, proto));
-      rc_release(syx_value_from_object(value->object->proto));
-      value->object->proto = proto->object;
-      continue;
-    }
-    if (field_name->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "expected field name prefixed with ':'", (), (value, proto_symbol));
-    Syx_Value *form = rc_acquire(syx_list_next_nullable(&arguments));
-    if (form->kind == SYX_VALUE_KIND_PREFIXED && form->prefixed->kind == SYX_PREFIXED_KIND_UNQUOTE) {
-      Syx_Value *result = rc_acquire(syx_eval(ctx, form->prefixed->value));
-      syx_value_early_exit(result, (value, proto_symbol, form));
-      rc_release(form);
-      form = result;
-    }
-    syx_object_set(value->object, field_name->symbol, rc_move(form));
-  }
-  rc_release(proto_symbol);
-  return rc_move(value);
+  return syx_define_object(ctx, &arguments, NULL);
 }
 
 void syx_env_define_special_forms(Syx_Env *env) {
@@ -357,6 +349,7 @@ void syx_env_define_special_forms(Syx_Env *env) {
 
   syx_env_define_strlit(env, "define", make_syx_value_closure_specialf(NULL, syx_special_form_define));
   syx_env_define_strlit(env, "set", make_syx_value_closure_specialf(NULL, syx_special_form_set));
+  syx_env_define_strlit(env, "update", make_syx_value_closure_specialf(NULL, syx_special_form_update));
   syx_env_define_strlit(env, "is-set?", make_syx_value_closure_specialf(NULL, syx_special_form_is_set));
   syx_env_define_strlit(env, "get", make_syx_value_closure_specialf(NULL, syx_special_form_get));
   syx_env_define_strlit(env, "unset", make_syx_value_closure_specialf(NULL, syx_special_form_unset));

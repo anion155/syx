@@ -52,7 +52,7 @@ Syx_Eval_Ctx *make_global_syx_eval_ctx();
 Syx_Eval_Ctx *inherit_syx_eval_ctx(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
 
 #define SYX_EVAL_THROW(ctx, message, ...) SYX_THROW(message, WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)), WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), (ctx)->frames_stack->latest)
-#define SYX_EVAL_TODO(ctx, message, ...) SYX_TODO(message, WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)), WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), (ctx)->frames_stack->latest)
+#define SYX_EVAL_TODO(ctx, ...) SYX_TODO(WITH_DEFAULT(TODO_DEFAULT_MESSAGE, FIRST_ARG(__VA_ARGS__)), WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), WITH_DEFAULT((), THIRD_ARG(__VA_ARGS__, , )), (ctx)->frames_stack->latest)
 #define SYX_EVAL_ASSERT(ctx, condition, message, ...) SYX_ASSERT((condition), message, WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)), WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), (ctx)->frames_stack->latest)
 
 Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Value *evaluator, Syx_Pair *arguments);

@@ -199,7 +199,7 @@ typedef struct Syx_Prefixed {
   Syx_Value *value;
 } Syx_Prefixed;
 
-Syx_Value *make_syx_value(Syx_Value_Kind kind, size_t size);
+Syx_Value *make_syx_value(Syx_Value_Kind kind, size_t additional_size);
 Syx_Value *syx_value_nil();
 Syx_Value *make_syx_value_pair(Syx_Value *left, Syx_Value *right);
 Syx_Value *make_syx_value__list(size_t count, Syx_Value **items);
@@ -281,9 +281,9 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value);
   Syx_Value *reason = make_syx_value_stringf_dup(message EXPAND(EXPAND_WITH_COMMA WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)))); \
   return make_syx_value_exit_thrown(reason, WITH_DEFAULT(NULL, THIRD_ARG(__VA_ARGS__, , )));                                  \
 })
-#define SYX_TODO(message, ...) SYX_THROW("TODO: " message __VA_OPT__(, ) __VA_ARGS__)
-#define SYX_ASSERT(condition, message, ...) ({       \
-  if (!(condition)) SYX_THROW(message, __VA_ARGS__); \
+#define SYX_TODO(...) SYX_THROW("TODO: " WITH_DEFAULT(TODO_DEFAULT_MESSAGE, __VA_ARGS__), WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), WITH_DEFAULT((), THIRD_ARG(__VA_ARGS__, , )), WITH_DEFAULT(NULL, FORTH_ARG(__VA_ARGS__, , , )))
+#define SYX_ASSERT(condition, message, ...) ({                     \
+  if (!(condition)) SYX_THROW(message __VA_OPT__(, ) __VA_ARGS__); \
 })
 
 #endif // SYX_VALUE_H
@@ -784,7 +784,20 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
       stringify_append(&state, sb_append, '"');
     } break;
     case SYX_VALUE_KIND_OBJECT: {
-      TODO("sb_append_syx_value: SYX_VALUE_KIND_OBJECT");
+      stringify_append(&state, sb_append_strlit, "(object");
+      if (value->object->proto) {
+        stringify_append(&state, sb_append, ' ');
+        stringify_append(&state, sb_append_syx_value, syx_value_from_object(value->object->proto));
+      }
+      ht_foreach(field, &value->object->fields) {
+        stringify_append(&state, sb_append, ' ');
+        stringify_append(&state, sb_append, ':');
+        Syx_Symbol *name = ht_key(&value->object->fields, field);
+        stringify_append(&state, sb_append_syx_value, syx_value_from_symbol(name));
+        stringify_append(&state, sb_append, ' ');
+        stringify_append(&state, sb_append_syx_value, *field);
+      }
+      stringify_append(&state, sb_append, ')');
     } break;
     case SYX_VALUE_KIND_CLOSURE: {
       TODO("sb_append_syx_value: different closures");

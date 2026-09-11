@@ -32,16 +32,16 @@ Rc *rc_get(const void *data);
 void *rc__alloc(void *(*alloc)(size_t size), void (*free)(void *data), size_t size, Rc_Methods opt);
 #define rc_malloc(size, ...) rc__alloc(malloc, free, (size), (Rc_Methods){__VA_ARGS__})
 void *rc__realloc(void *(*realloc)(void *__ptr, size_t __size), const void *data, size_t size);
-#define rc_realloc(data, size) (__typeof__(data))rc__realloc(realloc, (data), (size))
+#define rc_realloc(data, size) ((__typeof__(data))rc__realloc(realloc, (data), (size)))
 void *rc__manage(void *(*alloc)(size_t size), void (*free)(void *data), void *data, size_t size, Rc_Methods opt);
-#define rc_manage(data, size, ...) (__typeof__(data))rc__manage(malloc, free, (data), (size), (Rc_Methods){__VA_ARGS__})
+#define rc_manage(data, size, ...) ((__typeof__(data))rc__manage(malloc, free, (data), (size), (Rc_Methods){__VA_ARGS__}))
 
 void *rc__acquire(void *data);
-#define rc_acquire(data) (__typeof__(data))rc__acquire((data))
+#define rc_acquire(data) ((__typeof__(data))rc__acquire((data)))
 void rc__acquire_all(void *items[], size_t count);
 #define rc_acquire_all(...) rc__acquire_all((void *[]){__VA_ARGS__}, sizeof((void *[]){__VA_ARGS__}) / sizeof(void *))
 void *rc__move(void *data);
-#define rc_move(data) (__typeof__(data))rc__move((data))
+#define rc_move(data) ((__typeof__(data))rc__move((data)))
 void rc_release(void *data);
 void rc__release_all(void *items[], size_t count);
 #define rc_release_all(...) rc__release_all((void *[]){__VA_ARGS__}, sizeof((void *[]){__VA_ARGS__}) / sizeof(void *))
@@ -49,9 +49,9 @@ void rc__release_all(void *items[], size_t count);
 #define rc_guarded(...) rc__guarded((void *[]){__VA_ARGS__}, sizeof((void *[]){__VA_ARGS__}) / sizeof(void *))
 
 void **rc__downgrade(void *(*alloc)(size_t size), void *data);
-#define rc_downgrade(data) (__typeof__(data) *)rc__downgrade(malloc, (data))
+#define rc_downgrade(data) ((__typeof__(data) *)rc__downgrade(malloc, (data)))
 void *rc__upgrade(void (*free)(void *data), void **weak_data);
-#define rc_upgrade(weak_data) (__typeof__(*weak_data))rc__upgrade(free, (weak_data))
+#define rc_upgrade(weak_data) ((__typeof__(*weak_data))rc__upgrade(free, (weak_data)))
 void rc__weak_free(void (*free)(void *data), void **weak_data);
 #define rc_weak_free(weak_data) rc__weak_free(free, (weak_data))
 
