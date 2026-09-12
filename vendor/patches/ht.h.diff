@@ -1,0 +1,23 @@
+--- vendor/patches/ht.h	2026-09-12 22:20:56
++++ vendor/ht.h	2026-09-12 22:22:20
+@@ -77,8 +77,8 @@
+ //
+ // void count_words(Word_Count *wc, const char *text);
+ // ```
+-#define Ht(Key, Value)                                           \
+-    struct {                                                     \
++#define Ht(Key, Value, ...)                                      \
++    struct __VA_ARGS__ {                                         \
+         /* .count - amount of unique items in the Hash Table. */ \
+         size_t      count;                                       \
+         /* .hasheq - key Hashing and Equality function.          \
+@@ -554,7 +554,8 @@
+ 
+ #endif // HT_H_
+ 
+-#ifdef HT_IMPLEMENTATION
++#if defined(HT_IMPL) && !defined(HT_IMPL_C)
++#define HT_IMPL_C
+ 
+ static void *ht__put(Ht__Abstract *ht, void *key, Ht__Layout l)
+ {

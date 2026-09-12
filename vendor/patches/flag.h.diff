@@ -1,0 +1,21 @@
+--- vendor/patches/flag.h	2026-09-12 22:17:14
++++ vendor/flag.h	2026-09-12 22:18:04
+@@ -183,7 +183,8 @@
+ 
+ //////////////////////////////
+ 
+-#ifdef FLAG_IMPLEMENTATION
++#if defined(FLAG_IMPL) && !defined(FLAG_IMPL_C)
++#define FLAG_IMPL_C
+ 
+ typedef enum {
+     FLAG_BOOL = 0,
+@@ -968,7 +969,7 @@
+     flag_c_print_error(&flag_global_context, stream);
+ }
+ 
+-#endif // FLAG_IMPLEMENTATION
++#endif // FLAG_IMPL
+ 
+ /*
+    Revision history:
