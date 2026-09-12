@@ -2,7 +2,7 @@
 #define SYX_PARSER_H
 
 #include <sb.h>
-#include <syx_new/syx_lexer.h>
+#include <syx/syx_lexer.h>
 
 Syx_Value *parse_syx(String_View source, bool ignore_errors);
 
@@ -16,7 +16,7 @@ Syx_Value *parse_syx(String_View source, bool ignore_errors);
 #define SB_IMPL
 #include <sb.h>
 #define SYX_LEXER_IMPL
-#include <syx_new/syx_lexer.h>
+#include <syx/syx_lexer.h>
 
 Syx_Value *parse_syx_value(Syx_Tokens *tokens);
 

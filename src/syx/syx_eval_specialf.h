@@ -1,8 +1,8 @@
 #ifndef SYX_EVAL_SPECIALF_H
 #define SYX_EVAL_SPECIALF_H
 
-#include <syx_new/syx_eval.h>
-#include <syx_new/syx_object.h>
+#include <syx/syx_eval.h>
+#include <syx/syx_object.h>
 
 void syx_env_define_special_forms(Syx_Env *env);
 

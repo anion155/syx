@@ -1,8 +1,8 @@
 #ifndef SYX_LEXER_H
 #define SYX_LEXER_H
 
-#include <syx_new/syx_utils.h>
-#include <syx_new/syx_value.h>
+#include <syx/syx_utils.h>
+#include <syx/syx_value.h>
 
 typedef enum Syx_Token_Kind {
   SYX_TOKEN_KIND_NULL = 0,
@@ -49,9 +49,9 @@ Syx_Tokens syx_lexer_tokenize(String_View source);
 #include <wchar.h>
 
 #define SYX_UTILS_IMPL
-#include <syx_new/syx_utils.h>
+#include <syx/syx_utils.h>
 #define SYX_VALUE_IMPL
-#include <syx_new/syx_value.h>
+#include <syx/syx_value.h>
 
 const char *syx_token_kind_string(Syx_Token_Kind kind) {
   switch (kind) {

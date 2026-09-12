@@ -1,9 +1,10 @@
 #ifndef NANOID_H
 #define NANOID_H
 
+#include <sb.h>
 #include <stdio.h>
 
-char *nanoid_alph(Nob_String_View alphabet, const char *prefix, size_t size);
+char *nanoid_alph(String_View alphabet, const char *prefix, size_t size);
 char *nanoid(const char *prefix, size_t size);
 
 #endif // NANOID_H
@@ -11,11 +12,9 @@ char *nanoid(const char *prefix, size_t size);
 #if defined(NANOID_IMPL) && !defined(NANOID_IMPL_C)
 #define NANOID_IMPL_C
 
-#include "./defines.h"
-#include "./nob.h"
-#include "./stdlib.h"
+#include <stdlib.h>
 
-char *nanoid_alph(Nob_String_View alphabet, const char *prefix, size_t size) {
+char *nanoid_alph(String_View alphabet, const char *prefix, size_t size) {
   size_t prefix_size = prefix ? strlen(prefix) : 0;
   char *buf = malloc((prefix_size + size + 1) * sizeof(char));
   buf[prefix_size + size] = 0;
@@ -26,7 +25,7 @@ char *nanoid_alph(Nob_String_View alphabet, const char *prefix, size_t size) {
   return buf;
 }
 
-Nob_String_View NANOID_ALPHABET = {0};
+String_View NANOID_ALPHABET = {0};
 
 char *nanoid(const char *prefix, size_t size) {
   if (!NANOID_ALPHABET.data) NANOID_ALPHABET = sv_from_cstr("useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict");

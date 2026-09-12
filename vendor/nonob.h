@@ -5,6 +5,7 @@
 #include "./flag.h"
 #include "./ht.h"
 #include "./jim.h"
+#define NOB_UNSTRIP_PREFIX
 #include "./nob.h"
 
 typedef struct NoNob_Command NoNob_Command;
@@ -102,7 +103,7 @@ char *get_exe_path() {
     exe_path[count] = 0;
   }
 #endif
-  return temp_strdup(exe_path);
+  return nob_temp_strdup(exe_path);
 }
 
 void nonob_default_usage(FILE *stream, NoNob_Command *command) {
@@ -144,7 +145,7 @@ void nonob_initialize_opt(int argc, char **argv, NoNob_Initialize_Opt opt) {
   ctx.argc = argc;
   ctx.argv = argv;
   ctx.exe_path = dirname(get_exe_path());
-  ctx.s = temp_alloc(sizeof(struct NoNob_Context_Storage));
+  ctx.s = nob_temp_alloc(sizeof(struct NoNob_Context_Storage));
 
   if (!opt.disable_ccjson) flag_bool_var(&ctx.flag_no_ccjson, "no-ccjson", false, "Disable creation of compile_commands.json");
   else ctx.flag_no_ccjson = true;
@@ -155,7 +156,7 @@ void nonob_deinitialize() {
   if (!ctx.flag_no_ccjson) {
     jim_array_end(&ctx.ccjson);
     nob_write_entire_file(
-        temp_sprintf("%s/compile_commands.json", ctx.exe_path),
+        nob_temp_sprintf("%s/compile_commands.json", ctx.exe_path),
         ctx.ccjson.sink,
         ctx.ccjson.sink_count);
   }
@@ -313,15 +314,15 @@ bool nonob_cc_append_pkgconfig(Nob_Cmd *cmd, const char *libname) {
   nob_cmd_append(&inner_cmd, "pkg-config", "--cflags", "--libs", libname);
   Nob_String_Builder stdout_sb = {0};
   bool status = nonob_process_run(&inner_cmd, &stdout_sb);
-  Nob_String_View stdout_sv = sb_to_sv(stdout_sb);
-  Nob_String_View arg = {.data = stdout_sv.data, .count = 0};
-  for (Nob_String_View it = stdout_sv; it.count; nob_sv_chop_left(&it, 1)) {
+  String_View stdout_sv = sv_from_parts(stdout_sb.items, stdout_sb.count);
+  String_View arg = {.data = stdout_sv.data, .count = 0};
+  for (String_View it = stdout_sv; it.count; sv_chop_left(&it)) {
     if (!isspace(*it.data)) {
       arg.count += 1;
       continue;
     }
-    if (arg.count) nob_cmd_append(cmd, nob_temp_sv_to_cstr(arg));
-    arg = (Nob_String_View){.data = it.data + 1, .count = 0};
+    if (arg.count) nob_cmd_append(cmd, nob_temp_strndup(arg.data, arg.count));
+    arg = (String_View){.data = it.data + 1, .count = 0};
   }
   return status;
 }
@@ -332,8 +333,8 @@ bool nonob_cc_append_sysroot(Nob_Cmd *cmd) {
   Nob_String_Builder stdout_sb = {0};
   bool status = nonob_process_run(&inner_cmd, &stdout_sb);
   if (stdout_sb.items[stdout_sb.count - 2] == '\n') stdout_sb.items[stdout_sb.count - 2] = 0;
-  Nob_String_View stdout_sv = sb_to_sv(stdout_sb);
-  nob_cmd_append(cmd, "-isysroot", nob_temp_sv_to_cstr(stdout_sv));
+  String_View stdout_sv = sv_from_parts(stdout_sb.items, stdout_sb.count);
+  nob_cmd_append(cmd, "-isysroot", nob_temp_strndup(stdout_sv.data, stdout_sv.count));
   return status;
 }
 

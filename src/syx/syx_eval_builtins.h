@@ -1,9 +1,9 @@
 #ifndef SYX_EVAL_BUILTINS_H
 #define SYX_EVAL_BUILTINS_H
 
-#include <syx_new/syx_eval.h>
-#include <syx_new/syx_io.h>
-#include <syx_new/syx_value.h>
+#include <syx/syx_eval.h>
+#include <syx/syx_io.h>
+#include <syx/syx_value.h>
 
 void syx_env_define_builtins(Syx_Env *env);
 
@@ -15,7 +15,7 @@ void syx_env_define_builtins(Syx_Env *env);
 #include <math.h>
 #include <stdio.h>
 #define SYX_IO_IMPL
-#include <syx_new/syx_io.h>
+#include <syx/syx_io.h>
 
 /** Builtins */
 

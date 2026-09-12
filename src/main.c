@@ -22,13 +22,13 @@
 #include <rc.h>
 
 #define SYX_VALUE_IMPL
-#include <syx_new/syx_value.h>
+#include <syx/syx_value.h>
 #define SYX_EVAL_IMPL
-#include <syx_new/syx_eval.h>
+#include <syx/syx_eval.h>
 #define SYX_GLOBAL_ENV_IMPL
-#include <syx_new/syx_global_env.h>
+#include <syx/syx_global_env.h>
 #define SYX_PARSER_IMPL
-#include <syx_new/syx_parser.h>
+#include <syx/syx_parser.h>
 
 #define SB_IMPL
 #include <sb.h>

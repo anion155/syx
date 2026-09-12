@@ -10,7 +10,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <syx_new/syx_value.h>
+#include <syx/syx_value.h>
 
 typedef enum Syx_Type_Kind : unsigned int {
   SYX_TYPE_KIND_VOID,
@@ -250,9 +250,9 @@ void syx_env_define_types(Syx_Env *env);
 #define SYX_TYPES_IMPL_C
 
 #define SYX_VALUE_IMPL
-#include <syx_new/syx_value.h>
+#include <syx/syx_value.h>
 #define SYX_EVAL_IMPL
-#include <syx_new/syx_eval.h>
+#include <syx/syx_eval.h>
 
 void syx_type_destructor(void *data) {
   Syx_Type *type = data;

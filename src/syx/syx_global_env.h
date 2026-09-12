@@ -2,7 +2,7 @@
 #define SYX_GLOBAL_ENV_H
 
 #include <defines.h>
-#include <syx_new/syx_eval.h>
+#include <syx/syx_eval.h>
 
 Syx_Env *make_global_syx_env();
 Syx_Eval_Ctx *make_global_syx_eval_ctx();
@@ -13,9 +13,9 @@ Syx_Eval_Ctx *make_global_syx_eval_ctx();
 #define SYX_GLOBAL_ENV_IMPL_C
 
 #define SYX_EVAL_SPECIALF_IMPL
-#include <syx_new/syx_eval_specialf.h>
+#include <syx/syx_eval_specialf.h>
 #define SYX_EVAL_BUILTINS_IMPL
-#include <syx_new/syx_eval_builtins.h>
+#include <syx/syx_eval_builtins.h>
 
 Syx_Env *make_global_syx_env() {
   Syx_Env *env = make_syx_env(make_syx_value_symbol_strlit("builtins-global")->symbol, NULL);

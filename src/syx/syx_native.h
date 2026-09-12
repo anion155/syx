@@ -1,7 +1,7 @@
 #ifndef SYX_NATIVE_H
 #define SYX_NATIVE_H
 
-#include <syx_new/syx_value.h>
+#include <syx/syx_value.h>
 
 Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair *arguments);
 Syx_Value *syx_native_set(Syx_Eval_Ctx *ctx, Syx_Type *type, void *data, Syx_Value *argument);
@@ -55,7 +55,7 @@ Syx_Value *syx_native_structure_update(Syx_Eval_Ctx *ctx, Syx_Native *native, Sy
 #if defined(SYX_NATIVE_IMPL) && !defined(SYX_NATIVE_IMPL_C)
 #define SYX_NATIVE_IMPL_C
 
-#include <syx_new/syx_object.h>
+#include <syx/syx_object.h>
 
 Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair *arguments) {
   Syx_Value *value = make_syx_value_native_instance(type);

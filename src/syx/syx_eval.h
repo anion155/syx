@@ -4,7 +4,7 @@
 #include <da.h>
 #include <defines.h>
 #include <sb.h>
-#include <syx_new/syx_value.h>
+#include <syx/syx_value.h>
 
 typedef struct Syx_Frame {
   Syx_Frame *prev;
@@ -106,11 +106,11 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value);
 #define RC_IMPL
 #include <rc.h>
 #define SYX_VALUE_IMPL
-#include <syx_new/syx_value.h>
+#include <syx/syx_value.h>
 #define SYX_OBJECT_IMPL
-#include <syx_new/syx_object.h>
+#include <syx/syx_object.h>
 #define SYX_NATIVE_IMPL
-#include <syx_new/syx_native.h>
+#include <syx/syx_native.h>
 
 void syx_frames_stack_destructor(void *data) {
   Syx_Frames_Stack *stack = data;

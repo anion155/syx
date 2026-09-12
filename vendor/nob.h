@@ -203,7 +203,7 @@
 #    define NOB_PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK)
 #endif
 
-NOBDEF void nob__panicf(const char *file, int line, const char *label, const char *format, ...);
+NOBDEF void nob__panicf(const char *file, int line, const char *label, const char *format, ...) NOB_PRINTF_FORMAT(4, 5);
 
 #define NOB_UNUSED(value) (void)(value)
 #define NOB_TODO(message) nob__panicf(__FILE__, __LINE__, "TODO", "%s", message)
@@ -858,40 +858,6 @@ NOBDEF char *nob_temp_running_executable_path(void);
 #  define nob_cc_inputs(cmd, ...) nob_cmd_append(cmd, __VA_ARGS__)
 #endif // nob_cc_inputs
 
-// TODO: add MinGW support for Go Rebuild Urself™ Technology and all the nob_cc_* macros above
-//   Musializer contributors came up with a pretty interesting idea of an optional prefix macro which could be useful for
-//   MinGW support:
-//   https://github.com/tsoding/musializer/blob/b7578cc76b9ecb573d239acc9ccf5a04d3aba2c9/src_build/nob_win64_mingw.c#L3-L9
-// TODO: Maybe instead NOB_REBUILD_URSELF macro, the Go Rebuild Urself™ Technology should use the
-//   user defined nob_cc_* macros instead?
-#ifndef NOB_REBUILD_URSELF
-#  if defined(_WIN32)
-#    if defined(__clang__)
-#      if defined(__cplusplus)
-#        define NOB_REBUILD_URSELF(binary_path, source_path) "clang", "-x", "c++", "-o", binary_path, source_path
-#      else
-#        define NOB_REBUILD_URSELF(binary_path, source_path) "clang", "-x", "c", "-o", binary_path, source_path
-#      endif
-#    elif defined(__GNUC__)
-#      if defined(__cplusplus)
-#        define NOB_REBUILD_URSELF(binary_path, source_path) "gcc", "-x", "c++", "-o", binary_path, source_path
-#      else
-#        define NOB_REBUILD_URSELF(binary_path, source_path) "gcc", "-x", "c", "-o", binary_path, source_path
-#      endif
-#    elif defined(_MSC_VER)
-#       define NOB_REBUILD_URSELF(binary_path, source_path) "cl.exe", nob_temp_sprintf("/Fe:%s", (binary_path)), source_path
-#    elif defined(__TINYC__)
-#       define NOB_REBUILD_URSELF(binary_path, source_path) "tcc", "-o", binary_path, source_path
-#    endif
-#  else
-#    if defined(__cplusplus)
-#      define NOB_REBUILD_URSELF(binary_path, source_path) "cc", "-x", "c++", "-o", binary_path, source_path
-#    else
-#      define NOB_REBUILD_URSELF(binary_path, source_path) "cc", "-x", "c", "-o", binary_path, source_path
-#    endif
-#  endif
-#endif
-
 // Go Rebuild Urself™ Technology
 //
 //   How to use it:
@@ -1145,7 +1111,17 @@ NOBDEF void nob__go_rebuild_urself(int argc, char **argv, const char *source_pat
     const char *old_binary_path = nob_temp_sprintf("%s.old", binary_path);
 
     if (!nob_rename(binary_path, old_binary_path)) exit(1);
+#ifdef NOB_REBUILD_URSELF
     nob_cmd_append(&cmd, NOB_REBUILD_URSELF(binary_path, source_path));
+#else
+    nob_cc(&cmd);
+    nob_cc_flags(&cmd);
+    nob_cc_inputs(&cmd, source_path);
+    nob_cc_output(&cmd, binary_path);
+#ifdef NOB_REBUILD_URSELF_FLAGS
+    nob_cmd_append(&cmd, NOB_REBUILD_URSELF_FLAGS);
+#endif
+#endif
     Nob_Cmd_Opt opt = {0};
     if (!nob_cmd_run_opt(&cmd, opt)) {
         nob_rename(old_binary_path, binary_path);

@@ -1,7 +1,7 @@
 #ifndef SYX_OBJECT_H
 #define SYX_OBJECT_H
 
-#include <syx_new/syx_value.h>
+#include <syx/syx_value.h>
 
 Syx_Value **syx__object_lookup(Syx_Object *object, Syx_Symbol *field_name);
 Syx_Value *syx_object_get(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Symbol *field_name);
@@ -18,9 +18,9 @@ Syx_Value *syx_object_define(Syx_Eval_Ctx *ctx, Syx_Pair **arguments, Syx_Value 
 #define SYX_OBJECT_IMPL_C
 
 #define SYX_VALUE_IMPL
-#include <syx_new/syx_value.h>
+#include <syx/syx_value.h>
 #define SYX_EVAL_IMPL
-#include <syx_new/syx_eval.h>
+#include <syx/syx_eval.h>
 
 Syx_Value **syx__object_lookup(Syx_Object *object, Syx_Symbol *field_name) {
   Syx_Value **field = NULL;
