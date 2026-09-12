@@ -598,6 +598,7 @@ Syx_Value *make_syx_value_native(Syx_Native *parent, Syx_Type *type, void *data,
     rc_get(value)->methods.destructor = syx_value_native_destructor;
   }
   rc_acquire(syx_value_from_native(parent));
+  value->native = (Syx_Native *)(value + 1);
   value->native->parent = (parent);
   value->native = (Syx_Native *)(value + 1);
   value->native->type = rc_acquire(type);
@@ -824,25 +825,25 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
       } else {
         stringify_append(&state, sb_append_syx_type, native->type);
       }
-      stringify_append(&state, sb_append, ' ');
-      switch (native->type->kind) {
-        case SYX_TYPE_KIND_VOID: {
-          stringify_append(&state, sb_append_strlit, "#n");
-        } break;
-        case SYX_TYPE_KIND_PRIMITIVE: {
+      if (native->type->kind != SYX_TYPE_KIND_VOID) {
+        stringify_append(&state, sb_append, ' ');
+        switch (native->type->kind) {
+          case SYX_TYPE_KIND_VOID: UNREACHABLE("should be filtered out already");
+          case SYX_TYPE_KIND_PRIMITIVE: {
 #define X(type) stringify_append(&state, sb_append_number, *(type *)native->data)
-          syx_native_primitive_xy_macro(native->type, X, X);
+            syx_native_primitive_xy_macro(native->type, X, X);
 #undef X
-        } break;
-        case SYX_TYPE_KIND_STRUCTURE: TODO("sb_append_syx_value: structure to string");
-        case SYX_TYPE_KIND_PTR:
-          if (native->type == SYX_KNOWN_TYPES()->c_value) {
-            stringify_append(&state, sb_append_syx_value, *(Syx_Value **)native->data);
-            break;
-          }
-        case SYX_TYPE_KIND_FUNCTION_PTR: {
-          stringify_append(&state, sb_append_unsigned_integer, (uintptr_t)(void **)native->data, .kind = SB_INTEGER_FORMAT_KIND_HEX_BIG, .prefix = true, .min_width = sizeof(void *) * 2);
-        } break;
+          } break;
+          case SYX_TYPE_KIND_STRUCTURE: TODO("sb_append_syx_value: structure to string");
+          case SYX_TYPE_KIND_PTR:
+            if (native->type == SYX_KNOWN_TYPES()->c_value) {
+              stringify_append(&state, sb_append_syx_value, *(Syx_Value **)native->data);
+              break;
+            }
+          case SYX_TYPE_KIND_FUNCTION_PTR: {
+            stringify_append(&state, sb_append_unsigned_integer, (uintptr_t)(void **)native->data, .kind = SB_INTEGER_FORMAT_KIND_HEX_BIG, .prefix = true, .min_width = sizeof(void *) * 2);
+          } break;
+        }
       }
       stringify_append(&state, sb_append, ')');
     } break;

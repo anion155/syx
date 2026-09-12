@@ -303,6 +303,8 @@ size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_cano
 #include <sb.h>
 #define RYU_IMPL
 #include <ryu.h>
+#define LONG_DOUBLE_IMPL
+#include <long_double.h>
 
 void __string_reverse(char *string, size_t width) {
   if (width < 2) return;

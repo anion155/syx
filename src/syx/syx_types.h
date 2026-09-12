@@ -467,6 +467,7 @@ Syx_Value *syx_eval_native_function(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_T
 size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
   Stringify_State state = make_stringify_state(sb, 256);
   switch (type->kind) {
+    case SYX_TYPE_KIND_VOID:
     case SYX_TYPE_KIND_PRIMITIVE: {
       if (!type->name) UNREACHABLE("primitive types must have name");
       stringify_append(&state, sb_append_syx_symbol, type->name);

@@ -73,7 +73,7 @@ Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair
       }
     }
     default: {
-      Syx_Value *result = rc_acquire(syx_native_set(ctx, type, data, arguments));
+      Syx_Value *result = rc_acquire(syx_native_set(ctx, type, data, syx_list_next(&arguments)));
       syx_value_early_exit(result, (value));
       rc_release(result);
     }
@@ -149,7 +149,10 @@ Syx_Value *syx_native_set(Syx_Eval_Ctx *ctx, Syx_Type *type, void *data, Syx_Val
             } break;
             case SYX_TYPE_KIND_PTR:
             case SYX_TYPE_KIND_FUNCTION_PTR: {
-#define X(type) *(type *)data = *(void **)evaluated->native->data
+#define X(type) ({                                                                                    \
+  SYX_EVAL_ASSERT(ctx, sizeof(void *) >= sizeof(type), "native pointer can not be stored in " #type); \
+  *(type *)data = (uintptr_t)*(void **)evaluated->native->data;                                       \
+})
 #define Y(type) SYX_EVAL_THROW(ctx, "native pointer value can't be converted to native primitive", (), (evaluated));
               syx_native_primitive_xy_macro(type, X, Y);
 #undef X
@@ -220,7 +223,10 @@ Syx_Value *syx_native_set(Syx_Eval_Ctx *ctx, Syx_Type *type, void *data, Syx_Val
           switch (evaluated->native->type->kind) {
             case SYX_TYPE_KIND_VOID: SYX_EVAL_THROW(ctx, "native void can't be converted to native pointer", (), (evaluated));
             case SYX_TYPE_KIND_PRIMITIVE: {
-#define X(type) *(void **)data = *(type *)evaluated->native->data
+#define X(type) ({                                                                                    \
+  SYX_EVAL_ASSERT(ctx, sizeof(void *) >= sizeof(type), #type " can not be stored in native pointer"); \
+  *(void **)data = (void *)(uintptr_t)*(type *)evaluated->native->data;                               \
+})
 #define Y(type) SYX_EVAL_THROW(ctx, "native floating value can't be converted to native pointer", (), (evaluated))
               syx_native_primitive_xy_macro(evaluated->native->type, X, Y);
 #undef X
@@ -265,7 +271,7 @@ Syx_Value *syx_native_structure_update(Syx_Eval_Ctx *ctx, Syx_Native *native, Sy
     Syx_Value *value = rc_acquire(syx_eval_unquote(ctx, syx_list_next(arguments)));
     syx_value_early_exit(value, (field));
 
-    Syx_Value *result = rc_acquire(syx_native_structure_set(ctx, structure, native->data, field, value));
+    Syx_Value *result = rc_acquire(syx_native_structure_set(ctx, structure, native->data, field->symbol, value));
     syx_value_early_exit(result, (field, value));
     rc_release_all(result, field, value);
   }

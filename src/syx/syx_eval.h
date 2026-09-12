@@ -547,7 +547,8 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_NATIVE: {
       Syx_Native *native = value->native;
       switch (native->type->kind) {
-        case SYX_TYPE_KIND_PRIMITIVE: SYX_EVAL_THROW(ctx, "native can't be converted to string");
+        case SYX_TYPE_KIND_VOID: SYX_EVAL_THROW(ctx, "native void can't be converted to string");
+        case SYX_TYPE_KIND_PRIMITIVE: SYX_EVAL_THROW(ctx, "native primitive can't be converted to string");
         case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to string");
         case SYX_TYPE_KIND_PTR: {
           if (native->type == SYX_KNOWN_TYPES()->c_value) {

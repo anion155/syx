@@ -286,7 +286,6 @@ __uint128_t f64pair_to_bits(f64pair_t value);
 
 #endif // LONG_DOUBLE_H
 
-#define LONG_DOUBLE_IMPL
 #if defined(LONG_DOUBLE_IMPL) && !defined(LONG_DOUBLE_IMPL_C)
 #define LONG_DOUBLE_IMPL_C
 
@@ -636,5 +635,16 @@ __uint128_t f128_to_bits(f128_t value) {
 __uint128_t f64pair_to_bits(f64pair_t value) {
   return MEMORYCOPY(value, __uint128_t);
 }
+
+#if !(defined(__has_builtin) && __has_builtin(__builtin_floattihf))
+_Float16 ___floattihf(__int128_t a) __asm__("___floattihf");
+_Float16 ___floatuntihf(__uint128_t a) __asm__("___floatuntihf");
+__attribute__((used, noinline, visibility("default"))) _Float16 ___floattihf(__int128_t a) {
+  return (_Float16)(double)a;
+}
+__attribute__((used, noinline, visibility("default"))) _Float16 ___floatuntihf(__uint128_t a) {
+  return (_Float16)(double)a;
+}
+#endif
 
 #endif // LONG_DOUBLE_IMPL_C
