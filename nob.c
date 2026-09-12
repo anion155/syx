@@ -3,7 +3,28 @@
 #define NOB_REBUILD_URSELF_FLAGS "-I./vendor", "-std=gnu23"
 #include "vendor/nob.h"
 
-#include <stdbool.h>
+#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 202311L
+int main(int argc, char **argv) {
+#  ifdef _WIN32
+  HANDLE file = CreateFileA(__FILE__, FILE_WRITE_ATTRIBUTES,
+                            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                            NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  SYSTEMTIME st;
+  FILETIME ft;
+  GetSystemTime(&st);
+  SystemTimeToFileTime(&st, &ft);
+  SetFileTime(file, NULL, NULL, &ft);
+  CloseHandle(file);
+#  else
+  utimensat(AT_FDCWD, __FILE__, NULL, 0);
+#  endif
+  NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "./vendor/nonob.h");
+  nob_log(NOB_ERROR, "nob.c must be compiled with c23");
+  return 1;
+}
+#else
+
+#  include <stdbool.h>
 
 struct NoNob_Context_Storage {
   const char *src_path;
@@ -21,8 +42,8 @@ struct NoNob_Context_Storage {
   bool playground_dry;
 };
 
-#define NONOB_IMPL
-#include "./vendor/nonob.h"
+#  define NONOB_IMPL
+#  include "./vendor/nonob.h"
 
 void command_build_init(NoNob_Command *command) {
   flag_c_bool_var(command->flags, &ctx.s->build_debug, "g", false, "Build with debug symbols");
@@ -36,21 +57,21 @@ bool command_build_run() {
   nob_cc_flags(&ctx.cmd);
   nob_cmd_append(&ctx.cmd, nob_temp_sprintf("-I%s", ctx.s->src_path));
   nob_cmd_append(&ctx.cmd, nob_temp_sprintf("-I%s", ctx.s->vendor_path));
-#ifdef __APPLE__
+#  ifdef __APPLE__
   nonob_cc_append_sysroot(&ctx.cmd);
-#else
+#  else
   nonob_cc_append_pkgconfig(&ctx.cmd, "readline");
   nonob_cc_append_pkgconfig(&ctx.cmd, "libffi");
-#endif
+#  endif
   if (ctx.s->build_sanitizer) nob_cmd_append(&ctx.cmd, "-ggdb3", "-fsanitize=address");
   else if (ctx.s->build_debug) nob_cmd_append(&ctx.cmd, "-ggdb3");
   nob_cc_inputs(&ctx.cmd, "-std=gnu23");
   nob_cc_inputs(&ctx.cmd, nob_temp_sprintf("%s/main.c", ctx.s->src_path));
   nob_cc_output(&ctx.cmd, ctx.s->syx_path);
-#ifdef __APPLE__
+#  ifdef __APPLE__
   nob_cmd_append(&ctx.cmd, "-ledit");
   nob_cmd_append(&ctx.cmd, "-lffi");
-#endif
+#  endif
   nonob_append_cmd_to_ccjson();
   if (!nob_cmd_run(&ctx.cmd)) return false;
 
@@ -102,11 +123,11 @@ bool command_run_run() {
   if (ctx.s->run_leaks) ctx.s->build_debug = true;
   if (!command_build_run()) return false;
 
-#if defined(__APPLE__)
+#  if defined(__APPLE__)
   if (ctx.s->run_leaks) nob_cmd_append(&ctx.cmd, "leaks", "--atExit", "--");
-#elif defined(__linux__)
+#  elif defined(__linux__)
   if (ctx.s->run_memory_test) nob_cmd_append(&ctx.cmd, "valgrind", "--leak-check=full");
-#endif
+#  endif
   nob_cmd_append(&ctx.cmd, ctx.s->syx_path);
   if (ctx.argc) nob_da_append_many(&ctx.cmd, ctx.argv, ctx.argc);
   if (!nob_cmd_run(&ctx.cmd)) return false;
@@ -132,7 +153,7 @@ bool command_debug_run() {
   return true;
 }
 
-#define command_tests_init NULL
+#  define command_tests_init NULL
 
 bool command_tests_run() {
   if (!command_build_run()) return false;
@@ -180,7 +201,7 @@ bool delete_recursively(const char *file_path) {
   return success;
 }
 
-#define command_clean_init NULL
+#  define command_clean_init NULL
 
 bool command_clean_run() {
   delete_recursively(ctx.s->build_path);
@@ -199,14 +220,14 @@ bool command_playground_run() {
   nob_cc_flags(&ctx.cmd);
   nob_cmd_append(&ctx.cmd, nob_temp_sprintf("-I%s", ctx.s->src_path));
   nob_cmd_append(&ctx.cmd, nob_temp_sprintf("-I%s", ctx.s->vendor_path));
-#ifdef __APPLE__
+#  ifdef __APPLE__
   nonob_cc_append_sysroot(&ctx.cmd);
   nob_cmd_append(&ctx.cmd, "-ledit");
   nob_cmd_append(&ctx.cmd, "-lffi");
-#else
+#  else
   nonob_cc_append_pkgconfig(&ctx.cmd, "readline");
   nonob_cc_append_pkgconfig(&ctx.cmd, "libffi");
-#endif
+#  endif
   nob_cmd_append(&ctx.cmd, "-ggdb3");
   nob_cc_inputs(&ctx.cmd, "-std=gnu23");
   nob_cc_inputs(&ctx.cmd, nob_temp_sprintf("%s/playground.c", ctx.s->src_path));
@@ -242,7 +263,7 @@ static const Da_Const(Vendored_Source, Vendored_Sources) vendored_sources = da_c
     ((Vendored_Source){.name = string_from_strlit("jim.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/jim/refs/heads/master/jim2.h")}),
     ((Vendored_Source){.name = string_from_strlit("ht.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/ht.h/refs/heads/main/ht.h")}));
 
-#define command_update_vendor_init NULL
+#  define command_update_vendor_init NULL
 
 bool command_update_vendor_run() {
   da_foreach_const(vendored_sources, source) {
@@ -272,7 +293,7 @@ bool command_update_vendor_run() {
   return true;
 }
 
-#define command_diff_vendor_init NULL
+#  define command_diff_vendor_init NULL
 
 bool command_diff_vendor_run() {
   da_foreach_const(vendored_sources, source) {
@@ -334,3 +355,5 @@ fail:
   nonob_deinitialize();
   return 1;
 }
+
+#endif
