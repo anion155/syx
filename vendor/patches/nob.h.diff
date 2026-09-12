@@ -1,7 +1,20 @@
---- vendor/patches/nob.h	2026-09-02 22:34:26
-+++ vendor/nob.h	2026-09-06 09:36:26
-@@ -206,9 +206,9 @@
- NOBDEF void nob__panicf(const char *file, int line, const char *label, const char *format, ...);
+--- original
++++ modified
+@@ -63,7 +63,7 @@
+       from other languages (for whatever reason).
+ 
+       If only few specific names create conflicts for you, you can just #undef those names after the
+-      `#include <nob.h>` without enabling `NOB_UNSTRIP_PREFIX` since they are macros anyway.
++      `#include <nob.h>` without enabling `NOB_UNSTRIP_PREFIX` since they are macros anyway.
+ 
+    # Macro Interface
+ 
+@@ -203,12 +203,12 @@
+ #    define NOB_PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK)
+ #endif
+ 
+-NOBDEF void nob__panicf(const char *file, int line, const char *label, const char *format, ...);
++NOBDEF void nob__panicf(const char *file, int line, const char *label, const char *format, ...) NOB_PRINTF_FORMAT(4, 5);
  
  #define NOB_UNUSED(value) (void)(value)
 -#define NOB_TODO(message) do { fprintf(stderr, "%s:%d: TODO: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
@@ -12,39 +25,7 @@
  #define NOB_UNREACHABLEF(...) nob__panicf(__FILE__, __LINE__, "UNREACHABLE", __VA_ARGS__)
  
  #define NOB_ARRAY_LEN(array) (sizeof(array)/sizeof(array[0]))
-@@ -368,6 +368,31 @@
-         }                                                                                  \
-     } while (0)
- 
-+    // Reserve specific size to a dynamic array
-+#define nob_da_realloc_capacity(da, target_capacity)                                       \
-+    do {                                                                                   \
-+        if ((target_capacity) > (da)->capacity) {                                          \
-+            (da)->capacity = (target_capacity);                                            \
-+            (da)->items = NOB_DECLTYPE_CAST((da)->items)NOB_REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items)); \
-+            NOB_ASSERT((da)->items != NULL && "Buy more RAM lol");                         \
-+        }                                                                                  \
-+    } while (0)
-+
-+// Trim array's capacity to it's count
-+#define nob_da_realloc_trim(da)                                                       \
-+    do {                                                                              \
-+      if ((da)->capacity != (da)->count) {                                            \
-+        if ((da)->count == 0) {                                                       \
-+          NOB_FREE((da)->items);                                                      \
-+          (da)->items = NULL;                                                         \
-+          (da)->capacity = 0;                                                         \
-+        } else {                                                                      \
-+          (da)->items = NOB_REALLOC((da)->items, (da)->count * sizeof(*(da)->items)); \
-+          (da)->capacity = (da)->count;                                               \
-+        }                                                                             \
-+      }                                                                               \
-+    } while (0)
-+
- // Append an item to a dynamic array
- #define nob_da_append(da, item)                \
-     do {                                       \
-@@ -438,6 +463,7 @@
+@@ -438,6 +438,7 @@
  #define nob_swap(T, a, b) do { T t = a; a = b; b = t; } while (0)
  
  NOBDEF bool nob_read_entire_file(const char *path, Nob_String_Builder *sb);
@@ -52,7 +33,66 @@
  NOBDEF int nob_sb_appendf(Nob_String_Builder *sb, const char *fmt, ...) NOB_PRINTF_FORMAT(2, 3);
  // Pads the String_Builder (sb) to the desired word size boundary with 0s.
  // Imagine we have sb that contains 5 `a`-s:
-@@ -974,7 +1000,7 @@
+@@ -503,6 +504,9 @@
+     size_t count;
+     size_t capacity;
+ } Nob_Procs;
++
++// Wait until the process has finished and write down exit code
++NOBDEF bool nob_proc_wait_with_exit_status(Nob_Proc proc, unsigned int *exit_code);
+ 
+ // Wait until the process has finished
+ NOBDEF bool nob_proc_wait(Nob_Proc proc);
+@@ -542,6 +546,7 @@
+     const char *stdout_path;
+     // Redirect stderr to file
+     const char *stderr_path;
++    unsigned int *exit_status;
+ } Nob_Cmd_Opt;
+ 
+ // Run the command with options.
+@@ -831,40 +836,6 @@
+ #ifndef nob_cc_inputs
+ #  define nob_cc_inputs(cmd, ...) nob_cmd_append(cmd, __VA_ARGS__)
+ #endif // nob_cc_inputs
+-
+-// TODO: add MinGW support for Go Rebuild Urself™ Technology and all the nob_cc_* macros above
+-//   Musializer contributors came up with a pretty interesting idea of an optional prefix macro which could be useful for
+-//   MinGW support:
+-//   https://github.com/tsoding/musializer/blob/b7578cc76b9ecb573d239acc9ccf5a04d3aba2c9/src_build/nob_win64_mingw.c#L3-L9
+-// TODO: Maybe instead NOB_REBUILD_URSELF macro, the Go Rebuild Urself™ Technology should use the
+-//   user defined nob_cc_* macros instead?
+-#ifndef NOB_REBUILD_URSELF
+-#  if defined(_WIN32)
+-#    if defined(__clang__)
+-#      if defined(__cplusplus)
+-#        define NOB_REBUILD_URSELF(binary_path, source_path) "clang", "-x", "c++", "-o", binary_path, source_path
+-#      else
+-#        define NOB_REBUILD_URSELF(binary_path, source_path) "clang", "-x", "c", "-o", binary_path, source_path
+-#      endif
+-#    elif defined(__GNUC__)
+-#      if defined(__cplusplus)
+-#        define NOB_REBUILD_URSELF(binary_path, source_path) "gcc", "-x", "c++", "-o", binary_path, source_path
+-#      else
+-#        define NOB_REBUILD_URSELF(binary_path, source_path) "gcc", "-x", "c", "-o", binary_path, source_path
+-#      endif
+-#    elif defined(_MSC_VER)
+-#       define NOB_REBUILD_URSELF(binary_path, source_path) "cl.exe", nob_temp_sprintf("/Fe:%s", (binary_path)), source_path
+-#    elif defined(__TINYC__)
+-#       define NOB_REBUILD_URSELF(binary_path, source_path) "tcc", "-o", binary_path, source_path
+-#    endif
+-#  else
+-#    if defined(__cplusplus)
+-#      define NOB_REBUILD_URSELF(binary_path, source_path) "cc", "-x", "c++", "-o", binary_path, source_path
+-#    else
+-#      define NOB_REBUILD_URSELF(binary_path, source_path) "cc", "-x", "c", "-o", binary_path, source_path
+-#    endif
+-#  endif
+-#endif
+ 
+ // Go Rebuild Urself™ Technology
+ //
+@@ -974,7 +945,7 @@
  //     printf(SV_Fmt" => %zu\n", SV_Arg(c), n);
  // }
  // ```
@@ -61,7 +101,7 @@
      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-@@ -984,6 +1010,7 @@
+@@ -984,6 +955,7 @@
      2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
      3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3, 4,4,4,4,4,4,4,4,5,5,5,5,6,6,6,6,
  };
@@ -69,7 +109,7 @@
  
  NOBDEF size_t nob_sv_utf8_len(Nob_String_View sv, size_t *bytes_overrun);
  
-@@ -995,7 +1022,8 @@
+@@ -995,7 +967,8 @@
  
  #endif // NOB_H_
  
@@ -79,7 +119,7 @@
  
  // This is like nob_proc_wait() but waits asynchronously. Depending on the platform ms means different thing.
  // On Windows it means timeout. On POSIX it means for how long to sleep after checking if the process exited,
-@@ -1024,7 +1052,7 @@
+@@ -1024,7 +997,7 @@
              if (bytes_overrun) *bytes_overrun = i - sv.count;
              return n;
          }
@@ -88,12 +128,78 @@
          n += 1;
      }
      NOB_UNREACHABLE("sv_utf8_len");
-@@ -2595,6 +2623,27 @@
+@@ -1117,7 +1090,17 @@
+     const char *old_binary_path = nob_temp_sprintf("%s.old", binary_path);
+ 
+     if (!nob_rename(binary_path, old_binary_path)) exit(1);
++#ifdef NOB_REBUILD_URSELF
+     nob_cmd_append(&cmd, NOB_REBUILD_URSELF(binary_path, source_path));
++#else
++    nob_cc(&cmd);
++    nob_cc_flags(&cmd);
++    nob_cc_inputs(&cmd, source_path);
++    nob_cc_output(&cmd, binary_path);
++#ifdef NOB_REBUILD_URSELF_FLAGS
++    nob_cmd_append(&cmd, NOB_REBUILD_URSELF_FLAGS);
++#endif
++#endif
+     Nob_Cmd_Opt opt = {0};
+     if (!nob_cmd_run_opt(&cmd, opt)) {
+         nob_rename(old_binary_path, binary_path);
+@@ -1358,7 +1341,7 @@
+         if (proc == NOB_INVALID_PROC) nob_return_defer(false);
+         nob_da_append(opt.async, proc);
+     } else {
+-        if (!nob_proc_wait(proc)) nob_return_defer(false);
++        if (!nob_proc_wait_with_exit_status(proc, opt.exit_status)) nob_return_defer(false);
+     }
+ 
  defer:
-     if (!result) nob_log(NOB_ERROR, "Could not read file %s: %s", path, strerror(errno));
-     if (f) fclose(f);
-+    return result;
+@@ -1785,7 +1768,7 @@
+     return nob_procs_flush(procs);
+ }
+ 
+-NOBDEF bool nob_proc_wait(Nob_Proc proc)
++NOBDEF bool nob_proc_wait_with_exit_status(Nob_Proc proc, unsigned int *exit_status_storage)
+ {
+     if (proc == NOB_INVALID_PROC) return false;
+ 
+@@ -1801,6 +1784,9 @@
+     }
+ 
+     DWORD exit_status;
++    if (exit_status_storage != NULL) {
++        *exit_status_storage = exit_status;
++    }
+     if (!GetExitCodeProcess(proc, &exit_status)) {
+         nob_log(NOB_ERROR, "could not get process exit code: %s", nob_win32_error_message(GetLastError()));
+         return false;
+@@ -1824,6 +1810,9 @@
+ 
+         if (WIFEXITED(wstatus)) {
+             int exit_status = WEXITSTATUS(wstatus);
++            if (exit_status_storage != NULL) {
++                *exit_status_storage = exit_status;
++            }
+             if (exit_status != 0) {
+                 nob_log(NOB_ERROR, "command exited with exit code %d", exit_status);
+                 return false;
+@@ -1842,6 +1831,11 @@
+ #endif
+ }
+ 
++NOBDEF bool nob_proc_wait(Nob_Proc proc)
++{
++    return nob_proc_wait_with_exit_status(proc, NULL);
 +}
++
+ static int nob__proc_wait_async(Nob_Proc proc, int ms)
+ {
+     if (proc == NOB_INVALID_PROC) return false;
+@@ -2597,7 +2591,28 @@
+     if (f) fclose(f);
+     return result;
+ }
 +
 +NOBDEF bool nob_read_entire_stdin(Nob_String_Builder *sb)
 +{
@@ -101,7 +207,7 @@
 +#ifdef _WIN32
 +    if (_setmode(_fileno(stdin), _O_BINARY) < 0) nob_return_defer(false);
 +#endif
-+
+ 
 +    char buffer[32 * 1024];
 +    size_t bytes_read = 0;
 +    while ((bytes_read = fread(buffer, 1, sizeof(buffer), stdin)) > 0) {
@@ -113,19 +219,13 @@
 +
 +defer:
 +    if (!result) nob_log(NOB_ERROR, "Could not read stdin: %s", strerror(errno));
-     return result;
- }
- 
-@@ -3016,6 +3065,8 @@
-         #define da_append_many nob_da_append_many
-         #define da_resize nob_da_resize
-         #define da_reserve nob_da_reserve
-+        #define da_realloc_capacity nob_da_realloc_capacity
-+        #define da_realloc_trim nob_da_realloc_trim
-         #define da_last nob_da_last
-         #define da_first nob_da_first
-         #define da_pop nob_da_pop
-@@ -3028,6 +3079,7 @@
++    return result;
++}
++
+ NOBDEF int nob_sb_appendf(Nob_String_Builder *sb, const char *fmt, ...)
+ {
+     va_list args;
+@@ -3028,6 +3043,7 @@
          #endif // __cplusplus
          #define String_Builder Nob_String_Builder
          #define read_entire_file nob_read_entire_file
@@ -133,3 +233,10 @@
          #define sb_appendf nob_sb_appendf
          #define sb_append_buf nob_sb_append_buf
          #define sb_append_sv nob_sb_append_sv
+@@ -3395,4 +3411,4 @@
+    ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+    WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+    ------------------------------------------------------------------------------
+-*/
++*/
+\ No newline at end of file

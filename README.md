@@ -20,6 +20,7 @@ This repository uses `nob` as the project helper.
 After generating `./nob`, you can run commands like:
 
 ```sh
+cc nob.c -o nob -Ivendor -std=gnu23
 ./nob
 ./nob run
 ./nob tests

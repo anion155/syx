@@ -231,6 +231,77 @@ bool command_playground_run() {
   return true;
 }
 
+typedef struct Vendored_Source {
+  String name;
+  String latest_link;
+} Vendored_Source;
+static const Da_Const(Vendored_Source, Vendored_Sources) vendored_sources = da_const_from_lit(
+    Vendored_Source,
+    ((Vendored_Source){.name = string_from_strlit("nob.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/nob.h/refs/heads/main/nob.h")}),
+    ((Vendored_Source){.name = string_from_strlit("flag.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/flag.h/refs/heads/master/flag.h")}),
+    ((Vendored_Source){.name = string_from_strlit("jim.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/jim/refs/heads/master/jim2.h")}),
+    ((Vendored_Source){.name = string_from_strlit("ht.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/ht.h/refs/heads/main/ht.h")}));
+
+#define command_update_vendor_init NULL
+
+bool command_update_vendor_run() {
+  da_foreach_const(vendored_sources, source) {
+    const char *target_path = nob_temp_sprintf("./vendor/" SV_FMT, sv_fmt_arg(source->name));
+    const char *source_path = nob_temp_sprintf("./vendor/patches/" SV_FMT, sv_fmt_arg(source->name));
+    const char *patch_path = nob_temp_sprintf("./vendor/patches/" SV_FMT ".diff", sv_fmt_arg(source->name));
+
+    nob_log(NOB_INFO, "downloading vendored sources: " SV_FMT, sv_fmt_arg(source->name));
+    nob_cmd_append(&ctx.cmd, "curl", "-sSL", "-o", source_path);
+    nob_cmd_append(&ctx.cmd, source->latest_link.data);
+    if (!nob_cmd_run(&ctx.cmd)) {
+      nob_log(NOB_ERROR, "failed to download");
+      return false;
+    }
+    if (!nob_copy_file(source_path, target_path)) return false;
+    if (!nob_file_exists(patch_path)) {
+      nob_log(NOB_INFO, "patch for vendored source not fond: %s", target_path);
+      continue;
+    }
+    nob_log(NOB_INFO, "applying patch: %s", patch_path);
+    nob_cmd_append(&ctx.cmd, "patch", "-u", target_path, "-i", patch_path);
+    if (!nob_cmd_run(&ctx.cmd)) {
+      nob_log(NOB_ERROR, "failed to apply");
+      return false;
+    }
+  }
+  return true;
+}
+
+#define command_diff_vendor_init NULL
+
+bool command_diff_vendor_run() {
+  da_foreach_const(vendored_sources, source) {
+    const char *target_path = nob_temp_sprintf("./vendor/" SV_FMT, sv_fmt_arg(source->name));
+    const char *source_path = nob_temp_sprintf("./vendor/patches/" SV_FMT, sv_fmt_arg(source->name));
+    const char *patch_path = nob_temp_sprintf("./vendor/patches/" SV_FMT ".diff", sv_fmt_arg(source->name));
+
+    if (!nob_file_exists(source_path)) {
+      nob_log(NOB_INFO, "downloading vendored sources: " SV_FMT, sv_fmt_arg(source->name));
+      nob_cmd_append(&ctx.cmd, "curl", "-sSL", "-o", source_path);
+      nob_cmd_append(&ctx.cmd, source->latest_link.data);
+      if (!nob_cmd_run(&ctx.cmd)) {
+        nob_log(NOB_ERROR, "failed to download");
+        return false;
+      }
+    }
+    nob_cmd_append(&ctx.cmd, "diff", "-u", "-L", "original", "-L", "modified", source_path, target_path);
+    uint exit_status = 0;
+    if (nob_cmd_run(&ctx.cmd, .stdout_path = patch_path, .exit_status = &exit_status)) {
+      nob_log(NOB_INFO, "diff is empty");
+    }
+    if (exit_status != 1) {
+      nob_log(NOB_ERROR, "failed to diff");
+      return false;
+    }
+  }
+  return true;
+}
+
 int main(int argc, char **argv) {
   NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "./vendor/nonob.h");
   nonob_initialize(argc, argv);
@@ -248,6 +319,8 @@ int main(int argc, char **argv) {
   nonob_define_command(tests, "Run tests");
   nonob_define_command(clean, "Clean artifacts");
   nonob_define_command(playground, "Playground env");
+  nonob_define_command(update_vendor, "Update vendored sources");
+  nonob_define_command(diff_vendor, "Create new diff of vendored sources");
   nonob_parse_options();
   if (*clear) {
     nob_cmd_append(&ctx.cmd, "clear");

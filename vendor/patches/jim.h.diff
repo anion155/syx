@@ -1,5 +1,5 @@
---- vendor/patches/jim.h	2026-09-12 22:23:35
-+++ vendor/jim.h	2026-09-12 22:23:47
+--- original
++++ modified
 @@ -60,7 +60,8 @@
  
  #endif // JIM_H_
@@ -15,6 +15,5 @@
  }
  
 -#endif // JIM_IMPLEMENTATION
-\ No newline at end of file
 +#endif // JIM_IMPL
 \ No newline at end of file

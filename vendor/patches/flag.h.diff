@@ -1,5 +1,14 @@
---- vendor/patches/flag.h	2026-09-12 22:17:14
-+++ vendor/flag.h	2026-09-12 22:18:04
+--- original
++++ modified
+@@ -135,7 +135,7 @@
+ 
+ // Allocate a new opaque flag context.
+ //
+-// Setting `program_name` is needed so `flag_c_parse(c, argc, argv)` does not try to consume
++// Setting `program_name` is needed so `flag_c_parse(c, argc, argv)` does not try to consume
+ // extra argument from `argv` as it usually does. If that's exactly what you want just pass
+ // `NULL` as the `program_name` then.
+ //
 @@ -183,7 +183,8 @@
  
  //////////////////////////////
@@ -19,3 +28,10 @@
  
  /*
     Revision history:
+@@ -1012,4 +1013,4 @@
+ // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+-// IN THE SOFTWARE.
++// IN THE SOFTWARE.
+\ No newline at end of file

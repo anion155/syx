@@ -142,6 +142,8 @@ void nonob_default_usage(FILE *stream, NoNob_Command *command) {
 }
 
 void nonob_initialize_opt(int argc, char **argv, NoNob_Initialize_Opt opt) {
+  UNUSED(ht__find_or_put, ht__find_and_delete, ht__reset, ht__free);
+
   ctx.argc = argc;
   ctx.argv = argv;
   ctx.exe_path = dirname(get_exe_path());
@@ -207,7 +209,8 @@ bool nonob__run_command(const char *default_command) {
     bool *help = flag_c_bool(flags, "help", false, "Print this help to stdout and exit with 0");
     if (!flag_c_parse(flags, ctx.argc, ctx.argv)) {
       flag_c_print_error(flags, stderr);
-      ctx.usage(stderr, command);
+      if (ctx.usage) ctx.usage(stderr, command);
+      else nonob_default_usage(stderr, command);
       return false;
     }
     if (*help) {

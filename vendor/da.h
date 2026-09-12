@@ -150,8 +150,8 @@
     for (size_t it##_index = 0; !it##_index; it##_index += 1)     \
       for (typeof(*_da_##it->data) *it = _da_##it->data, *_last_##it = it + _da_##it->count; it < _last_##it; ++it, it##_index += 1)
 
-#define da_foreach_const(da, it)                           \
-  for (typeof(*(da).data) *it = (da).data; !it; it = NULL) \
+#define da_foreach_const(da, it)                          \
+  for (typeof(*(da).data) *it = (da).data; it; it = NULL) \
     for (size_t it##_index = 0; (it##_index < (da).count ? (it = (da).data + it##_index, true) : false); it##_index += 1)
 
 #define da_find_macro(da, item_var, predicate) ({   \

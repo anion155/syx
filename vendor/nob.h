@@ -368,31 +368,6 @@ NOBDEF void nob_dir_entry_close(Nob_Dir_Entry dir);
         }                                                                                  \
     } while (0)
 
-    // Reserve specific size to a dynamic array
-#define nob_da_realloc_capacity(da, target_capacity)                                       \
-    do {                                                                                   \
-        if ((target_capacity) > (da)->capacity) {                                          \
-            (da)->capacity = (target_capacity);                                            \
-            (da)->items = NOB_DECLTYPE_CAST((da)->items)NOB_REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items)); \
-            NOB_ASSERT((da)->items != NULL && "Buy more RAM lol");                         \
-        }                                                                                  \
-    } while (0)
-
-// Trim array's capacity to it's count
-#define nob_da_realloc_trim(da)                                                       \
-    do {                                                                              \
-      if ((da)->capacity != (da)->count) {                                            \
-        if ((da)->count == 0) {                                                       \
-          NOB_FREE((da)->items);                                                      \
-          (da)->items = NULL;                                                         \
-          (da)->capacity = 0;                                                         \
-        } else {                                                                      \
-          (da)->items = NOB_REALLOC((da)->items, (da)->count * sizeof(*(da)->items)); \
-          (da)->capacity = (da)->count;                                               \
-        }                                                                             \
-      }                                                                               \
-    } while (0)
-
 // Append an item to a dynamic array
 #define nob_da_append(da, item)                \
     do {                                       \
@@ -530,6 +505,9 @@ typedef struct {
     size_t capacity;
 } Nob_Procs;
 
+// Wait until the process has finished and write down exit code
+NOBDEF bool nob_proc_wait_with_exit_status(Nob_Proc proc, unsigned int *exit_code);
+
 // Wait until the process has finished
 NOBDEF bool nob_proc_wait(Nob_Proc proc);
 
@@ -568,6 +546,7 @@ typedef struct {
     const char *stdout_path;
     // Redirect stderr to file
     const char *stderr_path;
+    unsigned int *exit_status;
 } Nob_Cmd_Opt;
 
 // Run the command with options.
@@ -1362,7 +1341,7 @@ NOBDEF bool nob_cmd_run_opt(Nob_Cmd *cmd, Nob_Cmd_Opt opt)
         if (proc == NOB_INVALID_PROC) nob_return_defer(false);
         nob_da_append(opt.async, proc);
     } else {
-        if (!nob_proc_wait(proc)) nob_return_defer(false);
+        if (!nob_proc_wait_with_exit_status(proc, opt.exit_status)) nob_return_defer(false);
     }
 
 defer:
@@ -1789,7 +1768,7 @@ NOBDEF bool nob_procs_wait_and_reset(Nob_Procs *procs)
     return nob_procs_flush(procs);
 }
 
-NOBDEF bool nob_proc_wait(Nob_Proc proc)
+NOBDEF bool nob_proc_wait_with_exit_status(Nob_Proc proc, unsigned int *exit_status_storage)
 {
     if (proc == NOB_INVALID_PROC) return false;
 
@@ -1805,6 +1784,9 @@ NOBDEF bool nob_proc_wait(Nob_Proc proc)
     }
 
     DWORD exit_status;
+    if (exit_status_storage != NULL) {
+        *exit_status_storage = exit_status;
+    }
     if (!GetExitCodeProcess(proc, &exit_status)) {
         nob_log(NOB_ERROR, "could not get process exit code: %s", nob_win32_error_message(GetLastError()));
         return false;
@@ -1828,6 +1810,9 @@ NOBDEF bool nob_proc_wait(Nob_Proc proc)
 
         if (WIFEXITED(wstatus)) {
             int exit_status = WEXITSTATUS(wstatus);
+            if (exit_status_storage != NULL) {
+                *exit_status_storage = exit_status;
+            }
             if (exit_status != 0) {
                 nob_log(NOB_ERROR, "command exited with exit code %d", exit_status);
                 return false;
@@ -1844,6 +1829,11 @@ NOBDEF bool nob_proc_wait(Nob_Proc proc)
 
     return true;
 #endif
+}
+
+NOBDEF bool nob_proc_wait(Nob_Proc proc)
+{
+    return nob_proc_wait_with_exit_status(proc, NULL);
 }
 
 static int nob__proc_wait_async(Nob_Proc proc, int ms)
@@ -3041,8 +3031,6 @@ NOBDEF char *nob_temp_running_executable_path(void)
         #define da_append_many nob_da_append_many
         #define da_resize nob_da_resize
         #define da_reserve nob_da_reserve
-        #define da_realloc_capacity nob_da_realloc_capacity
-        #define da_realloc_trim nob_da_realloc_trim
         #define da_last nob_da_last
         #define da_first nob_da_first
         #define da_pop nob_da_pop
