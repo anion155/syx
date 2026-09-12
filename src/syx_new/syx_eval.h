@@ -475,27 +475,13 @@ Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_NATIVE: {
       Syx_Native *native = value->native;
       switch (native->type->kind) {
+        case SYX_TYPE_KIND_VOID: SYX_EVAL_THROW(ctx, "primitive native void can't be converted to bool");
         case SYX_TYPE_KIND_PRIMITIVE: {
-          switch (native->type->primitive) {
-            case SYX_PRIMITIVE_TYPE_KIND_VOID: SYX_EVAL_THROW(ctx, "primitive native void can't be converted to bool");
-            case SYX_PRIMITIVE_TYPE_KIND_CHAR: return syx_value_bool(*(char *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_I8: return syx_value_bool(*(int8_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_I16: return syx_value_bool(*(int16_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_I32: return syx_value_bool(*(int32_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_I64: return syx_value_bool(*(int64_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_I128: return syx_value_bool(*(__int128_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_U8: return syx_value_bool(*(uint8_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_U16: return syx_value_bool(*(uint16_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_U32: return syx_value_bool(*(uint32_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_U64: return syx_value_bool(*(uint64_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_U128: return syx_value_bool(*(__uint128_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_F16: return syx_value_bool(f16_canonical_to_float(*(f16_canonical_t *)native->data));
-            case SYX_PRIMITIVE_TYPE_KIND_F32: return syx_value_bool(*(float *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_F64: return syx_value_bool(*(double *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_F80: return syx_value_bool(f80_canonical_to_long_double(*(f80_canonical_t *)native->data));
-            case SYX_PRIMITIVE_TYPE_KIND_F128: return syx_value_bool(f128_canonical_to_long_double(*(f128_canonical_t *)native->data));
-            case SYX_PRIMITIVE_TYPE_KIND_F64PAIR: return syx_value_bool(f64pair_canonical_to_long_double(*(f64pair_canonical_t *)native->data));
-          }
+#define X(type) return syx_value_bool(*(type *)native->data)
+#define Y(type) return syx_value_bool(f_canonical_to_native(*(type *)native->data))
+          syx_native_primitive_xy_macro(native->type, X, Y);
+#undef Y
+#undef X
         }
         case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to bool");
         case SYX_TYPE_KIND_PTR:
@@ -524,27 +510,13 @@ Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_NATIVE: {
       Syx_Native *native = value->native;
       switch (native->type->kind) {
+        case SYX_TYPE_KIND_VOID: SYX_EVAL_THROW(ctx, "primitive native void can't be converted to number");
         case SYX_TYPE_KIND_PRIMITIVE: {
-          switch (native->type->primitive) {
-            case SYX_PRIMITIVE_TYPE_KIND_VOID: SYX_EVAL_THROW(ctx, "primitive native void can't be converted to number");
-            case SYX_PRIMITIVE_TYPE_KIND_CHAR: return make_syx_value_number_integer(*(char *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_I8: return make_syx_value_number_integer(*(int8_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_I16: return make_syx_value_number_integer(*(int16_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_I32: return make_syx_value_number_integer(*(int32_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_I64: return make_syx_value_number_integer(*(int64_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_I128: return make_syx_value_number_integer(*(__int128_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_U8: return make_syx_value_number_integer(*(uint8_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_U16: return make_syx_value_number_integer(*(uint16_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_U32: return make_syx_value_number_integer(*(uint32_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_U64: return make_syx_value_number_integer(*(uint64_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_U128: return make_syx_value_number_integer(*(__uint128_t *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_F16: return make_syx_value_number_fractional(f16_canonical_to_float(*(f16_canonical_t *)native->data));
-            case SYX_PRIMITIVE_TYPE_KIND_F32: return make_syx_value_number_fractional(*(float *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_F64: return make_syx_value_number_fractional(*(double *)native->data);
-            case SYX_PRIMITIVE_TYPE_KIND_F80: return make_syx_value_number_fractional(f80_canonical_to_float(*(f80_canonical_t *)native->data));
-            case SYX_PRIMITIVE_TYPE_KIND_F128: return make_syx_value_number_fractional(f128_canonical_to_float(*(f128_canonical_t *)native->data));
-            case SYX_PRIMITIVE_TYPE_KIND_F64PAIR: return make_syx_value_number_fractional(f64pair_canonical_to_float(*(f64pair_canonical_t *)native->data));
-          }
+#define X(type) return make_syx_value_number_integer(*(type *)native->data)
+#define Y(type) return make_syx_value_number_fractional(f_canonical_to_native(*(type *)native->data))
+          syx_native_primitive_xy_macro(native->type, X, Y);
+#undef Y
+#undef X
         }
         case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to number");
         case SYX_TYPE_KIND_PTR:

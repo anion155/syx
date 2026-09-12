@@ -59,7 +59,7 @@ Syx_Value *syx_special_form_define(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       syx_value_early_exit(tmp, (target));
       if (tmp->kind == SYX_VALUE_KIND_PREFIXED && tmp->prefixed->kind == SYX_PREFIXED_KIND_COLON) {
         // (define <object-name> :a <a-value> :b (:c <value> :d <value> :e (:f <value>)))
-        value = rc_acquire(syx_define_object(ctx, &arguments, tmp));
+        value = rc_acquire(syx_object_define(ctx, &arguments, tmp));
         syx_value_early_exit(value, (target));
       } else {
         // (define <symbol> <value>)
@@ -79,7 +79,7 @@ Syx_Value *syx_special_form_define(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
     } break;
     case SYX_VALUE_KIND_OBJECT: {
       // (define <object> [:proto <proto-object>] :a (:b (:c <value> :d <value> :e (:f <value>))))
-      value = rc_acquire(syx_update_object(ctx, target->object, &arguments, NULL));
+      value = rc_acquire(syx_object_update(ctx, target->object, &arguments, NULL));
       syx_value_early_exit(value, (target));
       rc_release(target);
       return rc_move(value);
@@ -112,10 +112,20 @@ Syx_Value *syx_special_form_update(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   SYX_EVAL_ASSERT(ctx, target->kind == SYX_VALUE_KIND_SYMBOL, "malformed update expression");
   Syx_Value *value = syx_env_lookup_get(ctx, target->symbol);
   syx_value_early_exit(value, (target));
-  SYX_EVAL_ASSERT(ctx, target->kind == SYX_VALUE_KIND_OBJECT, "object expected");
-  Syx_Value *result = rc_acquire(syx_update_object(ctx, target->object, &arguments, NULL));
-  syx_value_early_exit(result, (target, value));
-  return rc_move(result);
+  switch (target->kind) {
+    case SYX_VALUE_KIND_OBJECT: {
+      Syx_Value *result = rc_acquire(syx_object_update(ctx, target->object, &arguments, NULL));
+      syx_value_early_exit(result, (target, value));
+      return rc_move(result);
+    } break;
+    case SYX_VALUE_KIND_NATIVE: {
+      Syx_Value *result = rc_acquire(syx_native_set(ctx, target->native->type, target->native->data, syx_list_next(&arguments)));
+      syx_value_early_exit(result, (target, value));
+      return rc_move(result);
+    } break;
+    default:
+  }
+  SYX_EVAL_THROW(ctx, "malformed update expression");
 }
 
 /** Checks if environment has binding. */
@@ -339,7 +349,7 @@ Syx_Value *syx_special_form_return(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 /** Creates object with of named fields. */
 Syx_Value *syx_special_form_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  return syx_define_object(ctx, &arguments, NULL);
+  return syx_object_define(ctx, &arguments, NULL);
 }
 
 void syx_env_define_special_forms(Syx_Env *env) {

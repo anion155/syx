@@ -3,14 +3,14 @@
 
 #include <syx_new/syx_value.h>
 
-Syx_Value **syx_object_lookup(Syx_Object *object, Syx_Symbol *field_name);
+Syx_Value **syx__object_lookup(Syx_Object *object, Syx_Symbol *field_name);
 Syx_Value *syx_object_get(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Symbol *field_name);
-void syx_object_define(Syx_Object *object, Syx_Symbol *field_name, Syx_Value *form);
+void syx_object_define_field(Syx_Object *object, Syx_Symbol *field_name, Syx_Value *form);
 void syx_object_set(Syx_Object *object, Syx_Symbol *field_name, Syx_Value *form);
 void syx_object_delete(Syx_Object *object, Syx_Symbol *field_name);
 
-Syx_Value *syx_update_object(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Pair **arguments, Syx_Value *first_field);
-Syx_Value *syx_define_object(Syx_Eval_Ctx *ctx, Syx_Pair **arguments, Syx_Value *first_field);
+Syx_Value *syx_object_update(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Pair **arguments, Syx_Value *first_field);
+Syx_Value *syx_object_define(Syx_Eval_Ctx *ctx, Syx_Pair **arguments, Syx_Value *first_field);
 
 #endif // SYX_OBJECT_H
 
@@ -22,7 +22,7 @@ Syx_Value *syx_define_object(Syx_Eval_Ctx *ctx, Syx_Pair **arguments, Syx_Value 
 #define SYX_EVAL_IMPL
 #include <syx_new/syx_eval.h>
 
-Syx_Value **syx_object_lookup(Syx_Object *object, Syx_Symbol *field_name) {
+Syx_Value **syx__object_lookup(Syx_Object *object, Syx_Symbol *field_name) {
   Syx_Value **field = NULL;
   while (!field && object) {
     field = ht_find(&object->fields, field_name);
@@ -33,7 +33,7 @@ Syx_Value **syx_object_lookup(Syx_Object *object, Syx_Symbol *field_name) {
 }
 
 Syx_Value *syx_object_get(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Symbol *field_name) {
-  Syx_Value **field = syx_object_lookup(object, field_name);
+  Syx_Value **field = syx__object_lookup(object, field_name);
   if (!field) {
     return NULL;
   } else if ((*field)->kind == SYX_VALUE_KIND_PREFIXED && (*field)->prefixed->kind == SYX_PREFIXED_KIND_QUOTE) {
@@ -57,13 +57,13 @@ void syx__object_field_set(Syx_Object *object, Syx_Symbol *field_name, Syx_Value
   }
 }
 
-void syx_object_define(Syx_Object *object, Syx_Symbol *field_name, Syx_Value *form) {
+void syx_object_define_field(Syx_Object *object, Syx_Symbol *field_name, Syx_Value *form) {
   Syx_Value **field = ht_find(&object->fields, field_name);
   syx__object_field_set(object, field_name, form, field);
 }
 
 void syx_object_set(Syx_Object *object, Syx_Symbol *field_name, Syx_Value *form) {
-  Syx_Value **field = syx_object_lookup(object, field_name);
+  Syx_Value **field = syx__object_lookup(object, field_name);
   syx__object_field_set(object, field_name, form, field);
 }
 
@@ -75,7 +75,7 @@ void syx_object_delete(Syx_Object *object, Syx_Symbol *field_name) {
 }
 
 // (:a (:b (:c <c-value> :d <d-value> :e (:f <f-value>) :g <g-value>)))
-Syx_Value *syx_update_object(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Pair **arguments, Syx_Value *first_field) {
+Syx_Value *syx_object_update(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Pair **arguments, Syx_Value *first_field) {
   while (*arguments) {
     Syx_Value *field;
     if (first_field) {
@@ -91,10 +91,16 @@ Syx_Value *syx_update_object(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Pair **a
 
     Syx_Value *form = rc_acquire(syx_eval_unquote(ctx, syx_list_next(arguments)));
     if (form->kind == SYX_VALUE_KIND_PAIR && form->pair && form->pair->left->kind == SYX_VALUE_KIND_PREFIXED && form->pair->left->prefixed->kind == SYX_PREFIXED_KIND_COLON) {
+      Syx_Value *stored = syx_object_get(ctx, object, field->prefixed->value->symbol);
       Syx_Pair *arguments = form->pair;
-      Syx_Value *result = rc_acquire(syx_define_object(ctx, &arguments, NULL));
-      syx_value_early_exit(result, (field, form));
-      syx_object_set(object, field->prefixed->value->symbol, result);
+      if (stored && stored->kind == SYX_VALUE_KIND_OBJECT) {
+        Syx_Value *result = rc_acquire(syx_object_update(ctx, stored->object, &arguments, NULL));
+        syx_value_early_exit(result, (field, form));
+      } else {
+        Syx_Value *result = rc_acquire(syx_object_define(ctx, &arguments, NULL));
+        syx_value_early_exit(result, (field, form));
+        syx_object_set(object, field->prefixed->value->symbol, result);
+      }
       rc_release_all(field, form);
       continue;
     }
@@ -105,7 +111,7 @@ Syx_Value *syx_update_object(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Pair **a
 }
 
 // ([:proto <proto-object>] :a (:b (:c <c-value> :d <d-value> :e (:f <f-value>) :g <g-value>)))
-Syx_Value *syx_define_object(Syx_Eval_Ctx *ctx, Syx_Pair **arguments, Syx_Value *first_field) {
+Syx_Value *syx_object_define(Syx_Eval_Ctx *ctx, Syx_Pair **arguments, Syx_Value *first_field) {
   Syx_Value *value = rc_acquire(make_syx_value_object(NULL));
 
   Syx_Value *proto_symbol = rc_acquire(make_syx_value_symbol_strlit("proto"));
@@ -126,7 +132,7 @@ Syx_Value *syx_define_object(Syx_Eval_Ctx *ctx, Syx_Pair **arguments, Syx_Value 
   }
   rc_release(proto_symbol);
 
-  Syx_Value *result = rc_acquire(syx_update_object(ctx, value->object, arguments, field));
+  Syx_Value *result = rc_acquire(syx_object_update(ctx, value->object, arguments, field));
   syx_value_early_exit(result, (value));
   return rc_move(value);
 }

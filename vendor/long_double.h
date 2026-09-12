@@ -103,6 +103,7 @@ static inline f16_canonical_t f16_canonical_identity(f16_canonical_t value) { re
 f16_canonical_t f16_canonical_from_native(_Float16 value);
 #  define F16__CANONICAL_FROM_NATIVE_CASE _Float16 : f16_canonical_from_native,
 #else
+f16_canonical_t f16_canonical_from_native(float value);
 #  define F16__CANONICAL_FROM_NATIVE_CASE
 #endif
 f16_canonical_t f16_canonical_from_float(float value);
@@ -257,6 +258,27 @@ long double f64pair_canonical_to_long_double(f64pair_canonical_t value);
     f64pair_canonical_t: f64pair_canonical_identity)((value))
 // clang-format on
 
+static inline float float_identity(float value) { return value; }
+static inline double double_identity(double value) { return value; }
+static inline long double long_double_identity(long double value) { return value; }
+#define f_canonical_to_native(value) _Generic((value), \
+    float: float_identity,                             \
+    double: double_identity,                           \
+    long double: long_double_identity,                 \
+    f16_canonical_t: f16_canonical_to_float,           \
+    f80_canonical_t: f80_canonical_to_long_double,     \
+    f128_canonical_t: f128_canonical_to_long_double,   \
+    f64pair_canonical_t: f64pair_canonical_to_long_double)((value))
+
+#define f_canonical_from_native(value, type) _Generic((type){0}, \
+    float: float_identity,                                       \
+    double: double_identity,                                     \
+    long double: long_double_identity,                           \
+    f16_canonical_t: f16_canonical_from_native,                  \
+    f80_canonical_t: f80_canonical_from_long_double,             \
+    f128_canonical_t: f128_canonical_from_long_double,           \
+    f64pair_canonical_t: f64pair_canonical_from_long_double)((value))
+
 uint16_t f16_to_bits(f16_t value);
 __uint128_t f80_to_bits(f80_t value);
 __uint128_t f128_to_bits(f128_t value);
@@ -277,6 +299,11 @@ __uint128_t f64pair_to_bits(f64pair_t value);
 #if defined(__FLT16_MAX__)
 f16_canonical_t f16_canonical_from_native(_Float16 value) {
   return MEMORYCOPY(value, f16_canonical_t);
+}
+#else
+f16_canonical_t f16_canonical_from_native(float value) {
+  UNUSED(value);
+  TODO();
 }
 #endif
 

@@ -1,4 +1,3 @@
-- value: lvalue support
 - value: call primitives as objects with specific prototypes
 - value: object stringify
 - value: closure stringify

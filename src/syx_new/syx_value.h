@@ -228,9 +228,8 @@ Syx_Value *make_syx_value_closure_specialf(Syx_Symbol *name, Syx_Closure_Special
 Syx_Value *make_syx_value_closure_builtin(Syx_Symbol *name, Syx_Closure_Builtin builtin);
 Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda lambda);
 Syx_Value *make_syx_value_closure_native_constructor(Syx_Symbol *name, Syx_Type *type);
-void syx_value_native_structure_destructor(void *data);
+Syx_Value *make_syx_value_native(Syx_Native *parent, Syx_Type *type, void *data, size_t additional_size);
 Syx_Value *make_syx_value_native_instance(Syx_Type *type);
-Syx_Value *make_syx_value_native_nested(Syx_Native *parent, Syx_Type *type, void *data);
 Syx_Value *make_syx_value_exit_returned(Syx_Value *returned);
 Syx_Value *make_syx_value_exit_thrown(Syx_Value *reason, Syx_Frame *stack_frame);
 Syx_Value *make_syx_value_prefixed(Syx_Prefixed_Kind kind, Syx_Value *inner_value);
@@ -591,23 +590,24 @@ void syx_value_native_structure_destructor(void *data) {
   syx_value_native_destructor(data);
 }
 
-Syx_Value *make_syx_value_native_instance(Syx_Type *type) {
-  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NATIVE, sizeof(Syx_Native) + type->size);
-  rc_get(value)->methods.destructor = syx_value_native_destructor;
+Syx_Value *make_syx_value_native(Syx_Native *parent, Syx_Type *type, void *data, size_t additional_size) {
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NATIVE, sizeof(Syx_Native) + additional_size);
+  if (type->kind == SYX_TYPE_KIND_STRUCTURE) {
+    rc_get(value)->methods.destructor = syx_value_native_structure_destructor;
+  } else {
+    rc_get(value)->methods.destructor = syx_value_native_destructor;
+  }
+  rc_acquire(syx_value_from_native(parent));
+  value->native->parent = (parent);
   value->native = (Syx_Native *)(value + 1);
   value->native->type = rc_acquire(type);
-  value->native->data = (void *)(value->native + 1);
+  value->native->data = data;
   return value;
 }
 
-Syx_Value *make_syx_value_native_nested(Syx_Native *parent, Syx_Type *type, void *data) {
-  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_NATIVE, sizeof(Syx_Native));
-  rc_get(value)->methods.destructor = syx_value_native_destructor;
-  value->native = (Syx_Native *)(value + 1);
-  rc_acquire(syx_value_from_native(parent));
-  value->native->parent = (parent);
-  value->native->type = rc_acquire(type);
-  value->native->data = data;
+Syx_Value *make_syx_value_native_instance(Syx_Type *type) {
+  Syx_Value *value = make_syx_value_native(NULL, type, NULL, type->size);
+  value->native->data = (void *)(value->native + 1);
   return value;
 }
 
@@ -826,27 +826,13 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
       }
       stringify_append(&state, sb_append, ' ');
       switch (native->type->kind) {
+        case SYX_TYPE_KIND_VOID: {
+          stringify_append(&state, sb_append_strlit, "#n");
+        } break;
         case SYX_TYPE_KIND_PRIMITIVE: {
-          switch (native->type->primitive) {
-            case SYX_PRIMITIVE_TYPE_KIND_VOID: stringify_append(&state, sb_append_strlit, "#n"); break;
-            case SYX_PRIMITIVE_TYPE_KIND_CHAR: stringify_append(&state, sb_append_number, *(char *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_I8: stringify_append(&state, sb_append_number, *(int8_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_I16: stringify_append(&state, sb_append_number, *(int16_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_I32: stringify_append(&state, sb_append_number, *(int32_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_I64: stringify_append(&state, sb_append_number, *(int64_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_I128: stringify_append(&state, sb_append_number, *(__int128_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_U8: stringify_append(&state, sb_append_number, *(uint8_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_U16: stringify_append(&state, sb_append_number, *(uint16_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_U32: stringify_append(&state, sb_append_number, *(uint32_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_U64: stringify_append(&state, sb_append_number, *(uint64_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_U128: stringify_append(&state, sb_append_number, *(__uint128_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_F16: stringify_append(&state, sb_append_number, *(f16_canonical_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_F32: stringify_append(&state, sb_append_number, *(float *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_F64: stringify_append(&state, sb_append_number, *(double *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_F80: stringify_append(&state, sb_append_number, *(f80_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_F128: stringify_append(&state, sb_append_number, *(f128_t *)native->data); break;
-            case SYX_PRIMITIVE_TYPE_KIND_F64PAIR: stringify_append(&state, sb_append_number, *(f64pair_t *)native->data); break;
-          }
+#define X(type) stringify_append(&state, sb_append_number, *(type *)native->data)
+          syx_native_primitive_xy_macro(native->type, X, X);
+#undef X
         } break;
         case SYX_TYPE_KIND_STRUCTURE: TODO("sb_append_syx_value: structure to string");
         case SYX_TYPE_KIND_PTR:

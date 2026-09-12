@@ -13,6 +13,7 @@
 #include <syx_new/syx_value.h>
 
 typedef enum Syx_Type_Kind : unsigned int {
+  SYX_TYPE_KIND_VOID,
   SYX_TYPE_KIND_PRIMITIVE,
   SYX_TYPE_KIND_STRUCTURE,
   SYX_TYPE_KIND_PTR,
@@ -20,7 +21,6 @@ typedef enum Syx_Type_Kind : unsigned int {
 } Syx_Type_Kind;
 
 typedef enum Syx_Primitive_Type_Kind : unsigned int {
-  SYX_PRIMITIVE_TYPE_KIND_VOID,    // void
   SYX_PRIMITIVE_TYPE_KIND_CHAR,    // char
   SYX_PRIMITIVE_TYPE_KIND_I8,      // int8_t
   SYX_PRIMITIVE_TYPE_KIND_I16,     // int16_t
@@ -189,6 +189,8 @@ Syx_Type_Structure_Fields make__syx_type_structure_fields(const Syx_Type_Structu
   make__syx_type_structure_fields(fields, sizeof(fields) / sizeof(Syx_Type_Structure_Field)); \
 })
 Syx_Type *make_syx_type_function(Syx_Symbol *name, Syx_Type_Function func);
+
+Syx_Type_Structure_Field *syx_native_structure_get_field(Syx_Type_Structure *structure, Syx_Symbol *field_symbol);
 
 Syx_Value *syx_eval_native_structure(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type_Structure *structure_type, Syx_Pair *arguments);
 Syx_Value *syx_eval_native_pointer(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type *stored_type, Syx_Pair *arguments);
@@ -399,16 +401,21 @@ Syx_Type *make_syx_type_function(Syx_Symbol *name, Syx_Type_Function func) {
   return type;
 }
 
+Syx_Type_Structure_Field *syx_native_structure_get_field(Syx_Type_Structure *structure, Syx_Symbol *field_symbol) {
+  size_t field_index = da_find_macro(structure->fields, field, field->name == field_symbol);
+  if (field_index >= structure->fields.count) return NULL;
+  return &structure->fields.data[field_index];
+}
+
 Syx_Value *syx_eval_native_structure(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type_Structure *structure_type, Syx_Pair *arguments) {
   Syx_Value *argument = syx_list_next_nullable(&arguments);
   SYX_EVAL_ASSERT(ctx, argument->kind == SYX_VALUE_KIND_PREFIXED, "native structure evaluation expects prefixed field name");
   SYX_EVAL_ASSERT(ctx, argument->prefixed->kind == SYX_PREFIXED_KIND_COLON, "native structure evaluation expects prefixed field name");
   SYX_EVAL_ASSERT(ctx, argument->prefixed->value->kind == SYX_VALUE_KIND_SYMBOL, "native structure evaluation expects prefixed field name");
   Syx_Symbol *field_name = argument->prefixed->value->symbol;
-  size_t field_index = da_find_macro(structure_type->fields, field, field->name == field_name);
-  SYX_EVAL_ASSERT(ctx, field_index < structure_type->fields.count, "native structure has no such field");
-  Syx_Type_Structure_Field *field = &structure_type->fields.data[field_index];
-  Syx_Value *value = rc_acquire(make_syx_value_native_nested(native, field->type, (void *)((char *)native->data + field->offset)));
+  Syx_Type_Structure_Field *field = syx_native_structure_get_field(structure_type, field_name);
+  SYX_EVAL_ASSERT(ctx, field, "native structure has no such field");
+  Syx_Value *value = rc_acquire(make_syx_value_native(native, field->type, (void *)((char *)native->data + field->offset), 0));
   if (!arguments) return rc_move(value);
   Syx_Value *result = rc_acquire(syx_eval_pair(ctx, value, arguments));
   rc_release(value);
@@ -425,7 +432,7 @@ Syx_Value *syx_eval_native_pointer(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Ty
     if (stored_type == SYX_KNOWN_TYPES()->c_value) {
       value = *(Syx_Value **)native->data;
     } else {
-      value = rc_acquire(make_syx_value_native_nested(native, stored_type, *(void **)native->data));
+      value = rc_acquire(make_syx_value_native(native, stored_type, *(void **)native->data, 0));
     }
   } else {
     SYX_EVAL_THROW(ctx, "unknown method call: '" SV_FMT "'", (sv_fmt_arg(*argument->symbol)), (asterisk_symbol, unref_symbol));
@@ -498,7 +505,8 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
 }
 
 syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
-  SYX_KNOWN_TYPES->c_void = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void);
+  SYX_KNOWN_TYPES->c_void = make_syx_type(SYX_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void, 0);
+
   SYX_KNOWN_TYPES->c_char = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_CHAR, sizeof(char), alignof(char), NULL, CHAR_MIN < 0 ? &ffi_type_schar : &ffi_type_uchar);
   SYX_KNOWN_TYPES->c_i8 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I8, sizeof(int8_t), alignof(int8_t), NULL, &ffi_type_sint8);
   SYX_KNOWN_TYPES->c_i16 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I16, sizeof(int16_t), alignof(int16_t), NULL, &ffi_type_sint16);
