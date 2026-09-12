@@ -10,10 +10,7 @@
 
 typedef Da(char, String_Builder) String_Builder;
 typedef Da_Slice(char, String_View) String_View;
-typedef struct String {
-  const char *const data;
-  const size_t count;
-} String;
+typedef Da_Const(char, String) String;
 
 #define sb_free(sb) da_free((sb))
 
@@ -84,6 +81,7 @@ size_t sb__append_pad_align(String_Builder *sb, size_t size, char filler);
   String_Builder sb = sb_copy(appender __VA_OPT__(, ) __VA_ARGS__); \
   string_from_sb(&sb);                                              \
 })
+#define string_from_strlit(str) (String){.data = str, .count = sizeof(str) - 1}
 static inline void string_assign(String *dst, String src) {
   assert(dst && !dst->count && !dst->data);
   memcpy(dst, &src, sizeof(String));

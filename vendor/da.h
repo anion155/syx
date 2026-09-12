@@ -25,6 +25,12 @@
     size_t count;            \
   }
 
+#define Da_Const(Value, ...)         \
+  struct __VA_ARGS__ {               \
+    const typeof(Value) *const data; \
+    const size_t count;              \
+  }
+
 #define da__reassign(da) ({                           \
   typeof(da) _da_dnc_ = (da);                         \
   (typeof_unqual(*_da_dnc_->data) **)&_da_dnc_->data; \
@@ -144,6 +150,10 @@
     for (size_t it##_index = 0; !it##_index; it##_index += 1)     \
       for (typeof(*_da_##it->data) *it = _da_##it->data, *_last_##it = it + _da_##it->count; it < _last_##it; ++it, it##_index += 1)
 
+#define da_foreach_const(da, it)                           \
+  for (typeof(*(da).data) *it = (da).data; !it; it = NULL) \
+    for (size_t it##_index = 0; (it##_index < (da).count ? (it = (da).data + it##_index, true) : false); it##_index += 1)
+
 #define da_find_macro(da, item_var, predicate) ({   \
   typeof(da) _da_fm_ = (da);                        \
   size_t index = 0;                                 \
@@ -214,5 +224,7 @@
   _ds_cwm_->data += index;                                             \
   result;                                                              \
 })
+
+#define da_const_from_lit(Value_Type, ...) {.data = (Value_Type[]){__VA_ARGS__}, .count = sizeof((Value_Type[]){__VA_ARGS__}) / sizeof(Value_Type)}
 
 #endif // DA_H
