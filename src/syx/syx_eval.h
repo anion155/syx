@@ -294,13 +294,13 @@ Syx_Value *syx_eval_closure_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda
        *define = NULL,
        *defines_list = syx_value_from_pair(lambda->defines);
        syx_list_for_each_next(&arg_current, &arg_next, &arg, NULL);) {
-    if (arg->kind == SYX_VALUE_KIND_PREFIXED && arg->prefixed->kind == SYX_PREFIXED_KIND_COLON) SYX_EVAL_TODO(ctx, "named param bindings");
+    if (arg->kind == SYX_VALUE_KIND_PREFIXED && arg->prefixed->kind == SYX_PREFIXED_KIND_COLON) SYX_EVAL_TODO(ctx, "TASK(20260913-073403): named param bindings");
     SYX_EVAL_ASSERT(ctx, defines_list && defines_list->kind == SYX_VALUE_KIND_PAIR && defines_list->pair, "list of defines expected");
     define = defines_list->pair->left;
     if (define->kind == SYX_VALUE_KIND_PAIR && define->pair) define = define->pair->left;
     SYX_EVAL_ASSERT(ctx, define->kind == SYX_VALUE_KIND_SYMBOL, "argument name expected");
     defines_list = defines_list->pair->right;
-    if (defines_list->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_TODO(ctx, "implement rest arguments");
+    if (defines_list->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_TODO(ctx, "TASK(20260913-075158): implement rest arguments");
     Syx_Value *value = rc_acquire(syx_eval(ctx, arg));
     syx_value_early_exit(value, (call_ctx));
     syx_env_define(call_ctx->env, define->symbol, rc_move(value));
@@ -470,7 +470,7 @@ Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to bool");
     case SYX_VALUE_KIND_NUMBER: return syx_value_bool(syx_number_get(value->number));
     case SYX_VALUE_KIND_STRING: SYX_EVAL_THROW(ctx, "string can't be converted to bool");
-    case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "object converted to bool");
+    case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "TASK(20260913-075302): object converted to bool");
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to bool");
     case SYX_VALUE_KIND_NATIVE: {
       Syx_Native *native = value->native;
@@ -505,7 +505,7 @@ Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to number");
     case SYX_VALUE_KIND_NUMBER: return value;
     case SYX_VALUE_KIND_STRING: SYX_EVAL_THROW(ctx, "string can't be converted to number");
-    case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "object converted to number");
+    case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "TASK(20260913-075316): object converted to number");
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to number");
     case SYX_VALUE_KIND_NATIVE: {
       Syx_Native *native = value->native;
@@ -542,7 +542,7 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value) {
       return make_syx_value_string_dup(str);
     }
     case SYX_VALUE_KIND_STRING: return value;
-    case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "object converted to string");
+    case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "TASK(20260913-075343): object converted to string");
     case SYX_VALUE_KIND_CLOSURE: SYX_EVAL_THROW(ctx, "closure can't be converted to string");
     case SYX_VALUE_KIND_NATIVE: {
       Syx_Native *native = value->native;

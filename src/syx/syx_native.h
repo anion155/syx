@@ -243,7 +243,6 @@ Syx_Value *syx_native_set(Syx_Eval_Ctx *ctx, Syx_Type *type, void *data, Syx_Val
         case SYX_VALUE_KIND_PREFIXED: SYX_EVAL_THROW(ctx, "prefixed can't be converted to native pointer", (), (evaluated));
       }
     } break;
-    default: SYX_EVAL_TODO(ctx, TODO_DEFAULT_MESSAGE, (), (evaluated));
   }
   rc_release(evaluated);
   return syx_value_nil();

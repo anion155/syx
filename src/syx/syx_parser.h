@@ -214,7 +214,7 @@ Syx_Value *parse_syx_number_binary_value(Syx_Token token) {
       case '0': number = number << 1 | 0; break;
       case '1': number = number << 1 | 1; break;
       case '_': break;
-      case '.': SYX_TODO("binary fractionals number literals are not supported");
+      case '.': SYX_TODO("TASK(20260913-075647): binary fractionals number literals are not supported");
       default: SYX_THROW("expected binary number");
     }
     sv_chop_left(&sv, 1);
@@ -241,7 +241,7 @@ Syx_Value *parse_syx_number_octal_value(Syx_Token token) {
       case '6': number = number << 3 | 6; break;
       case '7': number = number << 3 | 7; break;
       case '_': break;
-      case '.': SYX_TODO("octal fractionals number literals are not supported");
+      case '.': SYX_TODO("TASK(20260913-075658): octal fractionals number literals are not supported");
       default: SYX_THROW("expected octal number");
     }
     sv_chop_left(&sv, 1);
@@ -337,7 +337,7 @@ Syx_Value *parse_syx_number_hex_value(Syx_Token token) {
       case 'f':
       case 'F': number = number << 4 | 15; break;
       case '_': break;
-      case '.': SYX_TODO("hex fractionals number literals are not supported");
+      case '.': SYX_TODO("TASK(20260913-075707): hex fractionals number literals are not supported");
       default: SYX_THROW("expected hex number");
     }
     sv_chop_left(&sv, 1);

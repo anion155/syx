@@ -453,11 +453,11 @@ Syx_Value *syx_eval_native_function(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_T
   void *args_storage[function->arg_types.count];
   da_foreach(&function->arg_types, arg_type) {
     Syx_Value *argument = syx_list_next(&arguments);
-    if (argument->kind != SYX_VALUE_KIND_NATIVE) SYX_EVAL_TODO(ctx, "convert arguments to native values");
-    if ((*arg_type) != argument->native->type) SYX_EVAL_TODO(ctx, "convert arguments to native values");
+    if (argument->kind != SYX_VALUE_KIND_NATIVE) SYX_EVAL_TODO(ctx, "TASK(20260913-075748): convert arguments to native values");
+    if ((*arg_type) != argument->native->type) SYX_EVAL_TODO(ctx, "TASK(20260913-075748): convert arguments to native values");
     args_storage[arg_type_index] = &argument->native->data;
   }
-  if (arguments) SYX_EVAL_TODO(ctx, "vaargs support");
+  if (arguments) SYX_EVAL_TODO(ctx, "TASK(20260913-075819): vaargs support");
   Syx_Value *result = rc_acquire(make_syx_value_native_instance(function->return_type));
   memset(result->native->data, 0, function->return_type->size);
   ffi_call(function->ffi_f, *(void (**)(void))native->data, result->native->data, args_storage);

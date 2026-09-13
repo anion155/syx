@@ -801,7 +801,7 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
       stringify_append(&state, sb_append, ')');
     } break;
     case SYX_VALUE_KIND_CLOSURE: {
-      TODO("sb_append_syx_value: different closures");
+      TODO("TASK(20260913-072838): sb_append_syx_value: different closures");
       stringify_append(&state, sb_append_strlit, "<fn ");
       if (value->closure->name) stringify_append(&state, sb_append_syx_symbol, value->closure->name);
       stringify_append(&state, sb_append, '>');
@@ -834,7 +834,7 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
             syx_native_primitive_xy_macro(native->type, X, X);
 #undef X
           } break;
-          case SYX_TYPE_KIND_STRUCTURE: TODO("sb_append_syx_value: structure to string");
+          case SYX_TYPE_KIND_STRUCTURE: TODO("TASK(20260913-075944): sb_append_syx_value: structure to string");
           case SYX_TYPE_KIND_PTR:
             if (native->type == SYX_KNOWN_TYPES()->c_value) {
               stringify_append(&state, sb_append_syx_value, *(Syx_Value **)native->data);

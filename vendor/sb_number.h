@@ -562,7 +562,7 @@ void sb___floating_format_width(Stringify_State *state, Sb_Floating_Format *fmt,
   sb___floating_detect_special(state, ieee, fmt, f##binary_width, number_start);                                                    \
   switch (fmt.kind) {                                                                                                               \
     case SB_FLOATING_FORMAT_KIND_DECIMAL: sb___ryu_floating_to_decimal_chars(state, ieee, f##binary_width); break;                  \
-    case SB_FLOATING_FORMAT_KIND_FIXED: TODO(); break;                                                                              \
+    case SB_FLOATING_FORMAT_KIND_FIXED: TODO("TASK(20260913-080043)"); break;                                                       \
     case SB_FLOATING_FORMAT_KIND_HEX: sb___ryu_floating_to_hex_chars(state, ieee, binary_width, HEX, fmt.min_width); break;         \
     case SB_FLOATING_FORMAT_KIND_HEX_BIG: sb___ryu_floating_to_hex_chars(state, ieee, binary_width, HEX_BIG, fmt.min_width); break; \
   }                                                                                                                                 \
@@ -577,9 +577,9 @@ void sb___floating_format_width(Stringify_State *state, Sb_Floating_Format *fmt,
   sb___floating_detect_special(state, ieee, fmt, generic, number_start);                                   \
   switch (fmt.kind) {                                                                                      \
     case SB_FLOATING_FORMAT_KIND_DECIMAL: sb___ryu_floating_to_decimal_chars(state, ieee, generic); break; \
-    case SB_FLOATING_FORMAT_KIND_FIXED: TODO(); break;                                                     \
-    case SB_FLOATING_FORMAT_KIND_HEX: TODO(); break;                                                       \
-    case SB_FLOATING_FORMAT_KIND_HEX_BIG: TODO(); break;                                                   \
+    case SB_FLOATING_FORMAT_KIND_FIXED: TODO("TASK(20260913-080043)"); break;                              \
+    case SB_FLOATING_FORMAT_KIND_HEX: TODO("TASK(20260913-080106)"); break;                                \
+    case SB_FLOATING_FORMAT_KIND_HEX_BIG: TODO("TASK(20260913-080106)"); break;                            \
   }                                                                                                        \
   sb___floating_format_width(&state, &fmt, number_start);                                                  \
   state.count;                                                                                             \

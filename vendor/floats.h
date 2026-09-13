@@ -303,7 +303,7 @@ f16_canonical_t f16_canonical_from_native(_Float16 value) {
 #else
 f16_canonical_t f16_canonical_from_native(float value) {
   UNUSED(value);
-  TODO();
+  TODO("TASK(20260913-080138)");
 }
 #endif
 
@@ -311,7 +311,7 @@ f16_canonical_t f16_canonical_from_float(float value) {
 #if defined(__FLT16_MAX__)
   return f16_canonical_from_native(value);
 #else
-  TODO();
+  TODO("TASK(20260913-080156)");
 #endif
   UNUSED(value);
 }
@@ -320,7 +320,7 @@ f16_canonical_t f16_canonical_from_double(double value) {
 #if defined(__FLT16_MAX__)
   return f16_canonical_from_native(value);
 #else
-  TODO();
+  TODO("TASK(20260913-080204)");
 #endif
   UNUSED(value);
 }
@@ -329,13 +329,13 @@ f16_canonical_t f16_canonical_from_long_double(long double value) {
 #if defined(__FLT16_MAX__)
   return f16_canonical_from_native(value);
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64
-  TODO();
+  TODO("TASK(20260913-080213)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
-  TODO();
+  TODO("TASK(20260913-080213)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
-  TODO();
+  TODO("TASK(20260913-080213)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
-  TODO();
+  TODO("TASK(20260913-080213)");
 #else
 #  error "Unsupported or unknown long double architecture."
 #endif
@@ -344,15 +344,15 @@ f16_canonical_t f16_canonical_from_long_double(long double value) {
 
 f16_canonical_t f16_canonical_from_f80_canonical(f80_canonical_t value) {
 #if !defined(__FLT16_MAX__)
-  TODO();
+  TODO("TASK(20260913-080222)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64
-  TODO();
+  TODO("TASK(20260913-080222)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
   return f16_canonical_from_native(FLOATS_MEMORYCOPY(value, long double));
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
-  TODO();
+  TODO("TASK(20260913-080222)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
-  TODO();
+  TODO("TASK(20260913-080222)");
 #else
 #  error "Unsupported or unknown long double architecture."
 #endif
@@ -361,15 +361,15 @@ f16_canonical_t f16_canonical_from_f80_canonical(f80_canonical_t value) {
 
 f16_canonical_t f16_canonical_from_f128_canonical(f128_canonical_t value) {
 #if !defined(__FLT16_MAX__)
-  TODO();
+  TODO("TASK(20260913-080229)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64
-  TODO();
+  TODO("TASK(20260913-080229)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
-  TODO();
+  TODO("TASK(20260913-080229)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
   return f16_canonical_from_native(FLOATS_MEMORYCOPY(value, long double));
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
-  TODO();
+  TODO("TASK(20260913-080229)");
 #else
 #  error "Unsupported or unknown long double architecture."
 #endif
@@ -378,13 +378,13 @@ f16_canonical_t f16_canonical_from_f128_canonical(f128_canonical_t value) {
 
 f16_canonical_t f16_canonical_from_f64pair_canonical(f64pair_canonical_t value) {
 #if !defined(__FLT16_MAX__)
-  TODO();
+  TODO("TASK(20260913-080235)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64
-  TODO();
+  TODO("TASK(20260913-080235)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
-  TODO();
+  TODO("TASK(20260913-080235)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
-  TODO();
+  TODO("TASK(20260913-080235)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
   return f16_canonical_from_native(FLOATS_MEMORYCOPY(value, long double));
 #else
@@ -403,7 +403,7 @@ float f16_canonical_to_float(f16_canonical_t value) {
 #if defined(__FLT16_MAX__)
   return f16_canonical_to_half(value);
 #else
-  TODO();
+  TODO("TASK(20260913-080244)");
 #endif
   UNUSED(value);
 }
@@ -412,7 +412,7 @@ double f16_canonical_to_double(f16_canonical_t value) {
 #if defined(__FLT16_MAX__)
   return f16_canonical_to_half(value);
 #else
-  TODO();
+  TODO("TASK(20260913-080251)");
 #endif
   UNUSED(value);
 }
@@ -421,7 +421,7 @@ long double f16_canonical_to_long_double(f16_canonical_t value) {
 #if defined(__FLT16_MAX__)
   return f16_canonical_to_half(value);
 #else
-  TODO();
+  TODO("TASK(20260913-080300)");
 #endif
   UNUSED(value);
 }
@@ -436,13 +436,13 @@ f80_canonical_t f80_canonical_from_double(double value) {
 
 f80_canonical_t f80_canonical_from_long_double(long double value) {
 #if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
-  TODO();
+  TODO("TASK(20260913-080306)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
   return FLOATS_MEMORYCOPY(value, f80_canonical_t);
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
-  TODO();
+  TODO("TASK(20260913-080306)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
-  TODO();
+  TODO("TASK(20260913-080306)");
 #else
 #  error "Unsupported or unknown long double architecture."
 #endif
@@ -453,18 +453,18 @@ f80_canonical_t f80_canonical_from_f16_canonical(f16_canonical_t value) {
 #if defined(__FLT16_MAX__) && FLOATS_LD_KIND == FLOATS_LD_KIND_F80
   return f80_canonical_from_long_double(FLOATS_MEMORYCOPY(value, _Float16));
 #else
-  TODO();
+  TODO("TASK(20260913-080313)");
 #endif
   UNUSED(value);
 }
 
 f80_canonical_t f80_canonical_from_f128_canonical(f128_canonical_t value) {
-  TODO();
+  TODO("TASK(20260913-080325)");
   UNUSED(value);
 }
 
 f80_canonical_t f80_canonical_from_f64pair_canonical(f64pair_canonical_t value) {
-  TODO();
+  TODO("TASK(20260913-080339)");
   UNUSED(value);
 }
 
@@ -486,7 +486,7 @@ long double f80_canonical_to_long_double(f80_canonical_t value) {
 #if FLOATS_LD_KIND == FLOATS_LD_KIND_F80
   return FLOATS_MEMORYCOPY(value, long double);
 #else
-  TODO();
+  TODO("TASK(20260913-080347)");
 #endif
   UNUSED(value);
 }
@@ -501,13 +501,13 @@ f128_canonical_t f128_canonical_from_double(double value) {
 
 f128_canonical_t f128_canonical_from_long_double(long double value) {
 #if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
-  TODO();
+  TODO("TASK(20260913-080353)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
-  TODO();
+  TODO("TASK(20260913-080353)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
   return FLOATS_MEMORYCOPY(value, f128_canonical_t);
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
-  TODO();
+  TODO("TASK(20260913-080353)");
 #else
 #  error "Unsupported or unknown long double architecture."
 #endif
@@ -518,18 +518,18 @@ f128_canonical_t f128_canonical_from_f16_canonical(f16_canonical_t value) {
 #if defined(__FLT16_MAX__) && FLOATS_LD_KIND == FLOATS_LD_KIND_F128
   return f128_canonical_from_long_double(FLOATS_MEMORYCOPY(value, _Float16));
 #else
-  TODO();
+  TODO("TASK(20260913-080414)");
 #endif
   UNUSED(value);
 }
 
 f128_canonical_t f128_canonical_from_f80_canonical(f80_canonical_t value) {
-  TODO();
+  TODO("TASK(20260913-080420)");
   UNUSED(value);
 }
 
 f128_canonical_t f128_canonical_from_f64pair_canonical(f64pair_canonical_t value) {
-  TODO();
+  TODO("TASK(20260913-080424)");
   UNUSED(value);
 }
 
@@ -551,7 +551,7 @@ long double f128_canonical_to_long_double(f128_canonical_t value) {
 #if FLOATS_LD_KIND == FLOATS_LD_KIND_F128
   return FLOATS_MEMORYCOPY(value, long double);
 #else
-  TODO();
+  TODO("TASK(20260913-080430)");
 #endif
   UNUSED(value);
 }
@@ -566,11 +566,11 @@ f64pair_canonical_t f64pair_canonical_from_double(double value) {
 
 f64pair_canonical_t f64pair_canonical_from_long_double(long double value) {
 #if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
-  TODO();
+  TODO("TASK(20260913-080437)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
-  TODO();
+  TODO("TASK(20260913-080437)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
-  TODO();
+  TODO("TASK(20260913-080437)");
 #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
   return FLOATS_MEMORYCOPY(value, f64pair_canonical_t);
 #else
@@ -583,18 +583,18 @@ f64pair_canonical_t f64pair_canonical_from_f16_canonical(f16_canonical_t value) 
 #if defined(__FLT16_MAX__) && FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
   return f64pair_canonical_from_long_double(FLOATS_MEMORYCOPY(value, _Float16));
 #else
-  TODO();
+  TODO("TASK(20260913-080443)");
 #endif
   UNUSED(value);
 }
 
 f64pair_canonical_t f64pair_canonical_from_f80_canonical(f80_canonical_t value) {
-  TODO();
+  TODO("TASK(20260913-080448)");
   UNUSED(value);
 }
 
 f64pair_canonical_t f64pair_canonical_from_f128_canonical(f128_canonical_t value) {
-  TODO();
+  TODO("TASK(20260913-080453)");
   UNUSED(value);
 }
 
@@ -616,7 +616,7 @@ long double f64pair_canonical_to_long_double(f64pair_canonical_t value) {
 #if FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
   return FLOATS_MEMORYCOPY(value, long double);
 #else
-  TODO();
+  TODO("TASK(20260913-080500)");
 #endif
   UNUSED(value);
 }

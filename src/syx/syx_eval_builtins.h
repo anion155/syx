@@ -92,16 +92,14 @@ Syx_Value *syx_builtin_map(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 /** Concat arguments to string. */
 Syx_Value *syx_builtin_concat(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   UNUSED(ctx);
-  UNUSED(arguments);
-  SYX_EVAL_TODO(ctx, "syx_builtin_concat");
-  // String_Builder sb = {0};
-  // syx_list_for_each(arguments, argument) {
-  //   sb_append_converted_syxv(&sb, ctx, argument);
-  // }
-  // sb_append(&sb, 0);
-  // Syx_Value *string = make_syxv_string_n(sb.items, sb.count - 1);
-  // sb_free(sb);
-  // return string;
+  String_Builder sb = {0};
+  syx_list_for_each(arguments, argument) {
+    sb_append_syx_value(&sb, argument);
+  }
+  sb_append(&sb, 0);
+  Syx_Value *string = make_syx_value_string_n_dup(sb.data, sb.count - 1);
+  sb_free(&sb);
+  return string;
 }
 
 #define syx__builtin_operator(ctx, arguments, operator, nil) ({    \
