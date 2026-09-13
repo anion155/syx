@@ -472,31 +472,11 @@ FILE *parse_optional_file_descriptor(Syx_Pair **arguments) {
   return f;
 }
 
-Syx_Value *syx__builtin_print_values(Syx_Eval_Ctx *ctx, FILE *f, Syx_Pair *arguments) {
-  bool first = true;
-  size_t count = 0;
-  String_Builder sb = {0};
-  syx_list_for_each(arguments, argument) {
-    sb.count = 0;
-    syx_convert_to(ctx, argument, &sb);
-    if (!first) {
-      if (!syx_io_putc(f, ' ')) goto result;
-      count += 1;
-    }
-    first = false;
-    size_t value_count = syx_io_puts_n(f, sb.data, sb.count);
-    if (!value_count) goto result;
-    count += value_count;
-  }
-result:
-  sb_free(&sb);
-  return make_syx_value_number_integer(count);
-}
-
 /** Prints arguments to file. */
 Syx_Value *syx_builtin_print(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
-  return syx__builtin_print_values(ctx, f, arguments);
+  ssize_t count = syx__io_values_fprint(ctx, stdout, arguments);
+  return make_syx_value_number_integer(count);
 }
 
 /** Flash file descriptor. */
@@ -510,10 +490,8 @@ Syx_Value *syx_builtin_print_flash(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 /** Prints arguments to file, adds new line to the end. */
 Syx_Value *syx_builtin_println(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
-  Syx_Value *count = syx__builtin_print_values(ctx, f, arguments);
-  if (count->kind != SYX_VALUE_KIND_NUMBER || count->number->kind != SYX_NUMBER_KIND_INTEGER) return count;
-  if (!syx_io_putc(f, '\n')) return count;
-  return make_syx_value_number_integer(count->number->integer + 1);
+  ssize_t count = syx__io_values_fprintln(ctx, stdout, arguments);
+  return make_syx_value_number_integer(count);
 }
 
 /** Prints formatted string to file. */
@@ -521,24 +499,7 @@ Syx_Value *syx_builtin_printf(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
   String fmt = {0};
   syx_convert_to(ctx, syx_list_next(&arguments), &fmt);
-  size_t count = 0;
-  String_Builder sb = {0};
-  for (size_t index = 0; index < fmt.count; index += utf8_character_lengths[(uint8_t)fmt.data[index]]) {
-    if (fmt.data[index] != '%') goto put_char;
-    if (index + 1 < fmt.count && fmt.data[index + 1] == '%') goto put_char;
-    Syx_Value *argument = syx_list_next(&arguments);
-    sb.count = 0;
-    syx_convert_to(ctx, argument, &sb);
-    size_t value_count = syx_io_puts_n(f, sb.data, sb.count);
-    if (!value_count) goto result;
-    count += value_count;
-    continue;
-  put_char:
-    if (!syx_io_putc(f, fmt.data[index])) goto result;
-    count += 1;
-  }
-result:
-  sb_free(&sb);
+  ssize_t count = syx__io_values_fprintf(ctx, stdout, fmt, arguments);
   return make_syx_value_number_integer(count);
 }
 
