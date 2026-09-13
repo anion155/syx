@@ -1,37 +1,39 @@
-#ifndef LONG_DOUBLE_H
-#define LONG_DOUBLE_H
+#ifndef FLOATS_H
+#define FLOATS_H
 
 #include <defines.h>
+#include <float.h>
+#include <string.h>
 
-#define LD_KIND_F64 0
-#define LD_KIND_F80 1
-#define LD_KIND_F128 2
-#define LD_KIND_F64PAIR 2
+#define FLOATS_LD_KIND_F64 0
+#define FLOATS_LD_KIND_F80 1
+#define FLOATS_LD_KIND_F128 2
+#define FLOATS_LD_KIND_F64PAIR 3
 
 #if defined(_MSC_VER) || defined(_WIN32)
-#  define LD_KIND LD_KIND_F64
+#  define FLOATS_LD_KIND FLOATS_LD_KIND_F64
 #elif defined(__APPLE__) && (defined(__arm64__) || defined(__aarch64__))
-#  define LD_KIND LD_KIND_F64
+#  define FLOATS_LD_KIND FLOATS_LD_KIND_F64
 #elif defined(__ppc64__) || defined(__PPC64__) || defined(_ARCH_PPC)
 #  if defined(__LONG_DOUBLE_128__) && !defined(__IEEE_FLOAT__)
-#    define LD_KIND LD_KIND_F64PAIR
+#    define FLOATS_LD_KIND FLOATS_LD_KIND_F64PAIR
 #  elif defined(__IEEE_FLOAT__)
-#    define LD_KIND LD_KIND_F128
+#    define FLOATS_LD_KIND FLOATS_LD_KIND_F128
 #  else
 #    error "Unsupported or unknown long double architecture."
 #  endif
-#elif defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
-#  define LD_KIND LD_KIND_F80
+#elif defined(__i386__) || defined(__x86_64__)
+#  define FLOATS_LD_KIND FLOATS_LD_KIND_F80
 #elif defined(__aarch64__) || defined(__riscv) || defined(__sparc__)
-#  define LD_KIND LD_KIND_F128
+#  define FLOATS_LD_KIND FLOATS_LD_KIND_F128
 #elif LDBL_MANT_DIG == 53
-#  define LD_KIND LD_KIND_F64
+#  define FLOATS_LD_KIND FLOATS_LD_KIND_F64
 #elif LDBL_MANT_DIG == 64
-#  define LD_KIND LD_KIND_F80
+#  define FLOATS_LD_KIND FLOATS_LD_KIND_F80
 #elif LDBL_MANT_DIG == 113
-#  define LD_KIND LD_KIND_F128
+#  define FLOATS_LD_KIND FLOATS_LD_KIND_F128
 #elif LDBL_MANT_DIG == 106
-#  define LD_KIND LD_KIND_F64PAIR
+#  define FLOATS_LD_KIND FLOATS_LD_KIND_F64PAIR
 #else
 #  error "Unsupported or unknown long double architecture."
 #endif
@@ -40,14 +42,10 @@
 typedef struct f16_canonical_t {
   uint16_t bits;
 } f16_canonical_t;
-
-typedef union f80_canonical_t {
-  struct {
-    uint64_t mantissa;
-    uint16_t exponent_sign;
-  };
+typedef struct f80_canonical_t {
+  uint64_t mantissa;
+  uint16_t exponent_sign;
 } f80_canonical_t;
-
 typedef union f128_canonical_t {
   __uint128_t bits;
   struct {
@@ -55,7 +53,6 @@ typedef union f128_canonical_t {
     uint64_t high;
   };
 } f128_canonical_t;
-
 typedef union f64pair_canonical_t {
   struct {
     double head;
@@ -78,22 +75,26 @@ typedef _Float16 f16_t;
 #else
 typedef f16_canonical_t f16_t;
 #endif
-#if LD_KIND == LD_KIND_F64
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
 typedef f80_canonical_t f80_t;
 typedef f128_canonical_t f128_t;
 typedef f64pair_canonical_t f64pair_t;
-#elif LD_KIND == LD_KIND_F80
+typedef double fld_canonical_t;
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
 typedef long double f80_t;
 typedef f128_canonical_t f128_t;
 typedef f64pair_canonical_t f64pair_t;
-#elif LD_KIND == LD_KIND_F128
+typedef f80_canonical_t fld_canonical_t;
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
 typedef f80_canonical_t f80_t;
 typedef long double f128_t;
 typedef f64pair_canonical_t f64pair_t;
-#elif LD_KIND == LD_KIND_F64PAIR
+typedef f128_canonical_t fld_canonical_t;
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
 typedef f80_canonical_t f80_t;
 typedef f128_canonical_t f128_t;
 typedef long double f64pair_t;
+typedef f64pair_canonical_t fld_canonical_t;
 #else
 #  error "Unsupported or unknown long double architecture."
 #endif
@@ -124,21 +125,21 @@ f16_canonical_t f16_canonical_from_f64pair_canonical(f64pair_canonical_t value);
     f64pair_canonical_t: f16_canonical_from_f64pair_canonical)((value))
 // clang-format on
 #if defined(__FLT16_MAX__)
-_Float16 f16_canonical_to_native(f16_canonical_t value);
-#  define F16__CANONICAL_TO_NATIVE_CASE _Float16 : f16_canonical_to_native,
+_Float16 f16_canonical_to_half(f16_canonical_t value);
+#  define F16__CANONICAL_TO_HALF_CASE _Float16 : f16_canonical_to_half,
 #else
-#  define F16__CANONICAL_TO_NATIVE_CASE
+#  define F16__CANONICAL_TO_HALF_CASE
 #endif
 float f16_canonical_to_float(f16_canonical_t value);
 double f16_canonical_to_double(f16_canonical_t value);
 long double f16_canonical_to_long_double(f16_canonical_t value);
 // clang-format off
 #define f16_canonical_to(value, type) _Generic((type){0}, \
-    F16__CANONICAL_TO_NATIVE_CASE                         \
+    F16__CANONICAL_TO_HALF_CASE                           \
     float: f16_canonical_to_float,                        \
     double: f16_canonical_to_double,                      \
     long double: f16_canonical_to_long_double,            \
-    f16_canonical_t: f16_identity,                        \
+    f16_canonical_t: f16_canonical_identity,              \
     f80_canonical_t: f80_canonical_from_f16_canonical,    \
     f128_canonical_t: f128_canonical_from_f16_canonical,  \
     f64pair_canonical_t: f64pair_canonical_from_f16_canonical)((value))
@@ -172,11 +173,11 @@ double f80_canonical_to_double(f80_canonical_t value);
 long double f80_canonical_to_long_double(f80_canonical_t value);
 // clang-format off
 #define f80_canonical_to(value, type) _Generic((type){0},    \
-    F80__CANONICAL_TO_NATIVE_CASE                            \
+    F80__CANONICAL_TO_HALF_CASE                              \
     float: f80_canonical_to_float,                           \
     double: f80_canonical_to_double,                         \
     long double: f80_canonical_to_long_double,               \
-    f16_canonical_t: f80_canonical_from_f16_canonical,       \
+    f16_canonical_t: f16_canonical_from_f80_canonical,       \
     f80_canonical_t: f80_canonical_identity,                 \
     f128_canonical_t: f128_canonical_from_f80_canonical,     \
     f64pair_canonical_t: f64pair_canonical_from_f80_canonical)((value))
@@ -210,11 +211,11 @@ double f128_canonical_to_double(f128_canonical_t value);
 long double f128_canonical_to_long_double(f128_canonical_t value);
 // clang-format off
 #define f128_canonical_to(value, type) _Generic((type){0},    \
-    F128__CANONICAL_TO_NATIVE_CASE                            \
+    F128__CANONICAL_TO_HALF_CASE                              \
     float: f128_canonical_to_float,                           \
     double: f128_canonical_to_double,                         \
     long double: f128_canonical_to_long_double,               \
-    f16_canonical_t: f128_canonical_from_f16_canonical,       \
+    f16_canonical_t: f16_canonical_from_f128_canonical,       \
     f80_canonical_t: f80_canonical_from_f128_canonical,       \
     f128_canonical_t: f128_canonical_identity,                \
     f64pair_canonical_t: f64pair_canonical_from_f128_canonical)((value))
@@ -248,11 +249,11 @@ double f64pair_canonical_to_double(f64pair_canonical_t value);
 long double f64pair_canonical_to_long_double(f64pair_canonical_t value);
 // clang-format off
 #define f64pair_canonical_to(value, type) _Generic((type){0},    \
-    F64PAIR__CANONICAL_TO_NATIVE_CASE                            \
+    F64PAIR__CANONICAL_TO_HALF_CASE                              \
     float: f64pair_canonical_to_float,                           \
     double: f64pair_canonical_to_double,                         \
     long double: f64pair_canonical_to_long_double,               \
-    f16_canonical_t: f64pair_canonical_from_f16_canonical,       \
+    f16_canonical_t: f16_canonical_from_f64pair_canonical,       \
     f80_canonical_t: f80_canonical_from_f64pair_canonical,       \
     f128_canonical_t: f128_canonical_from_f64pair_canonical,     \
     f64pair_canonical_t: f64pair_canonical_identity)((value))
@@ -284,12 +285,12 @@ __uint128_t f80_to_bits(f80_t value);
 __uint128_t f128_to_bits(f128_t value);
 __uint128_t f64pair_to_bits(f64pair_t value);
 
-#endif // LONG_DOUBLE_H
+#endif // FLOATS_H
 
-#if defined(LONG_DOUBLE_IMPL) && !defined(LONG_DOUBLE_IMPL_C)
-#define LONG_DOUBLE_IMPL_C
+#if defined(FLOATS_IMPL) && !defined(FLOATS_IMPL_C)
+#define FLOATS_IMPL_C
 
-#define MEMORYCOPY(value, dest_type) ({                    \
+#define FLOATS_MEMORYCOPY(value, dest_type) ({             \
   dest_type dest = {0};                                    \
   memcpy(&dest, &value, MIN(sizeof(value), sizeof(dest))); \
   dest;                                                    \
@@ -297,7 +298,7 @@ __uint128_t f64pair_to_bits(f64pair_t value);
 
 #if defined(__FLT16_MAX__)
 f16_canonical_t f16_canonical_from_native(_Float16 value) {
-  return MEMORYCOPY(value, f16_canonical_t);
+  return FLOATS_MEMORYCOPY(value, f16_canonical_t);
 }
 #else
 f16_canonical_t f16_canonical_from_native(float value) {
@@ -327,13 +328,13 @@ f16_canonical_t f16_canonical_from_double(double value) {
 f16_canonical_t f16_canonical_from_long_double(long double value) {
 #if defined(__FLT16_MAX__)
   return f16_canonical_from_native(value);
-#elif LD_KIND == LD_KIND_F64
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64
   TODO();
-#elif LD_KIND == LD_KIND_F80
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
   TODO();
-#elif LD_KIND == LD_KIND_F128
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
   TODO();
-#elif LD_KIND == LD_KIND_F64PAIR
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
   TODO();
 #else
 #  error "Unsupported or unknown long double architecture."
@@ -344,13 +345,13 @@ f16_canonical_t f16_canonical_from_long_double(long double value) {
 f16_canonical_t f16_canonical_from_f80_canonical(f80_canonical_t value) {
 #if !defined(__FLT16_MAX__)
   TODO();
-#elif LD_KIND == LD_KIND_F64
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64
   TODO();
-#elif LD_KIND == LD_KIND_F80
-  return MEMORYCOPY(value, long double);
-#elif LD_KIND == LD_KIND_F128
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
+  return f16_canonical_from_native(FLOATS_MEMORYCOPY(value, long double));
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
   TODO();
-#elif LD_KIND == LD_KIND_F64PAIR
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
   TODO();
 #else
 #  error "Unsupported or unknown long double architecture."
@@ -361,13 +362,13 @@ f16_canonical_t f16_canonical_from_f80_canonical(f80_canonical_t value) {
 f16_canonical_t f16_canonical_from_f128_canonical(f128_canonical_t value) {
 #if !defined(__FLT16_MAX__)
   TODO();
-#elif LD_KIND == LD_KIND_F64
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64
   TODO();
-#elif LD_KIND == LD_KIND_F80
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
   TODO();
-#elif LD_KIND == LD_KIND_F128
-  return MEMORYCOPY(value, long double);
-#elif LD_KIND == LD_KIND_F64PAIR
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
+  return f16_canonical_from_native(FLOATS_MEMORYCOPY(value, long double));
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
   TODO();
 #else
 #  error "Unsupported or unknown long double architecture."
@@ -378,14 +379,14 @@ f16_canonical_t f16_canonical_from_f128_canonical(f128_canonical_t value) {
 f16_canonical_t f16_canonical_from_f64pair_canonical(f64pair_canonical_t value) {
 #if !defined(__FLT16_MAX__)
   TODO();
-#elif LD_KIND == LD_KIND_F64
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64
   TODO();
-#elif LD_KIND == LD_KIND_F80
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
   TODO();
-#elif LD_KIND == LD_KIND_F128
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
   TODO();
-#elif LD_KIND == LD_KIND_F64PAIR
-  return MEMORYCOPY(value, long double);
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
+  return f16_canonical_from_native(FLOATS_MEMORYCOPY(value, long double));
 #else
 #  error "Unsupported or unknown long double architecture."
 #endif
@@ -393,14 +394,14 @@ f16_canonical_t f16_canonical_from_f64pair_canonical(f64pair_canonical_t value) 
 }
 
 #if defined(__FLT16_MAX__)
-_Float16 f16_canonical_to_native(f16_canonical_t value) {
-  return MEMORYCOPY(value, _Float16);
+_Float16 f16_canonical_to_half(f16_canonical_t value) {
+  return FLOATS_MEMORYCOPY(value, _Float16);
 }
 #endif
 
 float f16_canonical_to_float(f16_canonical_t value) {
 #if defined(__FLT16_MAX__)
-  return f16_canonical_to_native(value);
+  return f16_canonical_to_half(value);
 #else
   TODO();
 #endif
@@ -409,7 +410,7 @@ float f16_canonical_to_float(f16_canonical_t value) {
 
 double f16_canonical_to_double(f16_canonical_t value) {
 #if defined(__FLT16_MAX__)
-  return f16_canonical_to_native(value);
+  return f16_canonical_to_half(value);
 #else
   TODO();
 #endif
@@ -418,7 +419,7 @@ double f16_canonical_to_double(f16_canonical_t value) {
 
 long double f16_canonical_to_long_double(f16_canonical_t value) {
 #if defined(__FLT16_MAX__)
-  return f16_canonical_to_native(value);
+  return f16_canonical_to_half(value);
 #else
   TODO();
 #endif
@@ -434,13 +435,13 @@ f80_canonical_t f80_canonical_from_double(double value) {
 }
 
 f80_canonical_t f80_canonical_from_long_double(long double value) {
-#if LD_KIND == LD_KIND_F64
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
   TODO();
-#elif LD_KIND == LD_KIND_F80
-  return MEMORYCOPY(value, f80_canonical_t);
-#elif LD_KIND == LD_KIND_F128
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
+  return FLOATS_MEMORYCOPY(value, f80_canonical_t);
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
   TODO();
-#elif LD_KIND == LD_KIND_F64PAIR
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
   TODO();
 #else
 #  error "Unsupported or unknown long double architecture."
@@ -449,8 +450,8 @@ f80_canonical_t f80_canonical_from_long_double(long double value) {
 }
 
 f80_canonical_t f80_canonical_from_f16_canonical(f16_canonical_t value) {
-#if defined(__FLT16_MAX__) && LD_KIND == LD_KIND_F80
-  return f80_canonical_from_long_double(MEMORYCOPY(value, _Float16));
+#if defined(__FLT16_MAX__) && FLOATS_LD_KIND == FLOATS_LD_KIND_F80
+  return f80_canonical_from_long_double(FLOATS_MEMORYCOPY(value, _Float16));
 #else
   TODO();
 #endif
@@ -482,8 +483,8 @@ double f80_canonical_to_double(f80_canonical_t value) {
 }
 
 long double f80_canonical_to_long_double(f80_canonical_t value) {
-#if LD_KIND == LD_KIND_F80
-  return MEMORYCOPY(value, long double);
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F80
+  return FLOATS_MEMORYCOPY(value, long double);
 #else
   TODO();
 #endif
@@ -499,13 +500,13 @@ f128_canonical_t f128_canonical_from_double(double value) {
 }
 
 f128_canonical_t f128_canonical_from_long_double(long double value) {
-#if LD_KIND == LD_KIND_F64
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
   TODO();
-#elif LD_KIND == LD_KIND_F80
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
   TODO();
-#elif LD_KIND == LD_KIND_F128
-  return MEMORYCOPY(value, f128_canonical_t);
-#elif LD_KIND == LD_KIND_F64PAIR
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
+  return FLOATS_MEMORYCOPY(value, f128_canonical_t);
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
   TODO();
 #else
 #  error "Unsupported or unknown long double architecture."
@@ -514,8 +515,8 @@ f128_canonical_t f128_canonical_from_long_double(long double value) {
 }
 
 f128_canonical_t f128_canonical_from_f16_canonical(f16_canonical_t value) {
-#if defined(__FLT16_MAX__) && LD_KIND == LD_KIND_F128
-  return f128_canonical_from_long_double(MEMORYCOPY(value, _Float16));
+#if defined(__FLT16_MAX__) && FLOATS_LD_KIND == FLOATS_LD_KIND_F128
+  return f128_canonical_from_long_double(FLOATS_MEMORYCOPY(value, _Float16));
 #else
   TODO();
 #endif
@@ -547,8 +548,8 @@ double f128_canonical_to_double(f128_canonical_t value) {
 }
 
 long double f128_canonical_to_long_double(f128_canonical_t value) {
-#if LD_KIND == LD_KIND_F128
-  return MEMORYCOPY(value, long double);
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F128
+  return FLOATS_MEMORYCOPY(value, long double);
 #else
   TODO();
 #endif
@@ -564,14 +565,14 @@ f64pair_canonical_t f64pair_canonical_from_double(double value) {
 }
 
 f64pair_canonical_t f64pair_canonical_from_long_double(long double value) {
-#if LD_KIND == LD_KIND_F64
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
   TODO();
-#elif LD_KIND == LD_KIND_F80
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
   TODO();
-#elif LD_KIND == LD_KIND_F128
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
   TODO();
-#elif LD_KIND == LD_KIND_F64PAIR
-  return MEMORYCOPY(value, f64pair_canonical_t);
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
+  return FLOATS_MEMORYCOPY(value, f64pair_canonical_t);
 #else
 #  error "Unsupported or unknown long double architecture."
 #endif
@@ -579,8 +580,8 @@ f64pair_canonical_t f64pair_canonical_from_long_double(long double value) {
 }
 
 f64pair_canonical_t f64pair_canonical_from_f16_canonical(f16_canonical_t value) {
-#if defined(__FLT16_MAX__) && LD_KIND == LD_KIND_F64PAIR
-  return f64pair_canonical_from_long_double(MEMORYCOPY(value, _Float16));
+#if defined(__FLT16_MAX__) && FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
+  return f64pair_canonical_from_long_double(FLOATS_MEMORYCOPY(value, _Float16));
 #else
   TODO();
 #endif
@@ -612,8 +613,8 @@ double f64pair_canonical_to_double(f64pair_canonical_t value) {
 }
 
 long double f64pair_canonical_to_long_double(f64pair_canonical_t value) {
-#if LD_KIND == LD_KIND_F64PAIR
-  return MEMORYCOPY(value, long double);
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
+  return FLOATS_MEMORYCOPY(value, long double);
 #else
   TODO();
 #endif
@@ -621,30 +622,61 @@ long double f64pair_canonical_to_long_double(f64pair_canonical_t value) {
 }
 
 uint16_t f16_to_bits(f16_t value) {
-  return MEMORYCOPY(value, uint16_t);
+#if defined(__FLT16_MAX__)
+  return FLOATS_MEMORYCOPY(value, uint16_t);
+#else
+  return value.bits;
+#endif
 }
 
 __uint128_t f80_to_bits(f80_t value) {
-  return MEMORYCOPY(value, __uint128_t);
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F80
+  return FLOATS_MEMORYCOPY(FLOATS_MEMORYCOPY(value, f80_canonical_t), __uint128_t);
+#else
+  return FLOATS_MEMORYCOPY(value, __uint128_t);
+#endif
 }
 
 __uint128_t f128_to_bits(f128_t value) {
-  return MEMORYCOPY(value, __uint128_t);
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F128
+  return FLOATS_MEMORYCOPY(value, __uint128_t);
+#else
+  return value.bits;
+#endif
 }
 
 __uint128_t f64pair_to_bits(f64pair_t value) {
-  return MEMORYCOPY(value, __uint128_t);
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
+  return FLOATS_MEMORYCOPY(value, __uint128_t);
+#else
+  return value.bits;
+#endif
 }
 
 #if !(defined(__has_builtin) && __has_builtin(__builtin_floattihf))
+#  if defined(_MSC_VER)
+#    pragma message("floats.h: ___floattihf fallback provided for int128 -> _Float16 conversion; this is double-rounded and not guaranteed correctly-rounded")
+#  elif defined(__GNUC__) || defined(__clang__)
+#    warning "___floattihf fallback provided for int128 -> _Float16 conversion; this is double-rounded and not guaranteed correctly-rounded"
+#  endif
 _Float16 ___floattihf(__int128_t a) __asm__("___floattihf");
-_Float16 ___floatuntihf(__uint128_t a) __asm__("___floatuntihf");
 __attribute__((used, noinline, visibility("default"))) _Float16 ___floattihf(__int128_t a) {
   return (_Float16)(double)a;
 }
+#endif
+
+#if !(defined(__has_builtin) && __has_builtin(__builtin_floatuntihf))
+#  if defined(_MSC_VER)
+#    pragma message("floats.h: ___floatuntihf fallback provided for uint128 -> _Float16 conversion; this is double-rounded and not guaranteed correctly-rounded")
+#  elif defined(__GNUC__) || defined(__clang__)
+#    warning "___floatuntihf fallback provided for uint128 -> _Float16 conversion; this is double-rounded and not guaranteed correctly-rounded"
+#  endif
+_Float16 ___floatuntihf(__uint128_t a) __asm__("___floatuntihf");
 __attribute__((used, noinline, visibility("default"))) _Float16 ___floatuntihf(__uint128_t a) {
   return (_Float16)(double)a;
 }
 #endif
 
-#endif // LONG_DOUBLE_IMPL_C
+#undef FLOATS_MEMORYCOPY
+
+#endif // FLOATS_IMPL_C

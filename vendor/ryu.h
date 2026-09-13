@@ -31,8 +31,8 @@
 #ifndef RYU_H
 #define RYU_H
 
+#include <floats.h>
 #include <inttypes.h>
-#include <long_double.h>
 
 typedef struct floating_ieee_f32 {
   uint32_t mantissa;
@@ -92,6 +92,7 @@ typedef struct floating_decimal_generic {
 #  define RYU_D2S_FULL_TABLE_INCL
 #endif
 #define RYU_F2S_IMPL
+#define RYU_GENERIC_INTRINSICS_IMPL
 #define RYU_GENERIC_IMPL
 #endif // RYU_IMPL_C
 
@@ -1440,8 +1441,8 @@ static inline floating_decimal_f32 ryu_f32_parse(floating_ieee_f32 ieee) {
 
 #endif // RYU_F2S_IMPL_C
 
-#if defined(RYU_GENERIC_IMPL) && !defined(RYU_GENERIC_IMPL_C)
-#define RYU_GENERIC_IMPL_C
+#if defined(RYU_GENERIC_INTRINSICS_IMPL) && !defined(RYU_GENERIC_INTRINSICS_IMPL_C)
+#define RYU_GENERIC_INTRINSICS_IMPL_C
 
 #define RYU_FLOAT_128_POW5_INV_BITCOUNT 249
 #define RYU_FLOAT_128_POW5_BITCOUNT 249
@@ -2014,6 +2015,11 @@ static inline __uint128_t ryu_generic_mulShift(const __uint128_t m, const uint64
   ryu_generic_mul_128_256_shift(a, mul, j, 0, result);
   return (((__uint128_t)result[1]) << 64) | result[0];
 }
+
+#endif // RYU_GENERIC_INTRINSICS_IMPL_C
+
+#if defined(RYU_GENERIC_IMPL) && !defined(RYU_GENERIC_IMPL_C)
+#define RYU_GENERIC_IMPL_C
 
 #define ONE ((__uint128_t)1)
 static inline floating_ieee_generic ryu_generic_to_ieee(const __uint128_t bits, const uint32_t mantissaBits, const uint32_t exponentBits, const bool explicitLeadingBit) {

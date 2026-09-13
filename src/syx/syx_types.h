@@ -120,13 +120,13 @@ typedef enum Syx_Primitive_Type_Kind : unsigned int {
 
 #define SYX_PRIMITIVE_TYPE_KIND_FLOAT SYX_PRIMITIVE_TYPE_KIND_F32
 #define SYX_PRIMITIVE_TYPE_KIND_DOUBLE SYX_PRIMITIVE_TYPE_KIND_F64
-#if LD_KIND == LD_KIND_F64
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
 #  define SYX_PRIMITIVE_TYPE_KIND_LDOUBLE SYX_PRIMITIVE_TYPE_KIND_F64
-#elif LD_KIND == LD_KIND_F80
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
 #  define SYX_PRIMITIVE_TYPE_KIND_LDOUBLE SYX_PRIMITIVE_TYPE_KIND_F80
-#elif LD_KIND == LD_KIND_F128
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
 #  define SYX_PRIMITIVE_TYPE_KIND_LDOUBLE SYX_PRIMITIVE_TYPE_KIND_F128
-#elif LD_KIND == LD_KIND_F64PAIR
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
 #  define SYX_PRIMITIVE_TYPE_KIND_LDOUBLE SYX_PRIMITIVE_TYPE_KIND_F64PAIR
 #else
 #  error "Unsupported or unknown long double architecture."
@@ -564,13 +564,13 @@ syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
 #  error "size_t size not supported"
 #endif
 
-#if LD_KIND == LD_KIND_F64
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
   ffi_type *ffi_type_ldouble_ref = &ffi_type_double;
-#elif LD_KIND == LD_KIND_F80
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
   ffi_type *ffi_type_ldouble_ref = &ffi_type_f80;
-#elif LD_KIND == LD_KIND_F128
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
   ffi_type *ffi_type_ldouble_ref = &ffi_type_f128;
-#elif LD_KIND == LD_KIND_F64PAIR
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
   ffi_type *ffi_type_ldouble_ref = &ffi_type_f128;
 #else
 #  error "Unsupported or unknown long double architecture."

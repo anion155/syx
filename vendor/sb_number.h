@@ -2,8 +2,8 @@
 #define SB_NUMBER_H
 
 #include <defines.h>
+#include <floats.h>
 #include <limits.h>
-#include <long_double.h>
 #include <ryu.h>
 #include <sb.h>
 #include <stdint.h>
@@ -183,24 +183,24 @@ size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_cano
 #define SB_APPEND_NUMBER_FN_FIXED_FLOATS_CASE SB_APPEND_NUMBER_FN_F16_CASE SB_APPEND_NUMBER_FN_F32_CASE SB_APPEND_NUMBER_FN_F64_CASE SB_APPEND_NUMBER_FN_F128_CASE
 #define SB_APPEND_NUMBER_FMT_FIXED_FLOATS_CASE SB_APPEND_NUMBER_FMT_F16_CASE SB_APPEND_NUMBER_FMT_F32_CASE SB_APPEND_NUMBER_FMT_F64_CASE SB_APPEND_NUMBER_FMT_F128_CASE
 
-#if LD_KIND == LD_KIND_F64
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
 #  define SB_APPEND_NUMBER_FN_LDOUBLE_CASE long double : sb_append_floating_f64_fmt
 #  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE long double : ((Sb_Floating_Format){0})
-#elif LD_KIND == LD_KIND_F80
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
 #  define SB_APPEND_NUMBER_FN_LDOUBLE_CASE \
   f80_canonical_t:                         \
     sb_append_floating_f80_canonical_fmt
 #  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE \
   f80_canonical_t:                          \
     ((Sb_Floating_Format){0})
-#elif LD_KIND == LD_KIND_F128
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
 #  define SB_APPEND_NUMBER_FN_LDOUBLE_CASE \
   f128_canonical_t:                        \
     sb_append_floating_f128_canonical_fmt
 #  define SB_APPEND_NUMBER_FMT_LDOUBLE_CASE \
   f128_canonical_t:                         \
     ((Sb_Floating_Format){__VA_ARGS__})
-#elif LD_KIND == LD_KIND_F64PAIR
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
 #  define SB_APPEND_NUMBER_FN_LDOUBLE_CASE \
   f64pair_canonical_t:                     \
     sb_append_floating_f64pair_canonical_fmt
@@ -303,8 +303,8 @@ size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_cano
 #include <sb.h>
 #define RYU_IMPL
 #include <ryu.h>
-#define LONG_DOUBLE_IMPL
-#include <long_double.h>
+#define FLOATS_IMPL
+#include <floats.h>
 
 void __string_reverse(char *string, size_t width) {
   if (width < 2) return;
@@ -602,7 +602,7 @@ size_t sb_append_floating_f16_canonical_fmt(String_Builder *sb, f16_canonical_t 
 }
 
 size_t sb_append_floating_f80_canonical_fmt(String_Builder *sb, f80_canonical_t value, Sb_Floating_Format fmt) {
-#if LD_KIND == LD_KIND_F80
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F80
   long double native = 0;
   memcpy(&native, &value, sizeof(native));
   return sb_append_floating_f80_fmt(sb, native, fmt);
@@ -612,7 +612,7 @@ size_t sb_append_floating_f80_canonical_fmt(String_Builder *sb, f80_canonical_t 
 }
 
 size_t sb_append_floating_f128_canonical_fmt(String_Builder *sb, f128_canonical_t value, Sb_Floating_Format fmt) {
-#if LD_KIND == LD_KIND_F128
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F128
   long double native = 0;
   memcpy(&native, &value, sizeof(native));
   return sb_append_floating_f128_fmt(sb, native, fmt);
@@ -622,7 +622,7 @@ size_t sb_append_floating_f128_canonical_fmt(String_Builder *sb, f128_canonical_
 }
 
 size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_canonical_t value, Sb_Floating_Format fmt) {
-#if LD_KIND == LD_KIND_F64PAIR
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
   long double native = 0;
   memcpy(&native, &value, sizeof(native));
   return sb_append_floating_f64pair_fmt(sb, native, fmt);
