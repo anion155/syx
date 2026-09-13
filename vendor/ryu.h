@@ -181,12 +181,6 @@ static inline uint32_t ryu_log10Pow5(const int32_t e) {
   return (((uint32_t)e) * 732923) >> 20;
 }
 
-static inline uint16_t ryu_f16_to_bits(const _Float16 f) {
-  uint16_t bits = 0;
-  memcpy(&bits, &f, sizeof(_Float16));
-  return bits;
-}
-
 static inline uint32_t ryu_f32_to_bits(const float f) {
   uint32_t bits = 0;
   memcpy(&bits, &f, sizeof(float));
@@ -196,12 +190,6 @@ static inline uint32_t ryu_f32_to_bits(const float f) {
 static inline uint64_t ryu_f64_to_bits(const double d) {
   uint64_t bits = 0;
   memcpy(&bits, &d, sizeof(double));
-  return bits;
-}
-
-static inline __uint128_t ryu_f128_to_bits(const long double d) {
-  __uint128_t bits = 0;
-  memcpy(&bits, &d, sizeof(long double));
   return bits;
 }
 

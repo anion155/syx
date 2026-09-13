@@ -32,12 +32,12 @@ typedef enum Syx_Primitive_Type_Kind : unsigned int {
   SYX_PRIMITIVE_TYPE_KIND_U32,     // uint32_t
   SYX_PRIMITIVE_TYPE_KIND_U64,     // uint64_t
   SYX_PRIMITIVE_TYPE_KIND_U128,    // __uint128_t
-  SYX_PRIMITIVE_TYPE_KIND_F16,     // f16_canonical_t _Float16
-  SYX_PRIMITIVE_TYPE_KIND_F32,     // _Float32 float
-  SYX_PRIMITIVE_TYPE_KIND_F64,     // _Float64 double
-  SYX_PRIMITIVE_TYPE_KIND_F80,     // f80_canonical_t
-  SYX_PRIMITIVE_TYPE_KIND_F128,    // f128_canonical_t _Float128
-  SYX_PRIMITIVE_TYPE_KIND_F64PAIR, // f64pair_canonical_t
+  SYX_PRIMITIVE_TYPE_KIND_F16,     // f16_t
+  SYX_PRIMITIVE_TYPE_KIND_F32,     // f32_t
+  SYX_PRIMITIVE_TYPE_KIND_F64,     // f64_t
+  SYX_PRIMITIVE_TYPE_KIND_F80,     // f80_t
+  SYX_PRIMITIVE_TYPE_KIND_F128,    // f128_t
+  SYX_PRIMITIVE_TYPE_KIND_F64PAIR, // f64pair_t
 } Syx_Primitive_Type_Kind;
 
 #if SHRT_MAX == 32767

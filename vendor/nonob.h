@@ -142,8 +142,6 @@ void nonob_default_usage(FILE *stream, NoNob_Command *command) {
 }
 
 void nonob_initialize_opt(int argc, char **argv, NoNob_Initialize_Opt opt) {
-  UNUSED(ht__find_or_put, ht__find_and_delete, ht__reset, ht__free);
-
   ctx.argc = argc;
   ctx.argv = argv;
   ctx.exe_path = dirname(get_exe_path());
