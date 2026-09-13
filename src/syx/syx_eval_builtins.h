@@ -475,7 +475,7 @@ FILE *parse_optional_file_descriptor(Syx_Pair **arguments) {
 /** Prints arguments to file. */
 Syx_Value *syx_builtin_print(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
-  ssize_t count = syx__io_values_fprint(ctx, stdout, arguments);
+  ssize_t count = syx__io_values_fprint(ctx, f, arguments);
   return make_syx_value_number_integer(count);
 }
 
@@ -490,7 +490,7 @@ Syx_Value *syx_builtin_print_flash(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 /** Prints arguments to file, adds new line to the end. */
 Syx_Value *syx_builtin_println(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
-  ssize_t count = syx__io_values_fprintln(ctx, stdout, arguments);
+  ssize_t count = syx__io_values_fprintln(ctx, f, arguments);
   return make_syx_value_number_integer(count);
 }
 
@@ -499,7 +499,7 @@ Syx_Value *syx_builtin_printf(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
   String fmt = {0};
   syx_convert_to(ctx, syx_list_next(&arguments), &fmt);
-  ssize_t count = syx__io_values_fprintf(ctx, stdout, fmt, arguments);
+  ssize_t count = syx__io_values_fprintf(ctx, f, fmt, arguments);
   return make_syx_value_number_integer(count);
 }
 

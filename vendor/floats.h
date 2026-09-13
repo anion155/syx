@@ -653,11 +653,18 @@ __uint128_t f64pair_to_bits(f64pair_t value) {
 #endif
 }
 
+#ifdef FLOATS_IGNORE_F16_WARNINGS
+#  define FLOATS_IGNORE_FLOATTIHF_WARNING
+#  define FLOATS_IGNORE_FLOATUNTIHF_WARNING
+#endif
+
 #if !(defined(__has_builtin) && __has_builtin(__builtin_floattihf))
-#  if defined(_MSC_VER)
-#    pragma message("floats.h: ___floattihf fallback provided for int128 -> _Float16 conversion; this is double-rounded and not guaranteed correctly-rounded")
-#  elif defined(__GNUC__) || defined(__clang__)
-#    warning "___floattihf fallback provided for int128 -> _Float16 conversion; this is double-rounded and not guaranteed correctly-rounded"
+#  ifndef FLOATS_IGNORE_FLOATTIHF_WARNING
+#    if defined(_MSC_VER)
+#      pragma message("floats.h: ___floattihf fallback provided for int128 -> _Float16 conversion; this is double-rounded and not guaranteed correctly-rounded")
+#    elif defined(__GNUC__) || defined(__clang__)
+#      warning "___floattihf fallback provided for int128 -> _Float16 conversion; this is double-rounded and not guaranteed correctly-rounded"
+#    endif
 #  endif
 _Float16 ___floattihf(__int128_t a) __asm__("___floattihf");
 __attribute__((used, noinline, visibility("default"))) _Float16 ___floattihf(__int128_t a) {
@@ -666,10 +673,12 @@ __attribute__((used, noinline, visibility("default"))) _Float16 ___floattihf(__i
 #endif
 
 #if !(defined(__has_builtin) && __has_builtin(__builtin_floatuntihf))
-#  if defined(_MSC_VER)
-#    pragma message("floats.h: ___floatuntihf fallback provided for uint128 -> _Float16 conversion; this is double-rounded and not guaranteed correctly-rounded")
-#  elif defined(__GNUC__) || defined(__clang__)
-#    warning "___floatuntihf fallback provided for uint128 -> _Float16 conversion; this is double-rounded and not guaranteed correctly-rounded"
+#  ifndef FLOATS_IGNORE_FLOATUNTIHF_WARNING
+#    if defined(_MSC_VER)
+#      pragma message("floats.h: ___floatuntihf fallback provided for uint128 -> _Float16 conversion; this is double-rounded and not guaranteed correctly-rounded")
+#    elif defined(__GNUC__) || defined(__clang__)
+#      warning "___floatuntihf fallback provided for uint128 -> _Float16 conversion; this is double-rounded and not guaranteed correctly-rounded"
+#    endif
 #  endif
 _Float16 ___floatuntihf(__uint128_t a) __asm__("___floatuntihf");
 __attribute__((used, noinline, visibility("default"))) _Float16 ___floatuntihf(__uint128_t a) {

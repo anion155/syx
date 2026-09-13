@@ -304,6 +304,7 @@ size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_cano
 #define RYU_IMPL
 #include <ryu.h>
 #define FLOATS_IMPL
+#define FLOATS_IGNORE_F16_WARNINGS
 #include <floats.h>
 
 void __string_reverse(char *string, size_t width) {

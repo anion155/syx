@@ -7,7 +7,7 @@
 
 size_t syx_io_putc(FILE *fd, char char_v);
 void syx_io_flash(FILE *fd);
-ssize_t syx_io_puts_n(FILE *fd, const char *str, size_t n);
+ssize_t syx_io_puts_n(FILE *fd, const char *const str, size_t n);
 #define syx_io_puts_sv(fd, sv) ({             \
   String_View _sv_ = sv_from_like(sv);        \
   syx_io_puts_n((fd), _sv_.data, _sv_.count); \
@@ -18,7 +18,7 @@ ssize_t syx_io_puts_n(FILE *fd, const char *str, size_t n);
 })
 #define syx_io_puts_strlit(fd, lit) syx_io_puts_n((fd), (lit), sizeof(lit) - 1)
 
-ssize_t syx_io__value_fprint(Syx_Eval_Ctx *ctx, FILE *f, Syx_Value *value, String_Builder *tmp);
+ssize_t syx_io__value_fprint(Syx_Eval_Ctx *ctx, FILE *f, Syx_Value *value, String_Builder *sb);
 #define syx_io_value_fprint(ctx, f, value, ...) syx_io__value_fprint((ctx), (f), (value), WITH_DEFAULT(NULL, __VA_ARGS__))
 #define syx_io_value_print(ctx, value, ...) syx_io__value_fprint((ctx), stdout, (value), WITH_DEFAULT(NULL, __VA_ARGS__))
 
@@ -69,21 +69,21 @@ void syx_io_flash(FILE *fd) {
   fflush(fd);
 }
 
-ssize_t syx_io_puts_n(FILE *fd, const char *str, size_t n) {
-  for (ssize_t index = 0; index < n; index += 1) {
-    if (!syx_io_putc(fd, str[index])) return -index;
+ssize_t syx_io_puts_n(FILE *fd, const char *const str, size_t n) {
+  for (size_t index = 0; index < n; index += 1) {
+    if (!syx_io_putc(fd, str[index])) return -(ssize_t)index;
   }
   return n;
 }
 
-ssize_t syx_io__value_fprint(Syx_Eval_Ctx *ctx, FILE *f, Syx_Value *value, String_Builder *tmp) {
+ssize_t syx_io__value_fprint(Syx_Eval_Ctx *ctx, FILE *f, Syx_Value *value, String_Builder *sb) {
   if (value->kind == SYX_VALUE_KIND_EXIT) return 0;
   Syx_Value *converted = rc_acquire(syx_convert_to_string(ctx, value));
   if (converted->kind == SYX_VALUE_KIND_EXIT) return (rc_release(value), 0);
   rc_release(value);
-  sb_append_sv(&sb, *converted->string);
+  sb_append_sv(sb, *converted->string);
   rc_release(converted);
-  return syx_io_puts_n(f, sb.data, sb.count);
+  return syx_io_puts_n(f, sb->data, sb->count);
 }
 
 ssize_t syx__io_values_fprint(Syx_Eval_Ctx *ctx, FILE *f, Syx_Pair *arguments) {
@@ -110,7 +110,7 @@ error:
 }
 
 ssize_t syx__io_values_fprintln(Syx_Eval_Ctx *ctx, FILE *f, Syx_Pair *arguments) {
-  ssize_t count = syx__io_values_fvprint(ctx, f, argsuments);
+  ssize_t count = syx__io_values_fprint(ctx, f, arguments);
   if (count <= 0) return count;
   if (!syx_io_putc(f, '\n')) return count;
   return count + 1;
