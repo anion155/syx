@@ -150,8 +150,8 @@ static inline bool sv__starts_with(String_View sv, String_View prefix) {
 }
 #define sv_starts_with(sv, prefix) sv__starts_with(sv_from_like(sv), sv_from_like(prefix))
 
-#define sv_find_macro(sb, item_var, predicate) da_find_macro((sb), item_var, predicate)
-#define sv_chop_while_macro(sb, item_var, predicate) da_slice_chop_while_macro((sb), item_var, predicate)
+#define sv_find_macro(sb, item_var, predicate) da_find((sb), item_var, predicate)
+#define sv_chop_while_macro(sb, item_var, predicate) da_slice_chop_while((sb), item_var, predicate)
 
 static inline String_View sv__chop_left(String_View *sv, size_t count) {
   if (count > sv->count) count = sv->count;
@@ -247,7 +247,7 @@ String_View sv__chop_while(String_View *sv, bool (*predicate)(char character)) {
 }
 
 String_View sv__chop_while_i(String_View *sv, bool (*predicate)(char character, size_t index)) {
-  return sv_chop_while_macro(sv, character, predicate(*character, index));
+  return sv_chop_while_macro(sv, character, predicate(*character, character_index));
 }
 
 size_t sv__utf_length(String_View sv, size_t *bytes_overrun) {
@@ -267,7 +267,7 @@ String_View sv_trim_left(String_View *sv) {
 }
 
 String_View sv_trim_right(String_View *sv) {
-  size_t index = sv_find_macro(*sv, character, isspace(data[count - index - 1]));
+  size_t index = sv_find_macro(*sv, character, isspace(character_data[character_count - character_index - 1]));
   sv->count -= index;
   return (String_View){.data = sv->data + sv->count, .count = index};
 }

@@ -13,10 +13,13 @@
 #define UNUSED_CAST(var) (void)(var)
 #define UNUSED(...) (FOR_EACH(UNUSED_CAST, __VA_ARGS__))
 
+#define NOOP() (void)0
+
 #define STRINGIFY(x) #x
 #define STRINGIFY2(x) STRINGIFY(x)
 
 #define EXPAND(...) __VA_ARGS__
+#define EXPAND2(args) EXPAND args
 #define EXPAND_WITH_COMMA(...) __VA_OPT__(, ) __VA_ARGS__
 #define EXPAND_MACRO(MACRO, ...) MACRO(__VA_ARGS__)
 
@@ -28,6 +31,8 @@
 
 #define WITH_DEFAULT(d, ...) SECOND_ARG(__VA_OPT__(, ) __VA_ARGS__, d)
 #define WITH_TWO_DEFAULTS(d1, d2, ...) SECOND_ARG(dummy __VA_OPT__(, __VA_ARGS__), d1), THIRD_ARG(dummy __VA_OPT__(, __VA_ARGS__), d2, d2)
+
+#define IF_VA_OPT(yes, no, ...) SECOND_ARG(__VA_OPT__(, ) yes, no)
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 

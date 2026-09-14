@@ -137,7 +137,7 @@ void rc_release(void *data) {
     Rc_Circulars circulars = {0};
     rc->methods.graph_visitor(&circulars, data, data);
     if (header->strong == circulars.count) {
-      da_foreach(&circulars, link) **link = NULL;
+      da_foreach(circulars, link) **link = NULL;
       for (size_t index = 0; index < circulars.count; index++) rc_release(data);
     }
     da_free(&circulars);

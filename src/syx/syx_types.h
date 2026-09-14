@@ -324,7 +324,7 @@ Syx_Type *make_syx_type_pointer(Syx_Symbol *name, Syx_Type *target) {
 void syx_type_structure_destructor(void *data) {
   syx_type_destructor(data);
   Syx_Type_Structure *structure = ((Syx_Type *)data)->structure;
-  da_foreach(&structure->fields, field) {
+  da_foreach(structure->fields, field) {
     rc_release(syx_value_from_symbol(field->name));
     rc_release(field->type);
   }
@@ -332,7 +332,7 @@ void syx_type_structure_destructor(void *data) {
 
 void syx_type_structure_graph_visitor(Rc_Circulars *circulars, const void *data, const void *source) {
   Syx_Type_Structure *structure = ((const Syx_Type *)data)->structure;
-  da_foreach(&structure->fields, field) {
+  da_foreach(structure->fields, field) {
     rc_graph_visitor(circulars, (void **)&(field->type), source);
   }
 }
@@ -351,7 +351,7 @@ Syx_Type *make_syx_type_structure(Syx_Symbol *name, Syx_Type_Structure structure
   *type->structure = structure;
   Da(Syx_Type_Structure_Field) fields = {.data = (Syx_Type_Structure_Field *)(type->structure + 1), .capacity = structure.fields.count, .count = 0};
   size_t offset = 0, max_alignment = 1;
-  da_foreach(&structure.fields, field) {
+  da_foreach(structure.fields, field) {
     if (field->type->alignment > max_alignment) max_alignment = field->type->alignment;
     if (field->type->alignment > 0) offset = (offset + field->type->alignment - 1) & ~(field->type->alignment - 1);
     if (field->offset == 0) field->offset = offset;
@@ -378,13 +378,13 @@ void syx_type_function_destructor(void *data) {
   syx_type_destructor(data);
   Syx_Type_Function *func = ((Syx_Type *)data)->function;
   rc_release(func->return_type);
-  da_foreach(&func->arg_types, arg_type) rc_release((Syx_Type *)*arg_type);
+  da_foreach(func->arg_types, arg_type) rc_release((Syx_Type *)*arg_type);
 }
 
 void syx_type_function_graph_visitor(Rc_Circulars *circulars, const void *data, const void *source) {
   Syx_Type_Function *func = ((const Syx_Type *)data)->function;
   rc_graph_visitor(circulars, (void **)&(func->return_type), source);
-  da_foreach(&func->arg_types, arg_type) {
+  da_foreach(func->arg_types, arg_type) {
     rc_graph_visitor(circulars, (void **)arg_type, source);
   }
 }
@@ -402,7 +402,7 @@ Syx_Type *make_syx_type_function(Syx_Symbol *name, Syx_Type_Function func) {
 }
 
 Syx_Type_Structure_Field *syx_native_structure_get_field(Syx_Type_Structure *structure, Syx_Symbol *field_symbol) {
-  size_t field_index = da_find_macro(structure->fields, field, field->name == field_symbol);
+  size_t field_index = da_find(structure->fields, field, field->name == field_symbol);
   if (field_index >= structure->fields.count) return NULL;
   return &structure->fields.data[field_index];
 }
@@ -451,7 +451,7 @@ Syx_Value *syx_eval_native_function(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_T
     }
   }
   void *args_storage[function->arg_types.count];
-  da_foreach(&function->arg_types, arg_type) {
+  da_foreach(function->arg_types, arg_type) {
     Syx_Value *argument = syx_list_next(&arguments);
     if (argument->kind != SYX_VALUE_KIND_NATIVE) SYX_EVAL_TODO(ctx, "TASK(20260913-075748): convert arguments to native values");
     if ((*arg_type) != argument->native->type) SYX_EVAL_TODO(ctx, "TASK(20260913-075748): convert arguments to native values");

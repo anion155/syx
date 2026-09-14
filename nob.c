@@ -256,8 +256,9 @@ typedef struct Vendored_Source {
   String name;
   String latest_link;
 } Vendored_Source;
-static const Da_Const(Vendored_Source, Vendored_Sources) vendored_sources = da_const_from_lit(
+static const Da_Const(Vendored_Source, Vendored_Sources) vendored_sources = da_const_init_from_arraylit(
     Vendored_Source,
+    ((Vendored_Source){.name = string_from_strlit("da.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/anion155/c-tools/refs/heads/main/da.h")}),
     ((Vendored_Source){.name = string_from_strlit("nob.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/nob.h/refs/heads/main/nob.h")}),
     ((Vendored_Source){.name = string_from_strlit("flag.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/flag.h/refs/heads/master/flag.h")}),
     ((Vendored_Source){.name = string_from_strlit("jim.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/jim/refs/heads/master/jim2.h")}),
@@ -266,7 +267,7 @@ static const Da_Const(Vendored_Source, Vendored_Sources) vendored_sources = da_c
 #  define command_update_vendor_init NULL
 
 bool command_update_vendor_run() {
-  da_foreach_const(vendored_sources, source) {
+  da_foreach(vendored_sources, source) {
     const char *target_path = nob_temp_sprintf("./vendor/" SV_FMT, sv_fmt_arg(source->name));
     const char *source_path = nob_temp_sprintf("./vendor/patches/" SV_FMT, sv_fmt_arg(source->name));
     const char *patch_path = nob_temp_sprintf("./vendor/patches/" SV_FMT ".diff", sv_fmt_arg(source->name));
@@ -296,7 +297,7 @@ bool command_update_vendor_run() {
 #  define command_diff_vendor_init NULL
 
 bool command_diff_vendor_run() {
-  da_foreach_const(vendored_sources, source) {
+  da_foreach(vendored_sources, source) {
     const char *target_path = nob_temp_sprintf("./vendor/" SV_FMT, sv_fmt_arg(source->name));
     const char *source_path = nob_temp_sprintf("./vendor/patches/" SV_FMT, sv_fmt_arg(source->name));
     const char *patch_path = nob_temp_sprintf("./vendor/patches/" SV_FMT ".diff", sv_fmt_arg(source->name));

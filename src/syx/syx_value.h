@@ -391,7 +391,7 @@ Syx_Value *make_syx_value_symbol_n(const char *symbol, size_t count) {
   return value;
 }
 
-inline Syx_Value *make_syx_value_symbol(String_View symbol) {
+inline Syx_Value *make_syx_value_symbol_sv(String_View symbol) {
   return make_syx_value_symbol_n(symbol.data, symbol.count);
 }
 

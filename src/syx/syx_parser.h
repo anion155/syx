@@ -364,7 +364,7 @@ Syx_Value *parse_syx_prefix(Syx_Token token, Syx_Tokens *tokens) {
     }
     case ':':
     case '$': {
-      Syx_Token symbol = da_first(da_slice_chop_left(tokens));
+      Syx_Token symbol = da_slice_shift(tokens);
       SYX_ASSERT(symbol.kind == SYX_TOKEN_KIND_SYMBOL, "symbol expected");
       return make_syx_value_prefixed((Syx_Prefixed_Kind)type, parse_syx_symbol_value(symbol));
     }
@@ -396,7 +396,7 @@ Syx_Value *parse_syx_dispatch(Syx_Token token, Syx_Tokens *tokens) {
 
 Syx_Value *parse_syx_value(Syx_Tokens *tokens) {
   SYX_ASSERT(tokens->count, "expected value");
-  Syx_Token first = da_first(da_slice_chop_left(tokens));
+  Syx_Token first = da_slice_shift(tokens);
   switch (first.kind) {
     case SYX_TOKEN_KIND_NULL: return parse_syx_value(tokens);
     case SYX_TOKEN_KIND_LPAREN: return parse_syx_list_values(tokens, SYX_TOKEN_KIND_RPAREN);
