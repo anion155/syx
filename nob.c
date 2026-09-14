@@ -258,6 +258,7 @@ typedef struct Vendored_Source {
 } Vendored_Source;
 static const Da_Const(Vendored_Source, Vendored_Sources) vendored_sources = da_const_init_from_arraylit(
     Vendored_Source,
+    ((Vendored_Source){.name = string_from_strlit("defines.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/anion155/c-tools/refs/heads/main/defines.h")}),
     ((Vendored_Source){.name = string_from_strlit("da.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/anion155/c-tools/refs/heads/main/da.h")}),
     ((Vendored_Source){.name = string_from_strlit("nob.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/nob.h/refs/heads/main/nob.h")}),
     ((Vendored_Source){.name = string_from_strlit("flag.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/flag.h/refs/heads/master/flag.h")}),
