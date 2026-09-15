@@ -1,8 +1,40 @@
+/**
+ * floats.h - 0.1.0 - Public Domain - https://github.com/anion155/c-tools
+ *
+ * Fixed width float types for c23.
+ *
+ * ## Usage example
+ * ```c
+  #define FLOATS_IMPL
+  #include "floats.h"
+
+  #if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
+  #  message "long double is IEEE 754 Double Precision"
+  #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
+  #  message "long double is IEEE 754 Extended Precision"
+  #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
+  #  message "long double is IEEE 754 Quadruple Precision"
+  #elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
+  #  message "long double is IBM double-double"
+  #else
+  #  error "Unsupported or unknown long double architecture."
+  #endif
+ * ```
+ *
+ * ## Requirements
+ *
+ * - C23
+ * - GNU statement expressions
+ * - [defines.h](./defines.h)
+ * - [abort.h](./abort.h)
+ */
+
 #ifndef FLOATS_H
 #define FLOATS_H
 
 #include <defines.h>
 #include <float.h>
+#include <stdint.h>
 #include <string.h>
 
 #define FLOATS_LD_KIND_F64 0
@@ -75,6 +107,8 @@ typedef _Float16 f16_t;
 #else
 typedef f16_canonical_t f16_t;
 #endif
+typedef float f32_t;
+typedef double f64_t;
 #if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
 typedef f80_canonical_t f80_t;
 typedef f128_canonical_t f128_t;
@@ -281,6 +315,8 @@ static inline long double long_double_identity(long double value) { return value
     f64pair_canonical_t: f64pair_canonical_from_long_double)((value))
 
 uint16_t f16_to_bits(f16_t value);
+uint32_t f32_to_bits(f32_t value);
+uint64_t f64_to_bits(f64_t value);
 __uint128_t f80_to_bits(f80_t value);
 __uint128_t f128_to_bits(f128_t value);
 __uint128_t f64pair_to_bits(f64pair_t value);
@@ -289,6 +325,9 @@ __uint128_t f64pair_to_bits(f64pair_t value);
 
 #if defined(FLOATS_IMPL) && !defined(FLOATS_IMPL_C)
 #define FLOATS_IMPL_C
+
+#define ABORT_IMPL
+#include <abort.h>
 
 #define FLOATS_MEMORYCOPY(value, dest_type) ({             \
   dest_type dest = {0};                                    \
@@ -629,6 +668,14 @@ uint16_t f16_to_bits(f16_t value) {
 #endif
 }
 
+uint32_t f32_to_bits(f32_t value) {
+  return FLOATS_MEMORYCOPY(value, uint32_t);
+}
+
+uint64_t f64_to_bits(f64_t value) {
+  return FLOATS_MEMORYCOPY(value, uint64_t);
+}
+
 __uint128_t f80_to_bits(f80_t value) {
 #if FLOATS_LD_KIND == FLOATS_LD_KIND_F80
   return FLOATS_MEMORYCOPY(FLOATS_MEMORYCOPY(value, f80_canonical_t), __uint128_t);
@@ -689,3 +736,30 @@ __attribute__((used, noinline, visibility("default"))) _Float16 ___floatuntihf(_
 #undef FLOATS_MEMORYCOPY
 
 #endif // FLOATS_IMPL_C
+
+/**
+ * This is free and unencumbered software released into the public domain.
+ *
+ * Anyone is free to copy, modify, publish, use, compile, sell, or
+ * distribute this software, either in source code form or as a compiled
+ * binary, for any purpose, commercial or non-commercial, and by any
+ * means.
+ *
+ * In jurisdictions that recognize copyright laws, the author or authors
+ * of this software dedicate any and all copyright interest in the
+ * software to the public domain. We make this dedication for the benefit
+ * of the public at large and to the detriment of our heirs and
+ * successors. We intend this dedication to be an overt act of
+ * relinquishment in perpetuity of all present and future rights to this
+ * software under copyright law.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * For more information, please refer to <https://unlicense.org/>
+ */

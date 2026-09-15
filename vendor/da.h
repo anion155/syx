@@ -520,7 +520,7 @@
 /**
  * Constructs a read-only dynamic array compatible structure initialized from a compound literal array.
  */
-#define da_const_init_from_arraylit(Value_Type, ...) EXPAND2(IF_VA_OPT(                                         \
+#define da_const_init_from_arraylit(Value_Type, ...) EXPAND_PARENS(IF_VA_OPT(                                   \
     ({.data = (Value_Type[]){__VA_ARGS__}, .count = sizeof((Value_Type[]){__VA_ARGS__}) / sizeof(Value_Type)}), \
     ({.data = NULL, .count = 0}), __VA_ARGS__))
 

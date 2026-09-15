@@ -6,7 +6,7 @@
 #include <rc.h>
 #include <stdint.h>
 #include <str.h>
-#include <str_number.h>
+#include <str_numbers.h>
 #include <syx/syx_utils.h>
 
 typedef struct Syx_Frame Syx_Frame;
@@ -290,12 +290,13 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value);
 #if defined(SYX_VALUE_IMPL) && !defined(SYX_VALUE_IMPL_C)
 #define SYX_VALUE_IMPL_C
 
+#define FLOATS_IGNORE_F16_WARNINGS
 #define HT_IMPL
 #include <ht.h>
 #define RC_IMPL
 #include <rc.h>
-#define STR_NUMBER_IMPL
-#include <str_number.h>
+#define STR_NUMBERS_IMPL
+#include <str_numbers.h>
 #define SYX_UTILS_IMPL
 #include <syx/syx_utils.h>
 #define SYX_TYPES_IMPL
@@ -775,8 +776,8 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
     } break;
     case SYX_VALUE_KIND_NUMBER: {
       switch (value->number->kind) {
-        case SYX_NUMBER_KIND_INTEGER: stringify_append(&state, sb_append_integer, value->number->integer); break;
-        case SYX_NUMBER_KIND_FRACTIONAL: stringify_append(&state, sb_append_floating, value->number->fractional); break;
+        case SYX_NUMBER_KIND_INTEGER: stringify_append(&state, sb_append_integer_number, value->number->integer); break;
+        case SYX_NUMBER_KIND_FRACTIONAL: stringify_append(&state, sb_append_floating_number, value->number->fractional); break;
       }
     } break;
     case SYX_VALUE_KIND_STRING: {
@@ -841,7 +842,7 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
               break;
             }
           case SYX_TYPE_KIND_FUNCTION_PTR: {
-            stringify_append(&state, sb_append_unsigned_integer, (uintptr_t)(void **)native->data, .kind = SB_INTEGER_FORMAT_KIND_HEX_BIG, .prefix = true, .min_width = sizeof(void *) * 2);
+            stringify_append(&state, sb_append_unsigned_integer_number, (uintptr_t)(void **)native->data, .kind = SB_INTEGER_FORMAT_KIND_HEX_BIG, .min_width = sizeof(void *) * 2);
           } break;
         }
       }
