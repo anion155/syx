@@ -1,7 +1,7 @@
 #ifndef SYX_PARSER_H
 #define SYX_PARSER_H
 
-#include <sb.h>
+#include <str.h>
 #include <syx/syx_lexer.h>
 
 Syx_Value *parse_syx(String_View source, bool ignore_errors);
@@ -13,8 +13,8 @@ Syx_Value *parse_syx(String_View source, bool ignore_errors);
 
 #include <wchar.h>
 
-#define SB_IMPL
-#include <sb.h>
+#define STR_IMPL
+#include <str.h>
 #define SYX_LEXER_IMPL
 #include <syx/syx_lexer.h>
 

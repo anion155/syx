@@ -30,8 +30,8 @@
 #define SYX_PARSER_IMPL
 #include <syx/syx_parser.h>
 
-#define SB_IMPL
-#include <sb.h>
+#define STR_IMPL
+#include <str.h>
 
 typedef struct Syx_Script_Context {
   Syx_Eval_Ctx *eval_ctx;

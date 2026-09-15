@@ -1,12 +1,12 @@
-#ifndef SB_NUMBER_H
-#define SB_NUMBER_H
+#ifndef STR_NUMBER_H
+#define STR_NUMBER_H
 
 #include <defines.h>
 #include <floats.h>
 #include <limits.h>
 #include <ryu.h>
-#include <sb.h>
 #include <stdint.h>
+#include <str.h>
 
 #ifndef INT128_MAX
 #  define INT128_MAX ((__int128_t) ~(((__uint128_t)1) << 127))
@@ -292,15 +292,15 @@ size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_cano
   ))
 // clang-format on
 
-#endif // SB_NUMBER_H
+#endif // STR_NUMBER_H
 
-#if defined(SB_NUMBER_IMPL) && !defined(SB_NUMBER_IMPL_C)
-#define SB_NUMBER_IMPL_C
+#if defined(STR_NUMBER_IMPL) && !defined(STR_NUMBER_IMPL_C)
+#define STR_NUMBER_IMPL_C
 
 #define ABORT_IMPL
 #include <abort.h>
-#define SB_IMPL
-#include <sb.h>
+#define STR_IMPL
+#include <str.h>
 #define RYU_IMPL
 #include <ryu.h>
 #define FLOATS_IMPL
@@ -639,4 +639,4 @@ size_t sb_append_floating_f64pair_canonical_fmt(String_Builder *sb, f64pair_cano
 #undef sb___ryu_floating_to_hex_chars
 #undef sb___append_ryu_floating
 
-#endif // SB_NUMBER_IMPL_C
+#endif // STR_NUMBER_IMPL_C

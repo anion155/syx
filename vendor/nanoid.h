@@ -1,8 +1,8 @@
 #ifndef NANOID_H
 #define NANOID_H
 
-#include <sb.h>
 #include <stdio.h>
+#include <str.h>
 
 char *nanoid_alph(String_View alphabet, const char *prefix, size_t size);
 char *nanoid(const char *prefix, size_t size);

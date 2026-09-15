@@ -402,7 +402,7 @@ Syx_Type *make_syx_type_function(Syx_Symbol *name, Syx_Type_Function func) {
 }
 
 Syx_Type_Structure_Field *syx_native_structure_get_field(Syx_Type_Structure *structure, Syx_Symbol *field_symbol) {
-  size_t field_index = da_find(structure->fields, field, field->name == field_symbol);
+  size_t field_index = da_find_expr(structure->fields, field, field->name == field_symbol);
   if (field_index >= structure->fields.count) return NULL;
   return &structure->fields.data[field_index];
 }

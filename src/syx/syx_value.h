@@ -4,9 +4,9 @@
 #include <defines.h>
 #include <ht.h>
 #include <rc.h>
-#include <sb.h>
-#include <sb_number.h>
 #include <stdint.h>
+#include <str.h>
+#include <str_number.h>
 #include <syx/syx_utils.h>
 
 typedef struct Syx_Frame Syx_Frame;
@@ -294,8 +294,8 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value);
 #include <ht.h>
 #define RC_IMPL
 #include <rc.h>
-#define SB_NUMBER_IMPL
-#include <sb_number.h>
+#define STR_NUMBER_IMPL
+#include <str_number.h>
 #define SYX_UTILS_IMPL
 #include <syx/syx_utils.h>
 #define SYX_TYPES_IMPL

@@ -1,6 +1,7 @@
 #ifndef SYX_LEXER_H
 #define SYX_LEXER_H
 
+#include <str_utf.h>
 #include <syx/syx_utils.h>
 #include <syx/syx_value.h>
 
@@ -52,6 +53,8 @@ Syx_Tokens syx_lexer_tokenize(String_View source);
 #include <syx/syx_utils.h>
 #define SYX_VALUE_IMPL
 #include <syx/syx_value.h>
+#define STR_UTF_IMPL
+#include <str_utf.h>
 
 const char *syx_token_kind_string(Syx_Token_Kind kind) {
   switch (kind) {
@@ -125,7 +128,7 @@ int syx_lexer_is_invalid_delimeter(int character) {
 }
 
 Syx_Token syx_lexer_get_next_token(String_View *it) {
-  Syx_Token token = {.data = it->data, .count = sv_first_utf_length(*it)};
+  Syx_Token token = {.data = it->data, .count = it->count};
 #define it_chop_next() sv_chop_left(it, it->count ? sv_first_utf_length(*it) : 0)
   switch (*it->data) {
     case '(':

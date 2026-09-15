@@ -1,9 +1,10 @@
 #ifndef SYX_IO_H
 #define SYX_IO_H
 
-#include <sb.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <str.h>
+#include <str_utf.h>
 
 size_t syx_io_putc(FILE *fd, char char_v);
 void syx_io_flash(FILE *fd);
@@ -56,8 +57,8 @@ ssize_t syx__io_values_fprintf(Syx_Eval_Ctx *ctx, FILE *f, String fmt, Syx_Pair 
 #if defined(SYX_IO_IMPL) && !defined(SYX_IO_IMPL_C)
 #define SYX_IO_IMPL_C
 
-#define SB_IMPL
-#include <sb.h>
+#define STR_IMPL
+#include <str.h>
 
 size_t syx_io_putc(FILE *fd, char c) {
   if (fputc(c, fd) < 0) return 0;
