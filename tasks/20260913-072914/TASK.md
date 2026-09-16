@@ -1,7 +1,7 @@
 # implement parse error fancy message
 
 - STATUS: OPEN
-- PRIORITY: 100
+- PRIORITY: 90
 - TAGS: error
 
 No description.

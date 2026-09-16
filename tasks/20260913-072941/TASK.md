@@ -1,7 +1,7 @@
 # implement quit command
 
 - STATUS: OPEN
-- PRIORITY: 100
+- PRIORITY: 80
 - TAGS: main
 
 No description.

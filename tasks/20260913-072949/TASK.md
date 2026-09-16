@@ -1,7 +1,7 @@
 # compiler test runner
 
 - STATUS: OPEN
-- PRIORITY: 100
+- PRIORITY: 50
 - TAGS: tests
 
 No description.

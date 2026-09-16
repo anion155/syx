@@ -1,4 +1,4 @@
-# lambda definition: support named para bindings
+# lambda definition: support named param bindings
 
 - STATUS: OPEN
 - PRIORITY: 100
