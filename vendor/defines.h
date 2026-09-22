@@ -63,23 +63,26 @@
 /** Macro that compares two values and returns minimal. */
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-/** Marks function with printf static check. */
-#define PRINTF_ATTRIBUTE(STRING_INDEX, FIRST_TO_CHECK)
-/** Marks function parameter as printf format argument. */
-#define PRINTF_FMT_PARAM
 #if defined(__GNUC__) || defined(__clang__)
 #  ifdef __MINGW_PRINTF_FORMAT
+/** Marks function with printf static check. */
 #    define PRINTF_ATTRIBUTE(STRING_INDEX, FIRST_TO_CHECK) __attribute__((format(__MINGW_PRINTF_FORMAT, STRING_INDEX, FIRST_TO_CHECK)))
 #  else
+/** Marks function with printf static check. */
 #    define PRINTF_ATTRIBUTE(STRING_INDEX, FIRST_TO_CHECK) __attribute__((format(printf, STRING_INDEX, FIRST_TO_CHECK)))
 #  endif // __MINGW_PRINTF_FORMAT
+/** Marks function parameter as printf format argument. */
 #  define PRINTF_FMT_PARAM
 #elif defined(_MSC_VER)
 #  include <sal.h>
+/** Marks function with printf static check. */
 #  define PRINTF_ATTRIBUTE(STRING_INDEX, FIRST_TO_CHECK)
+/** Marks function parameter as printf format argument. */
 #  define PRINTF_FMT_PARAM _Printf_format_string_
 #else
+/** Marks function with printf static check. */
 #  define PRINTF_ATTRIBUTE(STRING_INDEX, FIRST_TO_CHECK)
+/** Marks function parameter as printf format argument. */
 #  define PRINTF_FMT_PARAM
 #endif
 

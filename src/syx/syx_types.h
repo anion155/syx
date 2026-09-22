@@ -239,7 +239,7 @@ typedef struct {
   Syx_Type *c_str;
   Syx_Type *c_string;
   Syx_Type *c_file;
-  Ht(const char *, Syx_Type *) registry;
+  Ht(String_View, Syx_Type *) registry;
 } SYX_KNOWN_TYPES_t;
 syx_predefine_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES);
 void syx_env_define_types(Syx_Env *env);
@@ -249,6 +249,8 @@ void syx_env_define_types(Syx_Env *env);
 #if defined(SYX_TYPES_IMPL) && !defined(SYX_TYPES_IMPL_C)
 #define SYX_TYPES_IMPL_C
 
+#define HT_IMPL
+#include <ht.h>
 #define SYX_VALUE_IMPL
 #include <syx/syx_value.h>
 #define SYX_EVAL_IMPL
@@ -505,6 +507,17 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
   return state.count;
 }
 
+uintptr_t ht_sv_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n) {
+  (void)n; // not used
+  String_View const *a = (String_View const *)a_;
+  String_View const *b = (String_View const *)b_;
+  switch (op) {
+    case HT_HASH: return ht_default_hash(a->data, a->count);
+    case HT_EQ: return sv__eq(*a, *b);
+  }
+  return 0;
+}
+
 syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
   SYX_KNOWN_TYPES->c_void = make_syx_type(SYX_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void, 0);
 
@@ -603,58 +616,62 @@ syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
                                                                     (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_size})});
   SYX_KNOWN_TYPES->c_file = make_syx_type_pointer(NULL, SYX_KNOWN_TYPES->c_void);
 
-  SYX_KNOWN_TYPES->registry.hasheq = ht_cstr_hasheq;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_void") = SYX_KNOWN_TYPES->c_void;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_char") = SYX_KNOWN_TYPES->c_char;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_i8") = SYX_KNOWN_TYPES->c_i8;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_i16") = SYX_KNOWN_TYPES->c_i16;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_i32") = SYX_KNOWN_TYPES->c_i32;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_i64") = SYX_KNOWN_TYPES->c_i64;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_i128") = SYX_KNOWN_TYPES->c_i128;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_u8") = SYX_KNOWN_TYPES->c_u8;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_u16") = SYX_KNOWN_TYPES->c_u16;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_u32") = SYX_KNOWN_TYPES->c_u32;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_u64") = SYX_KNOWN_TYPES->c_u64;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_u128") = SYX_KNOWN_TYPES->c_u128;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_f16") = SYX_KNOWN_TYPES->c_f16;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_f32") = SYX_KNOWN_TYPES->c_f32;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_f64") = SYX_KNOWN_TYPES->c_f64;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_f80") = SYX_KNOWN_TYPES->c_f80;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_f128") = SYX_KNOWN_TYPES->c_f128;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_f64pair") = SYX_KNOWN_TYPES->c_f64pair;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_short") = SYX_KNOWN_TYPES->c_short;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_sshort") = SYX_KNOWN_TYPES->c_sshort;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_ushort") = SYX_KNOWN_TYPES->c_ushort;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_int") = SYX_KNOWN_TYPES->c_int;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_sint") = SYX_KNOWN_TYPES->c_sint;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_uint") = SYX_KNOWN_TYPES->c_uint;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_long") = SYX_KNOWN_TYPES->c_long;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_slong") = SYX_KNOWN_TYPES->c_slong;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_ulong") = SYX_KNOWN_TYPES->c_ulong;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_llong") = SYX_KNOWN_TYPES->c_llong;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_sllong") = SYX_KNOWN_TYPES->c_sllong;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_ullong") = SYX_KNOWN_TYPES->c_ullong;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_uintptr") = SYX_KNOWN_TYPES->c_uintptr;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_ptrdiff") = SYX_KNOWN_TYPES->c_ptrdiff;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_size") = SYX_KNOWN_TYPES->c_size;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_float") = SYX_KNOWN_TYPES->c_float;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_double") = SYX_KNOWN_TYPES->c_double;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_ldouble") = SYX_KNOWN_TYPES->c_ldouble;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_value") = SYX_KNOWN_TYPES->c_value;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_str") = SYX_KNOWN_TYPES->c_str;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_string") = SYX_KNOWN_TYPES->c_string;
-  *ht_put(&SYX_KNOWN_TYPES->registry, "c_file") = SYX_KNOWN_TYPES->c_file;
+  SYX_KNOWN_TYPES->registry.hasheq = ht_sv_hasheq;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("void")) = SYX_KNOWN_TYPES->c_void;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("char")) = SYX_KNOWN_TYPES->c_char;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("i8")) = SYX_KNOWN_TYPES->c_i8;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("i16")) = SYX_KNOWN_TYPES->c_i16;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("i32")) = SYX_KNOWN_TYPES->c_i32;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("i64")) = SYX_KNOWN_TYPES->c_i64;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("i128")) = SYX_KNOWN_TYPES->c_i128;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("u8")) = SYX_KNOWN_TYPES->c_u8;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("u16")) = SYX_KNOWN_TYPES->c_u16;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("u32")) = SYX_KNOWN_TYPES->c_u32;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("u64")) = SYX_KNOWN_TYPES->c_u64;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("u128")) = SYX_KNOWN_TYPES->c_u128;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("f16")) = SYX_KNOWN_TYPES->c_f16;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("f32")) = SYX_KNOWN_TYPES->c_f32;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("f64")) = SYX_KNOWN_TYPES->c_f64;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("f80")) = SYX_KNOWN_TYPES->c_f80;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("f128")) = SYX_KNOWN_TYPES->c_f128;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("f64pair")) = SYX_KNOWN_TYPES->c_f64pair;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("short")) = SYX_KNOWN_TYPES->c_short;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("sshort")) = SYX_KNOWN_TYPES->c_sshort;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("ushort")) = SYX_KNOWN_TYPES->c_ushort;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("int")) = SYX_KNOWN_TYPES->c_int;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("sint")) = SYX_KNOWN_TYPES->c_sint;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("uint")) = SYX_KNOWN_TYPES->c_uint;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("long")) = SYX_KNOWN_TYPES->c_long;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("slong")) = SYX_KNOWN_TYPES->c_slong;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("ulong")) = SYX_KNOWN_TYPES->c_ulong;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("llong")) = SYX_KNOWN_TYPES->c_llong;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("sllong")) = SYX_KNOWN_TYPES->c_sllong;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("ullong")) = SYX_KNOWN_TYPES->c_ullong;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("uintptr")) = SYX_KNOWN_TYPES->c_uintptr;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("ptrdiff")) = SYX_KNOWN_TYPES->c_ptrdiff;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("size")) = SYX_KNOWN_TYPES->c_size;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("float")) = SYX_KNOWN_TYPES->c_float;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("double")) = SYX_KNOWN_TYPES->c_double;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("ldouble")) = SYX_KNOWN_TYPES->c_ldouble;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("value")) = SYX_KNOWN_TYPES->c_value;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("str")) = SYX_KNOWN_TYPES->c_str;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("string")) = SYX_KNOWN_TYPES->c_string;
+  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("file")) = SYX_KNOWN_TYPES->c_file;
 
+  String_Builder sb = {0};
   ht_foreach(type, &SYX_KNOWN_TYPES->registry) {
-    const char *key = ht_key(&SYX_KNOWN_TYPES->registry, type);
-    Syx_Value *name = rc_acquire(make_syx_value_symbol_cstr(key));
+    sb_append_strlit(&sb, "c_");
+    sb_append_sv(&sb, ht_key(&SYX_KNOWN_TYPES->registry, type));
+    Syx_Value *name = rc_acquire(make_syx_value_symbol_n(sb.data, sb.count));
+    sb.count = 0;
     (*type)->name = name->symbol;
   }
+  sb_free(&sb);
 }
 
 void syx_env_define_types(Syx_Env *env) {
 #define DEFINE(name_lit) ({                                                               \
-  Syx_Type *type = *ht_find(&SYX_KNOWN_TYPES()->registry, name_lit);                      \
+  Syx_Type *type = *ht_find(&SYX_KNOWN_TYPES()->registry, sv_from_strlit(name_lit));      \
   syx_env_define(env, type->name, make_syx_value_closure_native_constructor(NULL, type)); \
 })
   DEFINE("c_void");

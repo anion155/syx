@@ -7,18 +7,25 @@
 
 typedef enum Syx_Token_Kind {
   SYX_TOKEN_KIND_NULL = 0,
-  SYX_TOKEN_KIND_LPAREN = '(',
-  SYX_TOKEN_KIND_RPAREN = ')',
-  SYX_TOKEN_KIND_LCURLY = '{',
-  SYX_TOKEN_KIND_RCURLY = '}',
-  SYX_TOKEN_KIND_STRLIT = '"',
-  SYX_TOKEN_KIND_NUMBINLIT = '1',
-  SYX_TOKEN_KIND_NUMOCTLIT = '7',
-  SYX_TOKEN_KIND_NUMDECLIT = '9',
-  SYX_TOKEN_KIND_NUMHEXLIT = 'F',
-  SYX_TOKEN_KIND_SYMBOL = 'a',
-  SYX_TOKEN_KIND_PREFIX = '\'',
-  SYX_TOKEN_KIND_DISPATCH = '#',
+  SYX_TOKEN_KIND_LPAREN,
+  SYX_TOKEN_KIND_RPAREN,
+  SYX_TOKEN_KIND_LCURLY,
+  SYX_TOKEN_KIND_RCURLY,
+  SYX_TOKEN_KIND_STRLIT,
+  SYX_TOKEN_KIND_NAN,
+  SYX_TOKEN_KIND_INFINITY_POSITIVE,
+  SYX_TOKEN_KIND_INFINITY_NEGATIVE,
+  SYX_TOKEN_KIND_BIN_INT_LIT,
+  SYX_TOKEN_KIND_BIN_FRC_LIT,
+  SYX_TOKEN_KIND_OCT_INT_LIT,
+  SYX_TOKEN_KIND_OCT_FRC_LIT,
+  SYX_TOKEN_KIND_DEC_INT_LIT,
+  SYX_TOKEN_KIND_DEC_FRC_LIT,
+  SYX_TOKEN_KIND_HEX_INT_LIT,
+  SYX_TOKEN_KIND_HEX_FRC_LIT,
+  SYX_TOKEN_KIND_SYMBOL,
+  SYX_TOKEN_KIND_PREFIX,
+  SYX_TOKEN_KIND_DISPATCH,
   SYX_TOKEN_KIND_ERROR = 0x100,
   SYX_TOKEN_KIND_EOF,
 } Syx_Token_Kind;
@@ -26,8 +33,7 @@ typedef enum Syx_Token_Kind {
 const char *syx_token_kind_string(Syx_Token_Kind kind);
 
 typedef struct Syx_Token {
-  const char *data;
-  size_t count;
+  String_View source;
   Syx_Token_Kind kind;
 } Syx_Token;
 
@@ -58,13 +64,17 @@ Syx_Tokens syx_lexer_tokenize(String_View source);
 
 const char *syx_token_kind_string(Syx_Token_Kind kind) {
   switch (kind) {
-    case SYX_TOKEN_KIND_LPAREN: return "LPAREN";
-    case SYX_TOKEN_KIND_RPAREN: return "RPAREN";
-    case SYX_TOKEN_KIND_STRLIT: return "STRLIT";
-    case SYX_TOKEN_KIND_NUMBINLIT: return "NUMBINLIT";
-    case SYX_TOKEN_KIND_NUMOCTLIT: return "NUMOCTLIT";
-    case SYX_TOKEN_KIND_NUMDECLIT: return "NUMDECLIT";
-    case SYX_TOKEN_KIND_NUMHEXLIT: return "NUMHEXLIT";
+    case SYX_TOKEN_KIND_LPAREN: return "LEFT_PARENTHESIS";
+    case SYX_TOKEN_KIND_RPAREN: return "RIGHT_PARENTHESIS";
+    case SYX_TOKEN_KIND_STRLIT: return "STRING_LITERAL";
+    case SYX_TOKEN_KIND_BIN_INT_LIT: return "BINARY_INTEGER_LITERAL";
+    case SYX_TOKEN_KIND_BIN_FRC_LIT: return "BINARY_FRACTIONAL_LITERAL";
+    case SYX_TOKEN_KIND_OCT_INT_LIT: return "OCTAL_INTEGER_LITERAL";
+    case SYX_TOKEN_KIND_OCT_FRC_LIT: return "OCTAL_FRACTIONAL_LITERAL";
+    case SYX_TOKEN_KIND_DEC_INT_LIT: return "DECIMAL_INTEGER_LITERAL";
+    case SYX_TOKEN_KIND_DEC_FRC_LIT: return "DECIMAL_FRACTIONAL_LITERAL";
+    case SYX_TOKEN_KIND_HEX_INT_LIT: return "HEX_INTEGER_LITERAL";
+    case SYX_TOKEN_KIND_HEX_FRC_LIT: return "HEX_FRACTIONAL_LITERAL";
     case SYX_TOKEN_KIND_SYMBOL: return "SYMBOL";
     case SYX_TOKEN_KIND_DISPATCH: return "DISPATCH";
     case SYX_TOKEN_KIND_ERROR: return "ERROR";
@@ -128,29 +138,26 @@ int syx_lexer_is_invalid_delimeter(int character) {
 }
 
 Syx_Token syx_lexer_get_next_token(String_View *it) {
-  Syx_Token token = {.data = it->data, .count = it->count};
+  Syx_Token token = {.source = *it};
 #define it_chop_next() sv_chop_left(it, it->count ? sv_first_utf_length(*it) : 0)
+#define set_kind_return(kind_value) ({ \
+  token.kind = kind_value;             \
+  it_chop_next();                      \
+  return token;                        \
+})
   switch (*it->data) {
-    case '(':
-    case ')':
-    case '{':
-    case '}': {
-      token.kind = (Syx_Token_Kind)*it->data;
-      it_chop_next();
-      return token;
-    }
-    case '\'':
-    case ',':
-    case ':':
-    case '$': {
-      token.kind = SYX_TOKEN_KIND_PREFIX;
-      it_chop_next();
-      return token;
-    }
+    case '(': set_kind_return(SYX_TOKEN_KIND_LPAREN); break;
+    case ')': set_kind_return(SYX_TOKEN_KIND_RPAREN); break;
+    case '{': set_kind_return(SYX_TOKEN_KIND_LCURLY); break;
+    case '}': set_kind_return(SYX_TOKEN_KIND_RCURLY); break;
+    case '\'': set_kind_return(SYX_TOKEN_KIND_PREFIX); break;
+    case ',': set_kind_return(SYX_TOKEN_KIND_PREFIX); break;
+    case ':': set_kind_return(SYX_TOKEN_KIND_PREFIX); break;
+    case '$': set_kind_return(SYX_TOKEN_KIND_PREFIX); break;
     case ';': {
       token.kind = SYX_TOKEN_KIND_NULL;
       while (it->count && *it->data != '\n') it_chop_next();
-      token.count = it->data - token.data;
+      token.source.count = it->data - token.source.data;
       it_chop_next();
       return token;
     }
@@ -161,7 +168,7 @@ Syx_Token syx_lexer_get_next_token(String_View *it) {
         if (*it->data == '\\') it_chop_next();
         it_chop_next();
       }
-      token.count = it->data - token.data + 1;
+      token.source.count = it->data - token.source.data + 1;
       if (!it->count || *it->data != '"') goto return_error;
       it_chop_next();
       return token;
@@ -170,14 +177,14 @@ Syx_Token syx_lexer_get_next_token(String_View *it) {
       token.kind = SYX_TOKEN_KIND_SYMBOL;
       it_chop_next();
       while (it->count && *it->data != '|' && *it->data != '\n') it_chop_next();
-      token.count = it->data - token.data + 1;
+      token.source.count = it->data - token.source.data + 1;
       if (!it->count || *it->data != '|') goto return_error;
       it_chop_next();
       if (it->count) {
         size_t error_width = sv_first_utf_length(*it);
-        token.count += error_width;
+        token.source.count += error_width;
         if (!syx_lexer_is_delimeter(*it->data)) goto return_error;
-        token.count -= error_width;
+        token.source.count -= error_width;
       }
       return token;
     }
@@ -185,31 +192,41 @@ Syx_Token syx_lexer_get_next_token(String_View *it) {
       token.kind = SYX_TOKEN_KIND_DISPATCH;
       it_chop_next();
       if (it->count < 1) goto return_error;
-      token.count += sv_first_utf_length(*it);
+      token.source.count += sv_first_utf_length(*it);
       it_chop_next();
       return token;
     }
   }
-  if (isdigit(*it->data) || (it->count > 1 && *it->data == '-' && isdigit(*(it->data + 1)))) {
-    token.kind = SYX_TOKEN_KIND_NUMDECLIT;
-    if (*it->data == '-') it_chop_next();
+#undef set_kind_return
+  if (isdigit(*it->data) || (it->count > 1 && (*it->data == '-' || *it->data == '+') && isdigit(*(it->data + 1)))) {
+    token.kind = SYX_TOKEN_KIND_DEC_INT_LIT;
+    if (*it->data == '-' || *it->data == '+') {
+      char sign = *it->data;
+      it_chop_next();
+      if (sv_eq(*it, sv_from_strlit("Infinity"))) {
+        if (sign == '-') token.kind = SYX_TOKEN_KIND_INFINITY_NEGATIVE;
+        else if (sign == '+') token.kind = SYX_TOKEN_KIND_INFINITY_POSITIVE;
+        else UNREACHABLE("should be already checked to be this two exact characters");
+        return token;
+      }
+    }
     int (*is_digit)(int character) = syx_utils_is_decimal_digit;
     if (*it->data == '0' && it->count > 2) {
       switch (*(it->data + 1)) {
         case 'x':
         case 'X': {
           is_digit = syx_utils_is_hex_digit;
-          token.kind = SYX_TOKEN_KIND_NUMHEXLIT;
+          token.kind = SYX_TOKEN_KIND_HEX_INT_LIT;
         } break;
         case 'o':
         case 'O': {
           is_digit = syx_lexer_is_octal_digit;
-          token.kind = SYX_TOKEN_KIND_NUMOCTLIT;
+          token.kind = SYX_TOKEN_KIND_OCT_INT_LIT;
         }; break;
         case 'b':
         case 'B': {
           is_digit = syx_lexer_is_binary_digit;
-          token.kind = SYX_TOKEN_KIND_NUMBINLIT;
+          token.kind = SYX_TOKEN_KIND_BIN_INT_LIT;
         }; break;
       }
       if (is_digit != syx_utils_is_decimal_digit) {
@@ -223,6 +240,7 @@ Syx_Token syx_lexer_get_next_token(String_View *it) {
       if (*it->data == '.') {
         if (underscore) break;
         it_chop_next();
+        token.kind += 1;
         size_t digits_read_ = digits_read;
         digits_read = 0;
         while (it->count) {
@@ -252,18 +270,18 @@ Syx_Token syx_lexer_get_next_token(String_View *it) {
       digits_read++;
     }
     if (*it->data == '_') goto return_error;
-    token.count = it->data - token.data;
-    if (token.count && *(it->data - 1) == '_') goto return_error;
+    token.source.count = it->data - token.source.data;
+    if (token.source.count && *(it->data - 1) == '_') goto return_error;
     size_t error_width = it->count ? sv_first_utf_length(*it) : 0;
-    token.count += error_width;
+    token.source.count += error_width;
     if (it->count && !syx_lexer_is_delimeter(*it->data)) goto return_error;
-    token.count -= error_width;
+    token.source.count -= error_width;
     if (!digits_read) goto return_error;
     return token;
   }
   if (*it->data == '.' && it->count > 1 && isdigit(*(it->data + 1))) {
     it_chop_next();
-    token.kind = SYX_TOKEN_KIND_NUMDECLIT;
+    token.kind = SYX_TOKEN_KIND_DEC_FRC_LIT;
     bool underscore = false;
     while (it->count) {
       if (*it->data == '_') {
@@ -276,9 +294,17 @@ Syx_Token syx_lexer_get_next_token(String_View *it) {
       if (!syx_utils_is_decimal_digit(*it->data)) break;
       it_chop_next();
     }
-    token.count = it->data - token.data;
-    if (token.count && *(it->data - 1) == '_') goto return_error;
+    token.source.count = it->data - token.source.data;
+    if (token.source.count && *(it->data - 1) == '_') goto return_error;
     if (it->count && !syx_lexer_is_delimeter(*it->data)) goto return_error;
+    return token;
+  }
+  if (sv_eq(token.source, sv_from_strlit("NaN"))) {
+    token.kind = SYX_TOKEN_KIND_NAN;
+    return token;
+  }
+  if (sv_eq(token.source, sv_from_strlit("Infinity"))) {
+    token.kind = SYX_TOKEN_KIND_INFINITY_POSITIVE;
     return token;
   }
   {
@@ -300,9 +326,9 @@ Syx_Token syx_lexer_get_next_token(String_View *it) {
         if (!iswprint(wc)) break;
         sv_chop_left(it, width);
       }
-      token.count = it->data - token.data + width;
+      token.source.count = it->data - token.source.data + width;
       if (it->count && (!syx_lexer_is_symbol_delimeter(*it->data) || syx_lexer_is_invalid_delimeter(*it->data))) goto return_error;
-      token.count -= width;
+      token.source.count -= width;
       return token;
     }
   }
@@ -323,7 +349,7 @@ Syx_Tokens syx_lexer_tokenize(String_View source) {
       default: da_append(&tokens, token);
     }
   }
-  da_append(&tokens, ((Syx_Token){.data = source.data + source.count, .count = 0, .kind = SYX_TOKEN_KIND_EOF}));
+  da_append(&tokens, ((Syx_Token){.source = (String_View){.data = source.data + source.count, .count = 0}, .kind = SYX_TOKEN_KIND_EOF}));
   da_trim_realloc(&tokens);
 result:
   return (Syx_Tokens){.source = source, .data = tokens.data, .capacity = tokens.capacity, .count = tokens.count};
