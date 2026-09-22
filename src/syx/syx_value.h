@@ -280,7 +280,8 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value);
   Syx_Value *reason = make_syx_value_stringf_dup(message EXPAND(EXPAND_WITH_COMMA WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)))); \
   return make_syx_value_exit_thrown(reason, WITH_DEFAULT(NULL, THIRD_ARG(__VA_ARGS__, , )));                                  \
 })
-#define SYX_TODO(...) SYX_THROW("TODO: " WITH_DEFAULT(TODO_DEFAULT_MESSAGE, __VA_ARGS__), WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), WITH_DEFAULT((), THIRD_ARG(__VA_ARGS__, , )), WITH_DEFAULT(NULL, FORTH_ARG(__VA_ARGS__, , , )))
+#define SYX_TODO(...) SYX_THROW(__FILE__ ":" STRINGIFY(__LINE__) " TODO: " WITH_DEFAULT(TODO_DEFAULT_MESSAGE, __VA_ARGS__), \
+                                WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), WITH_DEFAULT((), THIRD_ARG(__VA_ARGS__, , )), WITH_DEFAULT(NULL, FORTH_ARG(__VA_ARGS__, , , )))
 #define SYX_ASSERT(condition, message, ...) ({                     \
   if (!(condition)) SYX_THROW(message __VA_OPT__(, ) __VA_ARGS__); \
 })

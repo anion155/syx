@@ -3,7 +3,7 @@
     {
       "name": "Mac",
       "includePath": ["${workspaceFolder}/**"],
-      "defines": [],
+      "defines": ["constexpr=static const"],
       "compilerPath": "/usr/bin/clang",
       "cStandard": "gnu23",
       "cppStandard": "c++20",
