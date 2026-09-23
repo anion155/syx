@@ -245,6 +245,15 @@ typedef struct {
 syx_predefine_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES);
 void syx_env_define_types(Syx_Env *env);
 
+#define syx_list_next_type(ctx, list) ({                                                      \
+  Syx_Eval_Ctx *_ctx__ = (ctx);                                                               \
+  Syx_Value *value = syx_list_next((list));                                                   \
+  SYX_EVAL_ASSERT(_ctx__, value->kind == SYX_VALUE_KIND_SYMBOL, "type name symbol expected"); \
+  Syx_Type *type = syx_eval_ctx_get_type(_ctx__, value->symbol);                              \
+  SYX_EVAL_ASSERT(_ctx__, type, "unknown type '" SV_FMT "'", (sv_fmt_arg(*value->symbol)));   \
+  type;                                                                                       \
+})
+
 #endif // SYX_TYPES_H
 
 #if defined(SYX_TYPES_IMPL) && !defined(SYX_TYPES_IMPL_C)

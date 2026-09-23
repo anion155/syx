@@ -11,6 +11,8 @@ void syx_env_define_special_forms(Syx_Env *env);
 #if defined(SYX_EVAL_SPECIALF_IMPL) && !defined(SYX_EVAL_SPECIALF_IMPL_C)
 #define SYX_EVAL_SPECIALF_IMPL_C
 
+#include <dlfcn.h>
+
 /** Special forms */
 
 /** Evaluates forms in order and returns last result. */
@@ -107,20 +109,23 @@ Syx_Value *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 /** Mutate an existing object. */
 Syx_Value *syx_special_form_update(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  Syx_Value *target = rc_acquire(syx_eval_unquote(ctx, syx_list_next(&arguments)));
+  Syx_Value *name = rc_acquire(syx_eval_unquote(ctx, syx_list_next(&arguments)));
+  syx_value_early_exit(name);
+  SYX_EVAL_ASSERT(ctx, name->kind == SYX_VALUE_KIND_SYMBOL, "malformed update expression");
+
+  Syx_Value *target = rc_acquire(syx_eval_ctx_get_value(ctx, name->symbol));
+  rc_release(name);
   syx_value_early_exit(target);
-  SYX_EVAL_ASSERT(ctx, target->kind == SYX_VALUE_KIND_SYMBOL, "malformed update expression");
-  Syx_Value *value = syx_eval_ctx_get_value(ctx, target->symbol);
-  syx_value_early_exit(value, (target));
+
   switch (target->kind) {
     case SYX_VALUE_KIND_OBJECT: {
       Syx_Value *result = rc_acquire(syx_object_update(ctx, target->object, &arguments, NULL));
-      syx_value_early_exit(result, (target, value));
+      syx_value_early_exit(result, (target));
       return rc_move(result);
     } break;
     case SYX_VALUE_KIND_NATIVE: {
       Syx_Value *result = rc_acquire(syx_native_set(ctx, target->native->type, target->native->data, syx_list_next(&arguments)));
-      syx_value_early_exit(result, (target, value));
+      syx_value_early_exit(result, (target));
       return rc_move(result);
     } break;
     default:
@@ -354,10 +359,7 @@ Syx_Value *syx_special_form_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 /** Instantiates a native type, allocates its dedicated block of native heap memory, and executes its associated constructor behavior. */
 Syx_Value *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  Syx_Value *head = syx_list_next(&arguments);
-  SYX_EVAL_ASSERT(ctx, head->kind == SYX_VALUE_KIND_SYMBOL, "type name expected here");
-  Syx_Type *type = syx_eval_ctx_get_type(ctx, head->symbol);
-  SYX_EVAL_ASSERT(ctx, type, "type name expected here");
+  Syx_Type *type = syx_list_next_type(ctx, &arguments);
   Syx_Value *evaluated = rc_acquire(syx_eval_map_list(ctx, arguments));
   syx_value_early_exit(evaluated);
   SYX_EVAL_ASSERT(ctx, evaluated->kind == SYX_VALUE_KIND_PAIR, "arguments list expected");
@@ -366,9 +368,40 @@ Syx_Value *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   return rc_move(result);
 }
 
-/** Parses type and finds value behind symbol. */
+int GG = 5;
+
+/** Parses type and wraps external symbol. */
 Syx_Value *syx_special_form_extern(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  // return syx_object_define(ctx, &arguments, NULL);
+  Syx_Value *arg = syx_list_next(&arguments);
+  const char *c_name = NULL;
+  Syx_Symbol *syx_name = NULL;
+  switch (arg->kind) {
+    case SYX_VALUE_KIND_SYMBOL: {
+      c_name = arg->symbol->data;
+      if (arguments && arguments->left->kind == SYX_VALUE_KIND_PREFIXED && arguments->left->prefixed->kind == SYX_PREFIXED_KIND_COLON) {
+        arg = syx_list_next(&arguments)->prefixed->value;
+        SYX_EVAL_ASSERT(ctx, arg->kind == SYX_VALUE_KIND_SYMBOL, "expected symbol external value bound symbol");
+        syx_name = arg->symbol;
+      } else {
+        syx_name = arg->symbol;
+      }
+    } break;
+    case SYX_VALUE_KIND_STRING: {
+      c_name = arg->string->data;
+      arg = syx_list_next(&arguments);
+      SYX_EVAL_ASSERT(ctx, arg->kind == SYX_VALUE_KIND_PREFIXED && arg->prefixed->kind == SYX_PREFIXED_KIND_COLON && arg->prefixed->value->kind == SYX_VALUE_KIND_SYMBOL, "expected symbol external value bound symbol");
+      syx_name = arg->prefixed->value->symbol;
+    } break;
+    default: SYX_EVAL_THROW(ctx, "external symbol name expected");
+  }
+  if (!c_name) SYX_EVAL_THROW(ctx, "external symbol name expected");
+  Syx_Type *type = syx_list_next_type(ctx, &arguments);
+  void *external = dlsym(RTLD_MAIN_ONLY, c_name);
+  char *error = dlerror();
+  SYX_EVAL_ASSERT(ctx, error == NULL, "error loading external symbol: %s", (error));
+  Syx_Value *value = rc_acquire(make_syx_value_native(NULL, type, external, 0));
+  syx_env_define_value(ctx->env, syx_name, value);
+  return rc_move(value);
 }
 
 void syx_env_define_special_forms(Syx_Env *env) {
