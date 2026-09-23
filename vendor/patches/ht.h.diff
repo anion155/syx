@@ -11,7 +11,17 @@
          /* .count - amount of unique items in the Hash Table. */ \
          size_t      count;                                       \
          /* .hasheq - key Hashing and Equality function.          \
-@@ -509,22 +509,22 @@
+@@ -187,6 +187,9 @@
+ // ```
+ HT_PUBDEF uintptr_t ht_sv_hasheq(Ht_Op op, void const *a, void const *b, size_t n);
+ #endif // NOB_H_
++#ifdef STR_H
++uintptr_t ht_string_view_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n)
++#endif // STR_H
+ 
+ // Value *ht_put(Ht(Key, Value) *ht, Key key)
+ //
+@@ -509,22 +512,22 @@
      HT__FIRST_VALID_HASH,
  };
  
@@ -50,7 +60,7 @@
  
  #if defined(__cplusplus)
      static inline auto *ht__put_cpp(auto *ht, auto key)
-@@ -554,15 +554,16 @@
+@@ -554,15 +557,16 @@
  
  #endif // HT_H_
  
@@ -70,7 +80,7 @@
  {
      if (ht->impl_capacity == 0) return NULL;
  
-@@ -577,21 +578,21 @@
+@@ -577,21 +581,21 @@
      return slot;
  }
  
@@ -95,7 +105,7 @@
  {
      void *slot = ht__find(ht, key, l);
      if (slot == NULL) return false;
-@@ -599,12 +600,12 @@
+@@ -599,12 +603,12 @@
      return true;
  }
  
@@ -110,7 +120,7 @@
  {
      if (ht->impl_capacity == 0) {
          *slot = NULL;
-@@ -634,7 +635,7 @@
+@@ -634,7 +638,7 @@
      }
  }
  
@@ -119,7 +129,7 @@
  {
      if (ht->impl_filled_slots == 0) return; // Since ht_reset() is O(capacity) do not do it if ht is already empty
      uint8_t *slots_start = (uint8_t*)ht->impl_slots;
-@@ -646,7 +647,7 @@
+@@ -646,7 +650,7 @@
      ht->count = 0;
  }
  
@@ -128,7 +138,26 @@
  {
      HT_FREE(ht->impl_slots);
      ht->impl_slots        = NULL;
-@@ -762,7 +763,7 @@
+@@ -691,6 +695,18 @@
+     return 0;
+ }
+ #endif // NOB_H_
++#ifdef STR_H
++uintptr_t ht_string_view_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n) {
++    (void)n; // not used
++    String_View const *a = (String_View const *)a_;
++    String_View const *b = (String_View const *)b_;
++    switch (op) {
++        case HT_HASH: return ht_default_hash(a->data, a->count);
++        case HT_EQ: return sv__eq(*a, *b);
++    }
++    return 0;
++}
++#endif // 
+ 
+ HT_PUBDEF uintptr_t ht_djb2_hash(void const *data, size_t size)
+ {
+@@ -762,7 +778,7 @@
      return hash;
  }
  
@@ -137,7 +166,7 @@
  {
      HT_ASSERT(!(ht->impl_capacity & (ht->impl_capacity - 1)));
      HT_ASSERT(hash >= HT__FIRST_VALID_HASH);
-@@ -783,7 +784,7 @@
+@@ -783,7 +799,7 @@
      return NULL;
  }
  
@@ -146,7 +175,7 @@
  {
      Ht_Hasheq hasheq = ht->hasheq ? ht->hasheq : ht_mem_hasheq;
      uintptr_t hash = hasheq(HT_HASH, key, NULL, l.key_size);
-@@ -809,7 +810,7 @@
+@@ -809,7 +825,7 @@
      return slot;
  }
  
@@ -155,7 +184,7 @@
  {
      if (ht->impl_capacity == 0 || ht->impl_filled_slots*100 >= HT__LOAD_FACTOR_PERCENT*ht->impl_capacity) {
          size_t   old_impl_capacity = ht->impl_capacity;
-@@ -850,20 +851,20 @@
+@@ -850,20 +866,20 @@
      }
  }
  
@@ -179,7 +208,7 @@
  {
      uint8_t *d = (uint8_t*)dest;
      const uint8_t *s = (const uint8_t *)src;
-@@ -871,7 +872,7 @@
+@@ -871,7 +887,7 @@
      return dest;
  }
  

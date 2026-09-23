@@ -507,17 +507,6 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
   return state.count;
 }
 
-uintptr_t ht_sv_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n) {
-  (void)n; // not used
-  String_View const *a = (String_View const *)a_;
-  String_View const *b = (String_View const *)b_;
-  switch (op) {
-    case HT_HASH: return ht_default_hash(a->data, a->count);
-    case HT_EQ: return sv__eq(*a, *b);
-  }
-  return 0;
-}
-
 syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
   SYX_KNOWN_TYPES->c_void = make_syx_type(SYX_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void, 0);
 
@@ -616,7 +605,7 @@ syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
                                                                     (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_size})});
   SYX_KNOWN_TYPES->c_file = make_syx_type_pointer(NULL, SYX_KNOWN_TYPES->c_void);
 
-  SYX_KNOWN_TYPES->registry.hasheq = ht_sv_hasheq;
+  SYX_KNOWN_TYPES->registry.hasheq = ht_string_view_hasheq;
   *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("void")) = SYX_KNOWN_TYPES->c_void;
   *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("char")) = SYX_KNOWN_TYPES->c_char;
   *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("i8")) = SYX_KNOWN_TYPES->c_i8;
@@ -674,46 +663,46 @@ void syx_env_define_types(Syx_Env *env) {
   Syx_Type *type = *ht_find(&SYX_KNOWN_TYPES()->registry, sv_from_strlit(name_lit));      \
   syx_env_define(env, type->name, make_syx_value_closure_native_constructor(NULL, type)); \
 })
-  DEFINE("c_void");
-  DEFINE("c_char");
-  DEFINE("c_i8");
-  DEFINE("c_i16");
-  DEFINE("c_i32");
-  DEFINE("c_i64");
-  DEFINE("c_i128");
-  DEFINE("c_u8");
-  DEFINE("c_u16");
-  DEFINE("c_u32");
-  DEFINE("c_u64");
-  DEFINE("c_u128");
-  DEFINE("c_f16");
-  DEFINE("c_f32");
-  DEFINE("c_f64");
-  DEFINE("c_f80");
-  DEFINE("c_f128");
-  DEFINE("c_f64pair");
-  DEFINE("c_short");
-  DEFINE("c_sshort");
-  DEFINE("c_ushort");
-  DEFINE("c_int");
-  DEFINE("c_sint");
-  DEFINE("c_uint");
-  DEFINE("c_long");
-  DEFINE("c_slong");
-  DEFINE("c_ulong");
-  DEFINE("c_llong");
-  DEFINE("c_sllong");
-  DEFINE("c_ullong");
-  DEFINE("c_uintptr");
-  DEFINE("c_ptrdiff");
-  DEFINE("c_size");
-  DEFINE("c_float");
-  DEFINE("c_double");
-  DEFINE("c_ldouble");
-  DEFINE("c_value");
-  DEFINE("c_str");
-  DEFINE("c_string");
-  DEFINE("c_file");
+  DEFINE("void");
+  DEFINE("char");
+  DEFINE("i8");
+  DEFINE("i16");
+  DEFINE("i32");
+  DEFINE("i64");
+  DEFINE("i128");
+  DEFINE("u8");
+  DEFINE("u16");
+  DEFINE("u32");
+  DEFINE("u64");
+  DEFINE("u128");
+  DEFINE("f16");
+  DEFINE("f32");
+  DEFINE("f64");
+  DEFINE("f80");
+  DEFINE("f128");
+  DEFINE("f64pair");
+  DEFINE("short");
+  DEFINE("sshort");
+  DEFINE("ushort");
+  DEFINE("int");
+  DEFINE("sint");
+  DEFINE("uint");
+  DEFINE("long");
+  DEFINE("slong");
+  DEFINE("ulong");
+  DEFINE("llong");
+  DEFINE("sllong");
+  DEFINE("ullong");
+  DEFINE("uintptr");
+  DEFINE("ptrdiff");
+  DEFINE("size");
+  DEFINE("float");
+  DEFINE("double");
+  DEFINE("ldouble");
+  DEFINE("value");
+  DEFINE("str");
+  DEFINE("string");
+  DEFINE("file");
 #undef DEFINE
 }
 

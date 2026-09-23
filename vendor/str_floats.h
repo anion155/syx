@@ -2396,21 +2396,46 @@ static inline floating_ieee_generic ryu_generic_to_ieee(const __uint128_t bits, 
   const uint32_t exponent = (uint32_t)((bits >> mantissaBits) & ((ONE << exponentBits) - 1u));
   return (floating_ieee_generic){.mantissa = mantissa, .exponent = exponent, .sign = sign, .mantissaBits = mantissaBits, .exponentBits = exponentBits, .explicitLeadingBit = explicitLeadingBit};
 }
+
+#define RYU_F16_MANTISSA_BITS 10
+#define RYU_F16_EXPONENT_BITS 5
+#define RYU_F80_MANTISSA_BITS 64
+#define RYU_F80_EXPONENT_BITS 15
+#define RYU_F128_MANTISSA_BITS 112
+#define RYU_F128_EXPONENT_BITS 15
+#define RYU_F64PAIR_MANTISSA_BITS 104
+#define RYU_F64PAIR_EXPONENT_BITS 11
+#if FLOATS_LD_KIND == FLOATS_LD_KIND_F64
+#  define RYU_LD_MANTISSA_BITS RYU_F64_MANTISSA_BITS
+#  define RYU_LD_EXPONENT_BITS RYU_F64_EXPONENT_BITS
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F80
+#  define RYU_LD_MANTISSA_BITS RYU_F80_MANTISSA_BITS
+#  define RYU_LD_EXPONENT_BITS RYU_F80_EXPONENT_BITS
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F128
+#  define RYU_LD_MANTISSA_BITS RYU_F128_MANTISSA_BITS
+#  define RYU_LD_EXPONENT_BITS RYU_F128_EXPONENT_BITS
+#elif FLOATS_LD_KIND == FLOATS_LD_KIND_F64PAIR
+#  define RYU_LD_MANTISSA_BITS RYU_F64PAIR_MANTISSA_BITS
+#  define RYU_LD_EXPONENT_BITS RYU_F64PAIR_EXPONENT_BITS
+#else
+#  error "Unsupported or unknown long double architecture."
+#endif
+
 static inline floating_ieee_generic ryu_f16_to_ieee(const f16_t value) {
-  return ryu_generic_to_ieee(f16_to_bits(value), 10, 5, false);
+  return ryu_generic_to_ieee(f16_to_bits(value), RYU_F16_MANTISSA_BITS, RYU_F16_EXPONENT_BITS, false);
 }
 static inline floating_ieee_generic ryu_f80_to_ieee(const f80_t value) {
-  return ryu_generic_to_ieee(f80_to_bits(value), 64, 15, true);
+  return ryu_generic_to_ieee(f80_to_bits(value), RYU_F80_MANTISSA_BITS, RYU_F80_EXPONENT_BITS, true);
 }
 static inline floating_ieee_generic ryu_f128_to_ieee(const f128_t value) {
-  return ryu_generic_to_ieee(f128_to_bits(value), 112, 15, false);
+  return ryu_generic_to_ieee(f128_to_bits(value), RYU_F128_MANTISSA_BITS, RYU_F128_EXPONENT_BITS, false);
 }
 static inline floating_ieee_generic ryu_f64pair_to_ieee(const f64pair_t value) {
   f64pair_canonical_t f64pair = f64pair_canonical_from(value);
   bool sign = ((f64pair.high >> 63) & 1) != 0;
-  uint32_t exponent = (uint32_t)((f64pair.high >> 52) & 0x7FF);
-  __uint128_t mantissa = ((__uint128_t)(f64pair.high & 0xFFFFFFFFFFFFF) << 52) | (f64pair.low & 0xFFFFFFFFFFFFF);
-  return (floating_ieee_generic){.mantissa = mantissa, .exponent = exponent, .sign = sign, .mantissaBits = 104, .exponentBits = 11, .explicitLeadingBit = false};
+  uint32_t exponent = (uint32_t)((f64pair.high >> RYU_F64_MANTISSA_BITS) & 0x7FF);
+  __uint128_t mantissa = ((__uint128_t)(f64pair.high & 0xFFFFFFFFFFFFF) << RYU_F64_MANTISSA_BITS) | (f64pair.low & 0xFFFFFFFFFFFFF);
+  return (floating_ieee_generic){.mantissa = mantissa, .exponent = exponent, .sign = sign, .mantissaBits = RYU_F64PAIR_MANTISSA_BITS, .exponentBits = RYU_F64PAIR_EXPONENT_BITS, .explicitLeadingBit = false};
 }
 
 static inline bool ryu_generic_is_nan(floating_ieee_generic ieee) {

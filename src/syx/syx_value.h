@@ -821,14 +821,14 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
     } break;
     case SYX_VALUE_KIND_NATIVE: {
       Syx_Native *native = value->native;
-      stringify_append(&state, sb_append, '(');
+      stringify_append(&state, sb_append, '#');
       if (native->type->name) {
         stringify_append(&state, sb_append_syx_symbol, native->type->name);
       } else {
         stringify_append(&state, sb_append_syx_type, native->type);
       }
+      stringify_append(&state, sb_append, ':');
       if (native->type->kind != SYX_TYPE_KIND_VOID) {
-        stringify_append(&state, sb_append, ' ');
         switch (native->type->kind) {
           case SYX_TYPE_KIND_VOID: UNREACHABLE("should be filtered out already");
           case SYX_TYPE_KIND_PRIMITIVE: {
@@ -839,7 +839,9 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
           case SYX_TYPE_KIND_STRUCTURE: TODO("TASK(20260913-075944): sb_append_syx_value: structure to string");
           case SYX_TYPE_KIND_PTR:
             if (native->type == SYX_KNOWN_TYPES()->c_value) {
-              stringify_append(&state, sb_append_syx_value, *(Syx_Value **)native->data);
+              Syx_Value *value = *(Syx_Value **)native->data;
+              if (value) stringify_append(&state, sb_append_syx_value, value);
+              else stringify_append(&state, sb_append_strlit, "null");
               break;
             }
           case SYX_TYPE_KIND_FUNCTION_PTR: {
@@ -847,7 +849,6 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
           } break;
         }
       }
-      stringify_append(&state, sb_append, ')');
     } break;
     case SYX_VALUE_KIND_EXIT: {
       UNREACHABLE("thrown value can't be converted to string");

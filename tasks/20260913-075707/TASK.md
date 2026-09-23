@@ -1,6 +1,6 @@
 # hex fractionals number literals are not supported
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: parser
 

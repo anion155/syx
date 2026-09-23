@@ -1,6 +1,6 @@
 # convert arguments to native values
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: ffi
 

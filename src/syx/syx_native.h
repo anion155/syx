@@ -1,6 +1,7 @@
 #ifndef SYX_NATIVE_H
 #define SYX_NATIVE_H
 
+#include <syx/syx_lexer.h>
 #include <syx/syx_value.h>
 
 Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair *arguments);
@@ -82,8 +83,13 @@ Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair
 }
 
 Syx_Value *syx_native_set(Syx_Eval_Ctx *ctx, Syx_Type *type, void *data, Syx_Value *argument) {
-  Syx_Value *evaluated = rc_acquire(syx_eval(ctx, argument));
-  syx_value_early_exit(evaluated);
+  Syx_Value *evaluated;
+  if (ctx) {
+    evaluated = rc_acquire(syx_eval(ctx, argument));
+    syx_value_early_exit(evaluated);
+  } else {
+    evaluated = rc_acquire(argument);
+  }
   switch (type->kind) {
     case SYX_TYPE_KIND_VOID: SYX_EVAL_THROW(ctx, "native void can't be set", (), (evaluated));
     case SYX_TYPE_KIND_PRIMITIVE: {
@@ -259,16 +265,26 @@ Syx_Value *syx_native_structure_set(Syx_Eval_Ctx *ctx, Syx_Type_Structure *struc
 
 Syx_Value *syx_native_structure_update(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type_Structure *structure, Syx_Pair **arguments) {
   while (*arguments) {
-    Syx_Value *field = rc_acquire(syx_eval_unquote(ctx, syx_list_next(arguments)));
-    syx_value_early_exit(field);
+    Syx_Value *field;
+    if (ctx) {
+      field = rc_acquire(syx_eval_unquote(ctx, syx_list_next(arguments)));
+      syx_value_early_exit(field);
+    } else {
+      field = rc_acquire(syx_list_next(arguments));
+    }
     SYX_EVAL_ASSERT(ctx, field->kind == SYX_VALUE_KIND_PREFIXED, "colon prefixed symbol expected", (), (field));
     SYX_EVAL_ASSERT(ctx, field->prefixed->kind == SYX_PREFIXED_KIND_COLON, "colon prefixed symbol expected", (), (field));
     SYX_EVAL_ASSERT(ctx, field->prefixed->value->kind == SYX_VALUE_KIND_SYMBOL, "colon prefixed symbol expected", (), (field));
     Syx_Type_Structure_Field *field_desc = syx_native_structure_get_field(structure, field->prefixed->value->symbol);
     SYX_EVAL_ASSERT(ctx, field_desc, "native structure has no such field");
 
-    Syx_Value *value = rc_acquire(syx_eval_unquote(ctx, syx_list_next(arguments)));
-    syx_value_early_exit(value, (field));
+    Syx_Value *value;
+    if (ctx) {
+      value = rc_acquire(syx_eval_unquote(ctx, syx_list_next(arguments)));
+      syx_value_early_exit(value, (field));
+    } else {
+      value = rc_acquire(syx_list_next(arguments));
+    }
 
     Syx_Value *result = rc_acquire(syx_native_structure_set(ctx, structure, native->data, field->symbol, value));
     syx_value_early_exit(result, (field, value));

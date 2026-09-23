@@ -324,8 +324,14 @@ bool command_diff_vendor_run() {
     if (nob_cmd_run(&ctx.cmd, .stdout_path = patch_path, .exit_status = &exit_status)) {
       nob_log(NOB_INFO, "diff is empty");
     }
-    if (exit_status != 1) {
-      nob_log(NOB_ERROR, "failed to diff");
+    if (exit_status == 0) {
+      nob_log(NOB_INFO, "deleting empty patch");
+      if (!nob_delete_file(patch_path)) {
+        nob_log(NOB_ERROR, "failed to delete empty patch file: %s", patch_path);
+        return false;
+      }
+    } else if (exit_status != 1) {
+      nob_log(NOB_ERROR, "failed to diff: %d", exit_status);
       return false;
     }
   }

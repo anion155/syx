@@ -6,6 +6,9 @@
 
 Syx_Value *parse_syx(String_View source, bool ignore_errors);
 
+Syx_Value *parse_syx_value(Syx_Tokens *tokens);
+Syx_Value *parse_syx_list_values(Syx_Tokens *tokens, Syx_Token_Kind closing_token);
+
 #endif // SYX_PARSER_H
 
 #if defined(SYX_PARSER_IMPL) && !defined(SYX_PARSER_IMPL_C)
@@ -14,18 +17,20 @@ Syx_Value *parse_syx(String_View source, bool ignore_errors);
 #include <stdint.h>
 #include <wchar.h>
 
+#define PARSER_IMPL
+#include <parser.h>
 #define STR_IMPL
 #include <str.h>
 #define SYX_LEXER_IMPL
 #include <syx/syx_lexer.h>
 #define STR_FLOATS_IMPL
 #include <str_floats.h>
-
-Syx_Value *parse_syx_value(Syx_Tokens *tokens);
+#define SYX_PARSER_NATIVE_IMPL
+#include <syx/syx_parser_native.h>
 
 Syx_Value *parse_syx_list_values(Syx_Tokens *tokens, Syx_Token_Kind closing_token) {
   if (da_first(*tokens).kind == closing_token) {
-    da_slice_chop_left(tokens);
+    da_slice_shift(tokens);
     return syx_value_nil();
   }
   Syx_Value *list = NULL;
@@ -48,7 +53,7 @@ Syx_Value *parse_syx_list_values(Syx_Tokens *tokens, Syx_Token_Kind closing_toke
   *pair_value = rc_acquire(syx_value_nil());
 without_nil:
   SYX_ASSERT(da_first(*tokens).kind == closing_token, "expected end token", (), (list));
-  da_slice_chop_left(tokens);
+  da_slice_shift(tokens);
   return list;
 }
 
@@ -205,170 +210,43 @@ Syx_Value *parse_syx_string_value(Syx_Token token) {
   return value;
 }
 
-// clang-format off
-#define I -1
-constexpr int8_t parse__number_binary_map[256] = {
-  2,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, 0,1,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-};
-constexpr int8_t parse__number_octal_map[256] = {
-  3,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, 0,1,2,3,4,5,6,7,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-};
-constexpr int8_t parse__number_decimal_map[256] = {
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, 0,1,2,3,4,5,6,7,8,9,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-  I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I, I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,
-};
-constexpr int8_t parse__number_hex_map[256] = {
-  4, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
-  I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, I, I, I, I, I, I,
-  I,10,11,12,13,14,15, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
-  I,10,11,12,13,14,15, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
-  I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
-  I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
-  I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
-  I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
-};
-#undef I
-// clang-format on
-#define parse__number_binary_shift(value) (value << 1)
-#define parse__number_octal_shift(value) (value << 3)
-#define parse__number_decimal_shift(value) (value * 10)
-#define parse__number_hex_shift(value) (value << 4)
-#define parse__number_unsigned_integer_value(sv, number, shift, map, INVALID, on_digit) \
-  while (sv.count) {                                                                    \
-    int8_t digit = map[(uint8_t)*sv.data];                                              \
-    if (digit < 0) INVALID;                                                             \
-    number = shift(number) + digit;                                                     \
-    sv_chop_left(&sv, 1);                                                               \
-    on_digit;                                                                           \
-  }
-
-struct parsed_fractional {
-  __uint128_t significand;
-  int32_t exponent;
-};
-#define parse__number_fractional_value(sv, number, shift, map, INVALID, MANTISSA_BITS, EXPONENT_BITS) ({   \
-  size_t last_non_zero = 0;                                                                                \
-  __uint128_t significand = 0;                                                                             \
-  int32_t exponent = 0;                                                                                    \
-  while (sv.count && *sv.data != '.') {                                                                    \
-    int8_t digit = map[(uint8_t)*sv.data];                                                                 \
-    if (digit < 0) INVALID;                                                                                \
-    significand = (significand << shift) + digit;                                                          \
-    sv_chop_left(&sv);                                                                                     \
-    if (last_non_zero > 0) {                                                                               \
-      last_non_zero -= 1;                                                                                  \
-      continue;                                                                                            \
-    }                                                                                                      \
-    if (*sv.data == '.') break;                                                                            \
-    size_t index = 0;                                                                                      \
-    while (sv.data[index] == '0') index += 1;                                                              \
-    if (sv.data[index] != '.') {                                                                           \
-      last_non_zero = index;                                                                               \
-      continue;                                                                                            \
-    }                                                                                                      \
-    size_t maybe_exponent = index;                                                                         \
-    index += 1;                                                                                            \
-    while (index < sv.count && sv.data[index] == '0') index += 1;                                          \
-    if (index != sv.count) {                                                                               \
-      last_non_zero = index;                                                                               \
-      continue;                                                                                            \
-    }                                                                                                      \
-    exponent = maybe_exponent;                                                                             \
-    sv_chop_left(&sv, exponent);                                                                           \
-    break;                                                                                                 \
-  }                                                                                                        \
-  if (*sv.data != '.') INVALID;                                                                            \
-  sv_chop_left(&sv);                                                                                       \
-  while (sv.count) {                                                                                       \
-    int8_t digit = map[(uint8_t)*sv.data];                                                                 \
-    if (digit < 0) INVALID;                                                                                \
-    significand = (significand << shift) + digit;                                                          \
-    sv_chop_left(&sv);                                                                                     \
-    exponent -= 1;                                                                                         \
-    size_t index = 0;                                                                                      \
-    while (index < sv.count && sv.data[index] == '0') index += 1;                                          \
-    if (index < sv.count) continue;                                                                        \
-    break;                                                                                                 \
-  }                                                                                                        \
-  exponent *= shift;                                                                                       \
-  if (significand) {                                                                                       \
-    size_t bits_width = sizeof(significand) * 8;                                                           \
-    size_t leading_zeros = 0;                                                                              \
-    constexpr typeof(significand) ONE = 1;                                                                 \
-    while (leading_zeros < bits_width && (significand & (ONE << (bits_width - 1 - leading_zeros))) == 0) { \
-      leading_zeros += 1;                                                                                  \
-    }                                                                                                      \
-    size_t current_bit_pos = bits_width - 1 - leading_zeros;                                               \
-    if (MANTISSA_BITS >= current_bit_pos) significand <<= MANTISSA_BITS - current_bit_pos;                 \
-    else significand >>= (current_bit_pos - MANTISSA_BITS);                                                \
-    exponent += current_bit_pos + ((ONE << (EXPONENT_BITS - 1)) - 1);                                      \
-    typeof(_Generic(number,                                                                                \
-               float: (uint32_t)0,                                                                         \
-               double: (uint64_t)0,                                                                        \
-               long double: (__uint128_t)0)) bits;                                                         \
-    bits = (significand & ((ONE << (MANTISSA_BITS)) - 1));                                                 \
-    bits |= ((exponent & ((ONE << EXPONENT_BITS) - 1)) << MANTISSA_BITS);                                  \
-    bits |= (negative ? (ONE << (MANTISSA_BITS + EXPONENT_BITS)) : 0);                                     \
-    memcpy(&number, &bits, sizeof(number));                                                                \
-  } else {                                                                                                 \
-    number = 0;                                                                                            \
-  }                                                                                                        \
-})
-
-#define parse__syx_number_integer_value(base, sv) ({ \
-  String_View _sv_ = sv_from_like(sv);               \
-  bool negative = false;                             \
-  if (_sv_.data[0] == '-' || _sv_.data[0] == '+') {  \
-    _sv_.data += 1;                                  \
-    _sv_.count -= 1;                                 \
-    negative = _sv_.data[0] == '-';                  \
-  }                                                  \
-  syx_integer_t number = 0;                          \
-  parse__number_unsigned_integer_value(              \
-      _sv_,                                          \
-      number,                                        \
-      parse__number_##base##_shift,                  \
-      parse__number_##base##_map,                    \
-      SYX_THROW("expected integer number"), );       \
-  if (negative) number *= -1;                        \
-  make_syx_value_number_integer(number);             \
+#define parse__syx_number_integer_value(base, sv, prefix_check) ({ \
+  String_View _sv_ = sv_from_like(sv);                             \
+  bool negative = false;                                           \
+  if (_sv_.data[0] == '-' || _sv_.data[0] == '+') {                \
+    _sv_.data += 1;                                                \
+    _sv_.count -= 1;                                               \
+    negative = _sv_.data[0] == '-';                                \
+  }                                                                \
+  prefix_check;                                                    \
+  syx_integer_t number = 0;                                        \
+  parse__number_unsigned_integer_value(                            \
+      _sv_,                                                        \
+      number,                                                      \
+      parse__number_##base##_shift,                                \
+      parse__number_##base##_map,                                  \
+      SYX_THROW("expected integer number"), );                     \
+  if (negative) number *= -1;                                      \
+  make_syx_value_number_integer(number);                           \
 })
 
 Syx_Value *parse_syx_number_binary_integer_value(Syx_Token token) {
-  return parse__syx_number_integer_value(binary, token.source);
+  return parse__syx_number_integer_value(binary, token.source, SYX_ASSERT(_sv_.data[0] == '0' && (_sv_.data[1] == 'b' || _sv_.data[1] == 'B'), "expected integer number"); sv_chop_left(&_sv_, 2));
 }
 
 Syx_Value *parse_syx_number_octal_integer_value(Syx_Token token) {
-  return parse__syx_number_integer_value(octal, token.source);
+  return parse__syx_number_integer_value(octal, token.source, SYX_ASSERT(_sv_.data[0] == '0' && (_sv_.data[1] == 'o' || _sv_.data[1] == 'O'), "expected integer number"); sv_chop_left(&_sv_, 2));
 }
 
 Syx_Value *parse_syx_number_decimal_integer_value(Syx_Token token) {
-  return parse__syx_number_integer_value(decimal, token.source);
+  return parse__syx_number_integer_value(decimal, token.source, );
 }
 
 Syx_Value *parse_syx_number_hex_integer_value(Syx_Token token) {
-  return parse__syx_number_integer_value(hex, token.source);
+  return parse__syx_number_integer_value(hex, token.source, SYX_ASSERT(_sv_.data[0] == '0' && (_sv_.data[1] == 'h' || _sv_.data[1] == 'H'), "expected integer number"); sv_chop_left(&_sv_, 2));
 }
+
+#undef parse__syx_number_integer_value
 
 #define parse__syx_number_fractional_value(base, sv) ({ \
   String_View _sv_ = sv_from_like(sv);                  \
@@ -382,11 +260,9 @@ Syx_Value *parse_syx_number_hex_integer_value(Syx_Token token) {
   parse__number_fractional_value(                       \
       _sv_,                                             \
       number,                                           \
-      parse__number_##base##_map[0],                    \
+      negative,                                         \
       parse__number_##base##_map,                       \
-      SYX_THROW("expected integer number"),             \
-      RYU_F64_MANTISSA_BITS,                            \
-      RYU_F64_EXPONENT_BITS);                           \
+      SYX_THROW("expected fractional number"));         \
   make_syx_value_number_fractional(number);             \
 })
 
@@ -400,12 +276,14 @@ Syx_Value *parse_syx_number_octal_fractional_value(Syx_Token token) {
 
 Syx_Value *parse_syx_number_decimal_fractional_value(Syx_Token token) {
   UNUSED(token);
-  SYX_TODO();
+  SYX_TODO("TASK(20260923-105431)");
 }
 
 Syx_Value *parse_syx_number_hex_fractional_value(Syx_Token token) {
   return parse__syx_number_fractional_value(hex, token.source);
 }
+
+#undef parse__syx_number_fractional_value
 
 Syx_Value *parse_syx_symbol_value(Syx_Token token) {
   if (token.source.data[0] == '|' && token.source.data[token.source.count - 1] == '|') {
@@ -445,12 +323,12 @@ Syx_Value *parse_syx_dispatch(Syx_Token token, Syx_Tokens *tokens) {
       token = da_slice_shift(tokens);
       SYX_ASSERT(token.kind == SYX_TOKEN_KIND_STRLIT, "expected string literal");
       return make_syx_value_string_n_dup(token.source.data, token.source.count);
-    }
+    } break;
     case '{': {
       Syx_Value *fields = rc_acquire(parse_syx_list_values(tokens, SYX_TOKEN_KIND_RCURLY));
       syx_value_early_exit(fields);
       return make_syx_value_pair(make_syx_value_symbol_strlit("object"), rc_move(fields));
-    }
+    } break;
     case 'c': {
       SYX_ASSERT(tokens->count >= 1, "expected symbol");
       token = da_slice_shift(tokens);
@@ -458,17 +336,8 @@ Syx_Value *parse_syx_dispatch(Syx_Token token, Syx_Tokens *tokens) {
       sv_chop_left(&token.source);
       Syx_Type **type = ht_find(&SYX_KNOWN_TYPES()->registry, token.source);
       SYX_ASSERT(type != NULL, "c type " SV_FMT, (sv_fmt_arg(token.source)));
-      token = da_slice_shift(tokens);
-      switch ((*type)->kind) {
-        case SYX_TYPE_KIND_VOID: SYX_THROW("native void value is not constructible");
-        case SYX_TYPE_KIND_PRIMITIVE: {
-
-        } break;
-        case SYX_TYPE_KIND_STRUCTURE: break;
-        case SYX_TYPE_KIND_PTR: break;
-        case SYX_TYPE_KIND_FUNCTION_PTR: break;
-      }
-    }
+      return syx_parse_native_value(*type, tokens);
+    } break;
     default: SYX_THROW("unexpected dispatch type");
   }
 }

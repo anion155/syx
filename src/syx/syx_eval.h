@@ -50,11 +50,15 @@ void syx_env_set(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value);
 Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt);
 Syx_Eval_Ctx *make_global_syx_eval_ctx();
 Syx_Eval_Ctx *inherit_syx_eval_ctx(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
+#define syx_eval_context_get_frame(ctx) ({    \
+  Syx_Eval_Ctx *_ctx_ = (ctx);                \
+  _ctx_ ? _ctx_->frames_stack->latest : NULL; \
+})
 
-#define SYX_EVAL_THROW(ctx, message, ...) SYX_THROW(message, WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)), WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), (ctx)->frames_stack->latest)
+#define SYX_EVAL_THROW(ctx, message, ...) SYX_THROW(message, WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)), WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), syx_eval_context_get_frame(ctx))
 #define SYX_EVAL_TODO(ctx, ...) SYX_THROW(__FILE__ ":" STRINGIFY(__LINE__) " TODO: " WITH_DEFAULT(TODO_DEFAULT_MESSAGE, __VA_ARGS__), \
-                                          WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), WITH_DEFAULT((), THIRD_ARG(__VA_ARGS__, , )), (ctx)->frames_stack->latest)
-#define SYX_EVAL_ASSERT(ctx, condition, message, ...) SYX_ASSERT((condition), message, WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)), WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), (ctx)->frames_stack->latest)
+                                          WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), WITH_DEFAULT((), THIRD_ARG(__VA_ARGS__, , )), syx_eval_context_get_frame(ctx))
+#define SYX_EVAL_ASSERT(ctx, condition, message, ...) SYX_ASSERT((condition), message, WITH_DEFAULT((), FIRST_ARG(__VA_ARGS__)), WITH_DEFAULT((), SECOND_ARG(__VA_ARGS__, )), syx_eval_context_get_frame(ctx))
 
 Syx_Value *syx_eval_pair(Syx_Eval_Ctx *ctx, Syx_Value *evaluator, Syx_Pair *arguments);
 Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input);

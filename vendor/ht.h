@@ -187,6 +187,9 @@ HT_PUBDEF uintptr_t ht_mem_hasheq(Ht_Op op, void const *a, void const *b, size_t
 // ```
 HT_PUBDEF uintptr_t ht_sv_hasheq(Ht_Op op, void const *a, void const *b, size_t n);
 #endif // NOB_H_
+#ifdef STR_H
+uintptr_t ht_string_view_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n)
+#endif // STR_H
 
 // Value *ht_put(Ht(Key, Value) *ht, Key key)
 //
@@ -692,6 +695,18 @@ HT_PUBDEF uintptr_t ht_sv_hasheq(Ht_Op op, void const *a_, void const *b_, size_
     return 0;
 }
 #endif // NOB_H_
+#ifdef STR_H
+uintptr_t ht_string_view_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n) {
+    (void)n; // not used
+    String_View const *a = (String_View const *)a_;
+    String_View const *b = (String_View const *)b_;
+    switch (op) {
+        case HT_HASH: return ht_default_hash(a->data, a->count);
+        case HT_EQ: return sv__eq(*a, *b);
+    }
+    return 0;
+}
+#endif // 
 
 HT_PUBDEF uintptr_t ht_djb2_hash(void const *data, size_t size)
 {
