@@ -88,7 +88,7 @@ Syx_Value *syx_special_form_define(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       SYX_EVAL_THROW(ctx, "malformed define expression", (), (target));
     }
   }
-  syx_env_define(ctx->env, target->symbol, rc_move(value));
+  syx_env_define_value(ctx->env, target->symbol, rc_move(value));
   rc_release(target);
   return value;
 }
@@ -100,7 +100,7 @@ Syx_Value *syx_special_form_set(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   SYX_EVAL_ASSERT(ctx, target->kind == SYX_VALUE_KIND_SYMBOL, "malformed set expression");
   Syx_Value *value = rc_acquire(syx_eval(ctx, syx_list_next(&arguments)));
   syx_value_early_exit(value, (target));
-  syx_env_set(ctx->env, target->symbol, (value));
+  syx_env_set_value(ctx->env, target->symbol, (value));
   rc_release(target);
   return rc_move(value);
 }
@@ -110,7 +110,7 @@ Syx_Value *syx_special_form_update(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *target = rc_acquire(syx_eval_unquote(ctx, syx_list_next(&arguments)));
   syx_value_early_exit(target);
   SYX_EVAL_ASSERT(ctx, target->kind == SYX_VALUE_KIND_SYMBOL, "malformed update expression");
-  Syx_Value *value = syx_env_lookup_get(ctx, target->symbol);
+  Syx_Value *value = syx_eval_ctx_get_value(ctx, target->symbol);
   syx_value_early_exit(value, (target));
   switch (target->kind) {
     case SYX_VALUE_KIND_OBJECT: {
@@ -132,7 +132,7 @@ Syx_Value *syx_special_form_update(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 Syx_Value *syx_special_form_is_set(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *name_s = syx_list_next(&arguments);
   if (name_s->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "Symbol expression expected as name");
-  Syx_Value *stored = syx_env_lookup_get(ctx, name_s->symbol);
+  Syx_Value *stored = syx_eval_ctx_get_value(ctx, name_s->symbol);
   return syx_value_bool(stored != NULL);
 }
 
@@ -140,14 +140,14 @@ Syx_Value *syx_special_form_is_set(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 Syx_Value *syx_special_form_get(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *name_s = syx_list_next(&arguments);
   if (name_s->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "Symbol expression expected as name");
-  return syx_env_lookup_get(ctx, name_s->symbol);
+  return syx_eval_ctx_get_value(ctx, name_s->symbol);
 }
 
 /** Unset value in current environment. */
 Syx_Value *syx_special_form_unset(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *name_s = syx_list_next(&arguments);
   if (name_s->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "Symbol expression expected as name");
-  Syx_Env *env = syx_env_lookup(ctx->env, name_s->symbol);
+  Syx_Env *env = syx_env_lookup_values(ctx->env, name_s->symbol);
   if (!env) return NULL;
   Syx_Value **storage = ht_find(&env->values, name_s->symbol);
   if (!storage) return NULL;
@@ -170,7 +170,7 @@ Syx_Value *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
     if (binding->pair->right != SYX_VALUE_KIND_PAIR || !binding->pair->right->pair) SYX_EVAL_THROW(ctx, "malformed let definition, list expected", (), (body_ctx));
     Syx_Value *value = rc_acquire(syx_eval(ctx, binding->pair->right->pair->left));
     syx_value_early_exit(value, (body_ctx));
-    syx_env_define(body_ctx->env, name->symbol, rc_move(value));
+    syx_env_define_value(body_ctx->env, name->symbol, rc_move(value));
   }
   Syx_Value *result = rc_acquire(syx_eval_forms_list(body_ctx, arguments));
   rc_release(body_ctx);
@@ -315,7 +315,7 @@ Syx_Value *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       }
       Syx_Env *handler_env = make_syx_env(make_syx_value_symbol_strlit("try-catch")->symbol, ctx->env);
       Syx_Eval_Ctx *handler_ctx = inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = handler_env});
-      syx_env_define(handler_ctx->env, error_name->symbol, body->exit->thrown->reason);
+      syx_env_define_value(handler_ctx->env, error_name->symbol, body->exit->thrown->reason);
       if (result) rc_release(result);
       result = rc_acquire(syx_eval_forms_list(handler_ctx, branch->pair, .initial = syx_value_nil()));
       syx_value_early_exit(result, (body, catch_symbol, apply_symbol, finally_symbol, handler_ctx));
@@ -352,31 +352,52 @@ Syx_Value *syx_special_form_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   return syx_object_define(ctx, &arguments, NULL);
 }
 
+/** Instantiates a native type, allocates its dedicated block of native heap memory, and executes its associated constructor behavior. */
+Syx_Value *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  Syx_Value *head = syx_list_next(&arguments);
+  SYX_EVAL_ASSERT(ctx, head->kind == SYX_VALUE_KIND_SYMBOL, "type name expected here");
+  Syx_Type *type = syx_eval_ctx_get_type(ctx, head->symbol);
+  SYX_EVAL_ASSERT(ctx, type, "type name expected here");
+  Syx_Value *evaluated = rc_acquire(syx_eval_map_list(ctx, arguments));
+  syx_value_early_exit(evaluated);
+  SYX_EVAL_ASSERT(ctx, evaluated->kind == SYX_VALUE_KIND_PAIR, "arguments list expected");
+  Syx_Value *result = rc_acquire(syx_eval_construct_native(ctx, type, evaluated->pair));
+  rc_release(evaluated);
+  return rc_move(result);
+}
+
+/** Parses type and finds value behind symbol. */
+Syx_Value *syx_special_form_extern(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  // return syx_object_define(ctx, &arguments, NULL);
+}
+
 void syx_env_define_special_forms(Syx_Env *env) {
   /** Special forms */
-  syx_env_define_strlit(env, "begin", make_syx_value_closure_specialf(NULL, syx_special_form_begin));
-  syx_env_define_strlit(env, "lambda", make_syx_value_closure_specialf(NULL, syx_special_form_lambda));
+  syx_env_define_value_strlit(env, "begin", make_syx_value_closure_specialf(NULL, syx_special_form_begin));
+  syx_env_define_value_strlit(env, "lambda", make_syx_value_closure_specialf(NULL, syx_special_form_lambda));
 
-  syx_env_define_strlit(env, "define", make_syx_value_closure_specialf(NULL, syx_special_form_define));
-  syx_env_define_strlit(env, "set", make_syx_value_closure_specialf(NULL, syx_special_form_set));
-  syx_env_define_strlit(env, "update", make_syx_value_closure_specialf(NULL, syx_special_form_update));
-  syx_env_define_strlit(env, "is-set?", make_syx_value_closure_specialf(NULL, syx_special_form_is_set));
-  syx_env_define_strlit(env, "get", make_syx_value_closure_specialf(NULL, syx_special_form_get));
-  syx_env_define_strlit(env, "unset", make_syx_value_closure_specialf(NULL, syx_special_form_unset));
-  syx_env_define_strlit(env, "let", make_syx_value_closure_specialf(NULL, syx_special_form_let));
+  syx_env_define_value_strlit(env, "define", make_syx_value_closure_specialf(NULL, syx_special_form_define));
+  syx_env_define_value_strlit(env, "set", make_syx_value_closure_specialf(NULL, syx_special_form_set));
+  syx_env_define_value_strlit(env, "update", make_syx_value_closure_specialf(NULL, syx_special_form_update));
+  syx_env_define_value_strlit(env, "is-set?", make_syx_value_closure_specialf(NULL, syx_special_form_is_set));
+  syx_env_define_value_strlit(env, "get", make_syx_value_closure_specialf(NULL, syx_special_form_get));
+  syx_env_define_value_strlit(env, "unset", make_syx_value_closure_specialf(NULL, syx_special_form_unset));
+  syx_env_define_value_strlit(env, "let", make_syx_value_closure_specialf(NULL, syx_special_form_let));
 
-  syx_env_define_strlit(env, "and", make_syx_value_closure_specialf(NULL, syx_special_form_and));
-  syx_env_define_strlit(env, "or", make_syx_value_closure_specialf(NULL, syx_special_form_or));
+  syx_env_define_value_strlit(env, "and", make_syx_value_closure_specialf(NULL, syx_special_form_and));
+  syx_env_define_value_strlit(env, "or", make_syx_value_closure_specialf(NULL, syx_special_form_or));
 
-  syx_env_define_strlit(env, "if", make_syx_value_closure_specialf(NULL, syx_special_form_if));
-  syx_env_define_strlit(env, "cond", make_syx_value_closure_specialf(NULL, syx_special_form_cond));
+  syx_env_define_value_strlit(env, "if", make_syx_value_closure_specialf(NULL, syx_special_form_if));
+  syx_env_define_value_strlit(env, "cond", make_syx_value_closure_specialf(NULL, syx_special_form_cond));
 
-  syx_env_define_strlit(env, "throw", make_syx_value_closure_specialf(NULL, syx_special_form_throw));
-  syx_env_define_strlit(env, "try", make_syx_value_closure_specialf(NULL, syx_special_form_try));
+  syx_env_define_value_strlit(env, "throw", make_syx_value_closure_specialf(NULL, syx_special_form_throw));
+  syx_env_define_value_strlit(env, "try", make_syx_value_closure_specialf(NULL, syx_special_form_try));
 
-  syx_env_define_strlit(env, "return", make_syx_value_closure_specialf(NULL, syx_special_form_return));
+  syx_env_define_value_strlit(env, "return", make_syx_value_closure_specialf(NULL, syx_special_form_return));
 
-  syx_env_define_strlit(env, "object", make_syx_value_closure_specialf(NULL, syx_special_form_object));
+  syx_env_define_value_strlit(env, "object", make_syx_value_closure_specialf(NULL, syx_special_form_object));
+  syx_env_define_value_strlit(env, "new", make_syx_value_closure_specialf(NULL, syx_special_form_new));
+  syx_env_define_value_strlit(env, "extern", make_syx_value_closure_specialf(NULL, syx_special_form_extern));
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL

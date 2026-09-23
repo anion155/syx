@@ -65,7 +65,7 @@ SyxV *syxv_vector_append(Syx_Eval_Ctx *ctx, void *data, SyxV *arguments) {
 
 void syx_env_define_vector(Syx_Env *env) {
   // clang-format off
-  syx_env_define_cstr(env, "vector", make_syxv_constructor(make_syx_type_info_opt((Syx_Type_Info){
+  syx_env_define_value_cstr(env, "vector", make_syxv_constructor(make_syx_type_info_opt((Syx_Type_Info){
     .size = sizeof(SyxV_Vector),
     .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
     .structure = {

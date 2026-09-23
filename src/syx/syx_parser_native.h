@@ -1,10 +1,11 @@
 #ifndef SYX_PARSER_NATIVE_H
 #define SYX_PARSER_NATIVE_H
 
-#include <syx/syx_lexer.h>
-#include <syx/syx_parser.h>
+#include <syx/syx_types.h>
+#include <syx/syx_value.h>
 
-Syx_Value *syx_parse_native_value(Syx_Type *type, Syx_Tokens *tokens);
+typedef struct Syx_Parser_Ctx Syx_Parser_Ctx;
+Syx_Value *syx_parse_native_value(Syx_Parser_Ctx *ctx, Syx_Type *type);
 
 #endif // SYX_PARSER_NATIVE_H
 
@@ -13,15 +14,19 @@ Syx_Value *syx_parse_native_value(Syx_Type *type, Syx_Tokens *tokens);
 
 #define PARSER_IMPL
 #include <parser.h>
+#define SYX_PARSER_IMPL
+#include <syx/syx_parser.h>
 
-Syx_Value *syx_parse_native_value(Syx_Type *type, Syx_Tokens *tokens) {
-  Syx_Token token = da_slice_shift(tokens);
+Syx_Value *parse_syx_list_values(Syx_Parser_Ctx *ctx, Syx_Token_Kind closing_token);
+
+Syx_Value *syx_parse_native_value(Syx_Parser_Ctx *ctx, Syx_Type *type) {
+  Syx_Token token = da_slice_shift(&ctx->tokens);
   SYX_ASSERT(token.kind == SYX_TOKEN_KIND_PREFIX && *token.source.data == ':', "type and value must be separated with :");
   switch (type->kind) {
     case SYX_TYPE_KIND_VOID: return make_syx_value_native_instance(type);
     case SYX_TYPE_KIND_PRIMITIVE: {
       Syx_Value *value = rc_acquire(make_syx_value_native_instance(type));
-      token = da_slice_shift(tokens);
+      token = da_slice_shift(&ctx->tokens);
 #define parse_int(base, type_name, prefix_check) ({         \
   bool negative = false;                                    \
   if (sv.data[0] == '-' || sv.data[0] == '+') {             \
@@ -102,9 +107,9 @@ Syx_Value *syx_parse_native_value(Syx_Type *type, Syx_Tokens *tokens) {
     } break;
     case SYX_TYPE_KIND_STRUCTURE: {
       Syx_Value *value = rc_acquire(make_syx_value_native_instance(type));
-      token = da_slice_shift(tokens);
+      token = da_slice_shift(&ctx->tokens);
       SYX_ASSERT(token.kind == SYX_TOKEN_KIND_LPAREN, "list of structure fields expected");
-      Syx_Value *init_list = rc_acquire(parse_syx_list_values(tokens, SYX_TOKEN_KIND_RPAREN));
+      Syx_Value *init_list = rc_acquire(parse_syx_list_values(ctx, SYX_TOKEN_KIND_RPAREN));
       syx_value_early_exit(init_list, (value));
       Syx_Pair *arguments = init_list->pair;
       Syx_Value *result = rc_acquire(syx_native_structure_update(NULL, value->native, type->structure, &arguments));

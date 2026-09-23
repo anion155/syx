@@ -348,9 +348,6 @@ Syx_Value *syx_builtin_is_builtin(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx_
 /** Type checks if first argument is lambda. */
 Syx_Value *syx_builtin_is_lambda(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_CLOSURE && value->closure->kind == SYX_CLOSURE_KIND_LAMBDA); }
 
-/** Type checks if first argument is native constructor. */
-Syx_Value *syx_builtin_is_native_constructor(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_CLOSURE && value->closure->kind == SYX_CLOSURE_KIND_NATIVE_CONSTRUCTOR); }
-
 /** Type checks if first argument is native wrapper. */
 Syx_Value *syx_builtin_is_native(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) { syx__builtin_type_guard(value->kind == SYX_VALUE_KIND_NATIVE); }
 
@@ -410,7 +407,6 @@ Syx_Closure_Builtin syx__builtints_static_check_is() {
         case SYX_CLOSURE_KIND_SPECIALF: return syx_builtin_is_special_form;
         case SYX_CLOSURE_KIND_BUILTIN: return syx_builtin_is_builtin;
         case SYX_CLOSURE_KIND_LAMBDA: return syx_builtin_is_lambda;
-        case SYX_CLOSURE_KIND_NATIVE_CONSTRUCTOR: return syx_builtin_is_native_constructor;
       }
       return syx_builtin_is_closure;
     }
@@ -438,12 +434,9 @@ typedef struct Syx_File_Constant {
 
 syx_define_constant(Ht(Syx_Symbol *, Syx_File_Constant), FD_CONSTANTS) {
   FD_CONSTANTS->hasheq = ht_syx_symbol_hasheq;
-  *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stdout")->symbol) = (Syx_File_Constant){.fd = STDOUT_FILENO, .stream = stdout};
-  *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stderr")->symbol) = (Syx_File_Constant){.fd = STDERR_FILENO, .stream = stderr};
-  *ht_put(FD_CONSTANTS, make_syx_value_symbol_strlit("stdin")->symbol) = (Syx_File_Constant){.fd = STDIN_FILENO, .stream = stdin};
-  ht_foreach(symbol, FD_CONSTANTS) {
-    rc_acquire(syx_value_from_symbol(ht_key(FD_CONSTANTS, symbol)));
-  }
+  *ht_put(FD_CONSTANTS, rc_acquire(make_syx_value_symbol_strlit("stdout"))->symbol) = (Syx_File_Constant){.fd = STDOUT_FILENO, .stream = stdout};
+  *ht_put(FD_CONSTANTS, rc_acquire(make_syx_value_symbol_strlit("stderr"))->symbol) = (Syx_File_Constant){.fd = STDERR_FILENO, .stream = stderr};
+  *ht_put(FD_CONSTANTS, rc_acquire(make_syx_value_symbol_strlit("stdin"))->symbol) = (Syx_File_Constant){.fd = STDIN_FILENO, .stream = stdin};
 }
 
 FILE *parse_optional_file_descriptor(Syx_Pair **arguments) {
@@ -503,57 +496,56 @@ Syx_Value *syx_builtin_printf(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 void syx_env_define_builtins(Syx_Env *env) {
   /** Builtins */
-  syx_env_define_strlit(env, "cons", make_syx_value_closure_builtin(NULL, syx_builtin_cons));
-  syx_env_define_strlit(env, "list", make_syx_value_closure_builtin(NULL, syx_builtin_list));
-  syx_env_define_strlit(env, "car", make_syx_value_closure_builtin(NULL, syx_builtin_car));
-  syx_env_define_strlit(env, "cdr", make_syx_value_closure_builtin(NULL, syx_builtin_cdr));
-  syx_env_define_strlit(env, "apply", make_syx_value_closure_builtin(NULL, syx_builtin_apply));
-  syx_env_define_strlit(env, "map", make_syx_value_closure_builtin(NULL, syx_builtin_map));
+  syx_env_define_value_strlit(env, "cons", make_syx_value_closure_builtin(NULL, syx_builtin_cons));
+  syx_env_define_value_strlit(env, "list", make_syx_value_closure_builtin(NULL, syx_builtin_list));
+  syx_env_define_value_strlit(env, "car", make_syx_value_closure_builtin(NULL, syx_builtin_car));
+  syx_env_define_value_strlit(env, "cdr", make_syx_value_closure_builtin(NULL, syx_builtin_cdr));
+  syx_env_define_value_strlit(env, "apply", make_syx_value_closure_builtin(NULL, syx_builtin_apply));
+  syx_env_define_value_strlit(env, "map", make_syx_value_closure_builtin(NULL, syx_builtin_map));
 
-  syx_env_define_strlit(env, "+", make_syx_value_closure_builtin(NULL, syx_builtin_summ));
-  syx_env_define_strlit(env, "-", make_syx_value_closure_builtin(NULL, syx_builtin_sub));
-  syx_env_define_strlit(env, "*", make_syx_value_closure_builtin(NULL, syx_builtin_mul));
-  syx_env_define_strlit(env, "/", make_syx_value_closure_builtin(NULL, syx_builtin_div));
+  syx_env_define_value_strlit(env, "+", make_syx_value_closure_builtin(NULL, syx_builtin_summ));
+  syx_env_define_value_strlit(env, "-", make_syx_value_closure_builtin(NULL, syx_builtin_sub));
+  syx_env_define_value_strlit(env, "*", make_syx_value_closure_builtin(NULL, syx_builtin_mul));
+  syx_env_define_value_strlit(env, "/", make_syx_value_closure_builtin(NULL, syx_builtin_div));
 
-  syx_env_define_strlit(env, "=", make_syx_value_closure_builtin(NULL, syx_builtin_equivalent));
-  syx_env_define_strlit(env, "<", make_syx_value_closure_builtin(NULL, syx_builtin_lower_than));
-  syx_env_define_strlit(env, "<=", make_syx_value_closure_builtin(NULL, syx_builtin_lower_or_equal));
-  syx_env_define_strlit(env, ">", make_syx_value_closure_builtin(NULL, syx_builtin_greater_than));
-  syx_env_define_strlit(env, ">=", make_syx_value_closure_builtin(NULL, syx_builtin_greater_or_equal));
+  syx_env_define_value_strlit(env, "=", make_syx_value_closure_builtin(NULL, syx_builtin_equivalent));
+  syx_env_define_value_strlit(env, "<", make_syx_value_closure_builtin(NULL, syx_builtin_lower_than));
+  syx_env_define_value_strlit(env, "<=", make_syx_value_closure_builtin(NULL, syx_builtin_lower_or_equal));
+  syx_env_define_value_strlit(env, ">", make_syx_value_closure_builtin(NULL, syx_builtin_greater_than));
+  syx_env_define_value_strlit(env, ">=", make_syx_value_closure_builtin(NULL, syx_builtin_greater_or_equal));
 
-  syx_env_define_strlit(env, "eq?", make_syx_value_closure_builtin(NULL, syx_builtin_identity));
+  syx_env_define_value_strlit(env, "eq?", make_syx_value_closure_builtin(NULL, syx_builtin_identity));
 
-  syx_env_define_strlit(env, "pair?", make_syx_value_closure_builtin(NULL, syx_builtin_is_pair));
-  syx_env_define_strlit(env, "nil?", make_syx_value_closure_builtin(NULL, syx_builtin_is_nil));
-  syx_env_define_strlit(env, "pair-full?", make_syx_value_closure_builtin(NULL, syx_builtin_is_full_pair));
-  syx_env_define_strlit(env, "list?", make_syx_value_closure_builtin(NULL, syx_builtin_is_list));
-  syx_env_define_strlit(env, "const?", make_syx_value_closure_builtin(NULL, syx_builtin_is_const));
-  syx_env_define_strlit(env, "true?", make_syx_value_closure_builtin(NULL, syx_builtin_is_bool_true));
-  syx_env_define_strlit(env, "false?", make_syx_value_closure_builtin(NULL, syx_builtin_is_bool_false));
-  syx_env_define_strlit(env, "bool?", make_syx_value_closure_builtin(NULL, syx_builtin_is_bool));
-  syx_env_define_strlit(env, "symbol?", make_syx_value_closure_builtin(NULL, syx_builtin_is_symbol));
-  syx_env_define_strlit(env, "number?", make_syx_value_closure_builtin(NULL, syx_builtin_is_number));
-  syx_env_define_strlit(env, "integer?", make_syx_value_closure_builtin(NULL, syx_builtin_is_integer));
-  syx_env_define_strlit(env, "fractional?", make_syx_value_closure_builtin(NULL, syx_builtin_is_fractional));
-  syx_env_define_strlit(env, "string?", make_syx_value_closure_builtin(NULL, syx_builtin_is_string));
-  syx_env_define_strlit(env, "object?", make_syx_value_closure_builtin(NULL, syx_builtin_is_object));
-  syx_env_define_strlit(env, "closure?", make_syx_value_closure_builtin(NULL, syx_builtin_is_closure));
-  syx_env_define_strlit(env, "special-form?", make_syx_value_closure_builtin(NULL, syx_builtin_is_special_form));
-  syx_env_define_strlit(env, "builtin?", make_syx_value_closure_builtin(NULL, syx_builtin_is_builtin));
-  syx_env_define_strlit(env, "lambda?", make_syx_value_closure_builtin(NULL, syx_builtin_is_lambda));
-  syx_env_define_strlit(env, "constructor?", make_syx_value_closure_builtin(NULL, syx_builtin_is_native_constructor));
-  syx_env_define_strlit(env, "native?", make_syx_value_closure_builtin(NULL, syx_builtin_is_native));
-  syx_env_define_strlit(env, "prefixed?", make_syx_value_closure_builtin(NULL, syx_builtin_is_prefixed));
-  syx_env_define_strlit(env, "quoted?", make_syx_value_closure_builtin(NULL, syx_builtin_is_quoted));
-  syx_env_define_strlit(env, "unquoted?", make_syx_value_closure_builtin(NULL, syx_builtin_is_unquoted));
-  syx_env_define_strlit(env, "coloned?", make_syx_value_closure_builtin(NULL, syx_builtin_is_coloned));
+  syx_env_define_value_strlit(env, "pair?", make_syx_value_closure_builtin(NULL, syx_builtin_is_pair));
+  syx_env_define_value_strlit(env, "nil?", make_syx_value_closure_builtin(NULL, syx_builtin_is_nil));
+  syx_env_define_value_strlit(env, "pair-full?", make_syx_value_closure_builtin(NULL, syx_builtin_is_full_pair));
+  syx_env_define_value_strlit(env, "list?", make_syx_value_closure_builtin(NULL, syx_builtin_is_list));
+  syx_env_define_value_strlit(env, "const?", make_syx_value_closure_builtin(NULL, syx_builtin_is_const));
+  syx_env_define_value_strlit(env, "true?", make_syx_value_closure_builtin(NULL, syx_builtin_is_bool_true));
+  syx_env_define_value_strlit(env, "false?", make_syx_value_closure_builtin(NULL, syx_builtin_is_bool_false));
+  syx_env_define_value_strlit(env, "bool?", make_syx_value_closure_builtin(NULL, syx_builtin_is_bool));
+  syx_env_define_value_strlit(env, "symbol?", make_syx_value_closure_builtin(NULL, syx_builtin_is_symbol));
+  syx_env_define_value_strlit(env, "number?", make_syx_value_closure_builtin(NULL, syx_builtin_is_number));
+  syx_env_define_value_strlit(env, "integer?", make_syx_value_closure_builtin(NULL, syx_builtin_is_integer));
+  syx_env_define_value_strlit(env, "fractional?", make_syx_value_closure_builtin(NULL, syx_builtin_is_fractional));
+  syx_env_define_value_strlit(env, "string?", make_syx_value_closure_builtin(NULL, syx_builtin_is_string));
+  syx_env_define_value_strlit(env, "object?", make_syx_value_closure_builtin(NULL, syx_builtin_is_object));
+  syx_env_define_value_strlit(env, "closure?", make_syx_value_closure_builtin(NULL, syx_builtin_is_closure));
+  syx_env_define_value_strlit(env, "special-form?", make_syx_value_closure_builtin(NULL, syx_builtin_is_special_form));
+  syx_env_define_value_strlit(env, "builtin?", make_syx_value_closure_builtin(NULL, syx_builtin_is_builtin));
+  syx_env_define_value_strlit(env, "lambda?", make_syx_value_closure_builtin(NULL, syx_builtin_is_lambda));
+  syx_env_define_value_strlit(env, "native?", make_syx_value_closure_builtin(NULL, syx_builtin_is_native));
+  syx_env_define_value_strlit(env, "prefixed?", make_syx_value_closure_builtin(NULL, syx_builtin_is_prefixed));
+  syx_env_define_value_strlit(env, "quoted?", make_syx_value_closure_builtin(NULL, syx_builtin_is_quoted));
+  syx_env_define_value_strlit(env, "unquoted?", make_syx_value_closure_builtin(NULL, syx_builtin_is_unquoted));
+  syx_env_define_value_strlit(env, "coloned?", make_syx_value_closure_builtin(NULL, syx_builtin_is_coloned));
 
-  syx_env_define_strlit(env, "not", make_syx_value_closure_builtin(NULL, syx_builtin_not));
+  syx_env_define_value_strlit(env, "not", make_syx_value_closure_builtin(NULL, syx_builtin_not));
 
-  syx_env_define_strlit(env, "print", make_syx_value_closure_builtin(NULL, syx_builtin_print));
-  syx_env_define_strlit(env, "print-flash", make_syx_value_closure_builtin(NULL, syx_builtin_print_flash));
-  syx_env_define_strlit(env, "println", make_syx_value_closure_builtin(NULL, syx_builtin_println));
-  syx_env_define_strlit(env, "printf", make_syx_value_closure_builtin(NULL, syx_builtin_printf));
+  syx_env_define_value_strlit(env, "print", make_syx_value_closure_builtin(NULL, syx_builtin_print));
+  syx_env_define_value_strlit(env, "print-flash", make_syx_value_closure_builtin(NULL, syx_builtin_print_flash));
+  syx_env_define_value_strlit(env, "println", make_syx_value_closure_builtin(NULL, syx_builtin_println));
+  syx_env_define_value_strlit(env, "printf", make_syx_value_closure_builtin(NULL, syx_builtin_printf));
 }
 
 #endif // SYX_EVAL_BUILTINS_IMPL

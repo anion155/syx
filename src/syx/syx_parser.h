@@ -4,10 +4,13 @@
 #include <str.h>
 #include <syx/syx_lexer.h>
 
-Syx_Value *parse_syx(String_View source, bool ignore_errors);
+typedef struct Syx_Parser_Ctx {
+  Syx_Env *global_env;
+  String_View source;
+  Syx_Tokens tokens;
+} Syx_Parser_Ctx;
 
-Syx_Value *parse_syx_value(Syx_Tokens *tokens);
-Syx_Value *parse_syx_list_values(Syx_Tokens *tokens, Syx_Token_Kind closing_token);
+Syx_Value *parse_syx(Syx_Env *global_env, String_View source, bool ignore_errors);
 
 #endif // SYX_PARSER_H
 
@@ -28,32 +31,34 @@ Syx_Value *parse_syx_list_values(Syx_Tokens *tokens, Syx_Token_Kind closing_toke
 #define SYX_PARSER_NATIVE_IMPL
 #include <syx/syx_parser_native.h>
 
-Syx_Value *parse_syx_list_values(Syx_Tokens *tokens, Syx_Token_Kind closing_token) {
-  if (da_first(*tokens).kind == closing_token) {
-    da_slice_shift(tokens);
+Syx_Value *parse_syx_value(Syx_Parser_Ctx *ctx);
+
+Syx_Value *parse_syx_list_values(Syx_Parser_Ctx *ctx, Syx_Token_Kind closing_token) {
+  if (da_first(ctx->tokens).kind == closing_token) {
+    da_slice_shift(&ctx->tokens);
     return syx_value_nil();
   }
   Syx_Value *list = NULL;
   Syx_Value **pair_value = &list;
-  while (tokens->count) {
-    Syx_Token first = da_first(*tokens);
+  while (ctx->tokens.count) {
+    Syx_Token first = da_first(ctx->tokens);
     if (first.kind == SYX_TOKEN_KIND_SYMBOL && sv_eq(first.source, sv_from_strlit("."))) {
-      Syx_Value *value = rc_acquire(parse_syx_value(tokens));
+      Syx_Value *value = rc_acquire(parse_syx_value(ctx));
       syx_value_early_exit(value, (list));
       *pair_value = value;
-      SYX_ASSERT(da_first(*tokens).kind == closing_token, "expected end token", (), (list));
+      SYX_ASSERT(da_first(ctx->tokens).kind == closing_token, "expected end token", (), (list));
       goto without_nil;
     }
-    Syx_Value *value = rc_acquire(parse_syx_value(tokens));
+    Syx_Value *value = rc_acquire(parse_syx_value(ctx));
     syx_value_early_exit(value, (list));
     *pair_value = rc_acquire(make_syx_value_pair(value, NULL));
     pair_value = &(*pair_value)->pair->right;
-    if (da_first(*tokens).kind == closing_token) break;
+    if (da_first(ctx->tokens).kind == closing_token) break;
   }
   *pair_value = rc_acquire(syx_value_nil());
 without_nil:
-  SYX_ASSERT(da_first(*tokens).kind == closing_token, "expected end token", (), (list));
-  da_slice_shift(tokens);
+  SYX_ASSERT(da_first(ctx->tokens).kind == closing_token, "expected end token", (), (list));
+  da_slice_shift(&ctx->tokens);
   return list;
 }
 
@@ -115,7 +120,8 @@ bool syx_parser_validate_utf_bytes(char *chars, size_t bytes_count) {
   return true;
 }
 
-Syx_Value *parse_syx_string_value(Syx_Token token) {
+Syx_Value *parse_syx_string_value(Syx_Parser_Ctx *ctx, Syx_Token token) {
+  UNUSED(ctx);
   SYX_ASSERT(token.kind == SYX_TOKEN_KIND_STRLIT, "expected string literal token");
   SYX_ASSERT(token.source.data[0] == '"' && token.source.data[token.source.count - 1] == '"', "invalid string literal");
   token.source.data += 1;
@@ -230,19 +236,23 @@ Syx_Value *parse_syx_string_value(Syx_Token token) {
   make_syx_value_number_integer(number);                           \
 })
 
-Syx_Value *parse_syx_number_binary_integer_value(Syx_Token token) {
+Syx_Value *parse_syx_number_binary_integer_value(Syx_Parser_Ctx *ctx, Syx_Token token) {
+  UNUSED(ctx);
   return parse__syx_number_integer_value(binary, token.source, SYX_ASSERT(_sv_.data[0] == '0' && (_sv_.data[1] == 'b' || _sv_.data[1] == 'B'), "expected integer number"); sv_chop_left(&_sv_, 2));
 }
 
-Syx_Value *parse_syx_number_octal_integer_value(Syx_Token token) {
+Syx_Value *parse_syx_number_octal_integer_value(Syx_Parser_Ctx *ctx, Syx_Token token) {
+  UNUSED(ctx);
   return parse__syx_number_integer_value(octal, token.source, SYX_ASSERT(_sv_.data[0] == '0' && (_sv_.data[1] == 'o' || _sv_.data[1] == 'O'), "expected integer number"); sv_chop_left(&_sv_, 2));
 }
 
-Syx_Value *parse_syx_number_decimal_integer_value(Syx_Token token) {
+Syx_Value *parse_syx_number_decimal_integer_value(Syx_Parser_Ctx *ctx, Syx_Token token) {
+  UNUSED(ctx);
   return parse__syx_number_integer_value(decimal, token.source, );
 }
 
-Syx_Value *parse_syx_number_hex_integer_value(Syx_Token token) {
+Syx_Value *parse_syx_number_hex_integer_value(Syx_Parser_Ctx *ctx, Syx_Token token) {
+  UNUSED(ctx);
   return parse__syx_number_integer_value(hex, token.source, SYX_ASSERT(_sv_.data[0] == '0' && (_sv_.data[1] == 'h' || _sv_.data[1] == 'H'), "expected integer number"); sv_chop_left(&_sv_, 2));
 }
 
@@ -266,26 +276,31 @@ Syx_Value *parse_syx_number_hex_integer_value(Syx_Token token) {
   make_syx_value_number_fractional(number);             \
 })
 
-Syx_Value *parse_syx_number_binary_fractional_value(Syx_Token token) {
+Syx_Value *parse_syx_number_binary_fractional_value(Syx_Parser_Ctx *ctx, Syx_Token token) {
+  UNUSED(ctx);
   return parse__syx_number_fractional_value(binary, token.source);
 }
 
-Syx_Value *parse_syx_number_octal_fractional_value(Syx_Token token) {
+Syx_Value *parse_syx_number_octal_fractional_value(Syx_Parser_Ctx *ctx, Syx_Token token) {
+  UNUSED(ctx);
   return parse__syx_number_fractional_value(octal, token.source);
 }
 
-Syx_Value *parse_syx_number_decimal_fractional_value(Syx_Token token) {
+Syx_Value *parse_syx_number_decimal_fractional_value(Syx_Parser_Ctx *ctx, Syx_Token token) {
+  UNUSED(ctx);
   UNUSED(token);
   SYX_TODO("TASK(20260923-105431)");
 }
 
-Syx_Value *parse_syx_number_hex_fractional_value(Syx_Token token) {
+Syx_Value *parse_syx_number_hex_fractional_value(Syx_Parser_Ctx *ctx, Syx_Token token) {
+  UNUSED(ctx);
   return parse__syx_number_fractional_value(hex, token.source);
 }
 
 #undef parse__syx_number_fractional_value
 
-Syx_Value *parse_syx_symbol_value(Syx_Token token) {
+Syx_Value *parse_syx_symbol_value(Syx_Parser_Ctx *ctx, Syx_Token token) {
+  UNUSED(ctx);
   if (token.source.data[0] == '|' && token.source.data[token.source.count - 1] == '|') {
     return make_syx_value_symbol_n(token.source.data + 1, token.source.count - 2);
   } else {
@@ -293,25 +308,25 @@ Syx_Value *parse_syx_symbol_value(Syx_Token token) {
   }
 }
 
-Syx_Value *parse_syx_prefix(Syx_Token token, Syx_Tokens *tokens) {
+Syx_Value *parse_syx_prefix(Syx_Parser_Ctx *ctx, Syx_Token token) {
   SYX_ASSERT(token.kind == SYX_TOKEN_KIND_PREFIX, "prefix expected");
   uint32_t type = syx_parser_utf_string_to_codepoint(sv_from_like(token.source));
   switch (type) {
     case '\'':
     case ',': {
-      return make_syx_value_prefixed((Syx_Prefixed_Kind)type, parse_syx_value(tokens));
+      return make_syx_value_prefixed((Syx_Prefixed_Kind)type, parse_syx_value(ctx));
     }
     case ':':
     case '$': {
-      Syx_Token symbol = da_slice_shift(tokens);
+      Syx_Token symbol = da_slice_shift(&ctx->tokens);
       SYX_ASSERT(symbol.kind == SYX_TOKEN_KIND_SYMBOL, "symbol expected");
-      return make_syx_value_prefixed((Syx_Prefixed_Kind)type, parse_syx_symbol_value(symbol));
+      return make_syx_value_prefixed((Syx_Prefixed_Kind)type, parse_syx_symbol_value(ctx, symbol));
     }
     default: SYX_THROW("unexpected prefix type");
   }
 }
 
-Syx_Value *parse_syx_dispatch(Syx_Token token, Syx_Tokens *tokens) {
+Syx_Value *parse_syx_dispatch(Syx_Parser_Ctx *ctx, Syx_Token token) {
   SYX_ASSERT(token.kind == SYX_TOKEN_KIND_DISPATCH && token.source.count > 1, "dispatch expected");
   uint32_t type = syx_parser_utf_string_to_codepoint(sv_from_parts((char *)token.source.data + 1, token.source.count - 1));
   switch (type) {
@@ -319,67 +334,69 @@ Syx_Value *parse_syx_dispatch(Syx_Token token, Syx_Tokens *tokens) {
     case 't': return syx_value_bool_true();
     case 'f': return syx_value_bool_false();
     case 'R': {
-      SYX_ASSERT(tokens->count >= 1, "expected string literal");
-      token = da_slice_shift(tokens);
+      SYX_ASSERT(ctx->tokens.count >= 1, "expected string literal");
+      token = da_slice_shift(&ctx->tokens);
       SYX_ASSERT(token.kind == SYX_TOKEN_KIND_STRLIT, "expected string literal");
       return make_syx_value_string_n_dup(token.source.data, token.source.count);
     } break;
     case '{': {
-      Syx_Value *fields = rc_acquire(parse_syx_list_values(tokens, SYX_TOKEN_KIND_RCURLY));
+      Syx_Value *fields = rc_acquire(parse_syx_list_values(ctx, SYX_TOKEN_KIND_RCURLY));
       syx_value_early_exit(fields);
       return make_syx_value_pair(make_syx_value_symbol_strlit("object"), rc_move(fields));
     } break;
     case 'c': {
-      SYX_ASSERT(tokens->count >= 1, "expected symbol");
-      token = da_slice_shift(tokens);
+      SYX_ASSERT(ctx->tokens.count >= 1, "expected symbol");
+      token = da_slice_shift(&ctx->tokens);
       SYX_ASSERT(token.kind == SYX_TOKEN_KIND_SYMBOL && token.source.count > 1 && token.source.data[0] == '_', "expected c type symbol");
       sv_chop_left(&token.source);
-      Syx_Type **type = ht_find(&SYX_KNOWN_TYPES()->registry, token.source);
-      SYX_ASSERT(type != NULL, "c type " SV_FMT, (sv_fmt_arg(token.source)));
-      return syx_parse_native_value(*type, tokens);
+      Syx_Value *type_name = make_syx_value_symbolf("c_" SV_FMT, sv_fmt_arg(token.source));
+      Syx_Type *type = syx_env_get_type(ctx->global_env, type_name->symbol);
+      SYX_ASSERT(type != NULL, "c type '" SV_FMT "' not found", (sv_fmt_arg(token.source)));
+      return syx_parse_native_value(ctx, type);
     } break;
     default: SYX_THROW("unexpected dispatch type");
   }
 }
 
-Syx_Value *parse__syx_value_from_token(Syx_Token first, Syx_Tokens *tokens) {
+Syx_Value *parse__syx_value_from_token(Syx_Parser_Ctx *ctx, Syx_Token first) {
   switch (first.kind) {
-    case SYX_TOKEN_KIND_NULL: return parse_syx_value(tokens);
-    case SYX_TOKEN_KIND_LPAREN: return parse_syx_list_values(tokens, SYX_TOKEN_KIND_RPAREN);
-    case SYX_TOKEN_KIND_STRLIT: return parse_syx_string_value(first);
+    case SYX_TOKEN_KIND_NULL: return parse_syx_value(ctx);
+    case SYX_TOKEN_KIND_LPAREN: return parse_syx_list_values(ctx, SYX_TOKEN_KIND_RPAREN);
+    case SYX_TOKEN_KIND_STRLIT: return parse_syx_string_value(ctx, first);
     case SYX_TOKEN_KIND_NAN: return make_syx_value_number_fractional(NAN);
     case SYX_TOKEN_KIND_INFINITY_POSITIVE: return make_syx_value_number_fractional(INFINITY);
     case SYX_TOKEN_KIND_INFINITY_NEGATIVE: return make_syx_value_number_fractional(-INFINITY);
-    case SYX_TOKEN_KIND_BIN_INT_LIT: return parse_syx_number_binary_integer_value(first);
-    case SYX_TOKEN_KIND_OCT_INT_LIT: return parse_syx_number_octal_integer_value(first);
-    case SYX_TOKEN_KIND_DEC_INT_LIT: return parse_syx_number_decimal_integer_value(first);
-    case SYX_TOKEN_KIND_HEX_INT_LIT: return parse_syx_number_hex_integer_value(first);
-    case SYX_TOKEN_KIND_BIN_FRC_LIT: return parse_syx_number_binary_fractional_value(first);
-    case SYX_TOKEN_KIND_OCT_FRC_LIT: return parse_syx_number_octal_fractional_value(first);
-    case SYX_TOKEN_KIND_DEC_FRC_LIT: return parse_syx_number_decimal_fractional_value(first);
-    case SYX_TOKEN_KIND_HEX_FRC_LIT: return parse_syx_number_hex_fractional_value(first);
-    case SYX_TOKEN_KIND_SYMBOL: return parse_syx_symbol_value(first);
-    case SYX_TOKEN_KIND_PREFIX: return parse_syx_prefix(first, tokens);
-    case SYX_TOKEN_KIND_DISPATCH: return parse_syx_dispatch(first, tokens);
+    case SYX_TOKEN_KIND_BIN_INT_LIT: return parse_syx_number_binary_integer_value(ctx, first);
+    case SYX_TOKEN_KIND_OCT_INT_LIT: return parse_syx_number_octal_integer_value(ctx, first);
+    case SYX_TOKEN_KIND_DEC_INT_LIT: return parse_syx_number_decimal_integer_value(ctx, first);
+    case SYX_TOKEN_KIND_HEX_INT_LIT: return parse_syx_number_hex_integer_value(ctx, first);
+    case SYX_TOKEN_KIND_BIN_FRC_LIT: return parse_syx_number_binary_fractional_value(ctx, first);
+    case SYX_TOKEN_KIND_OCT_FRC_LIT: return parse_syx_number_octal_fractional_value(ctx, first);
+    case SYX_TOKEN_KIND_DEC_FRC_LIT: return parse_syx_number_decimal_fractional_value(ctx, first);
+    case SYX_TOKEN_KIND_HEX_FRC_LIT: return parse_syx_number_hex_fractional_value(ctx, first);
+    case SYX_TOKEN_KIND_SYMBOL: return parse_syx_symbol_value(ctx, first);
+    case SYX_TOKEN_KIND_PREFIX: return parse_syx_prefix(ctx, first);
+    case SYX_TOKEN_KIND_DISPATCH: return parse_syx_dispatch(ctx, first);
     default: SYX_THROW("unexpected token");
   }
 }
 
-Syx_Value *parse_syx_value(Syx_Tokens *tokens) {
-  SYX_ASSERT(tokens->count, "expected value");
-  Syx_Token first = da_slice_shift(tokens);
-  return parse__syx_value_from_token(first, tokens);
+Syx_Value *parse_syx_value(Syx_Parser_Ctx *ctx) {
+  SYX_ASSERT(ctx->tokens.count, "expected value");
+  Syx_Token first = da_slice_shift(&ctx->tokens);
+  return parse__syx_value_from_token(ctx, first);
 }
 
-Syx_Value *parse_syx(String_View source, bool ignore_errors) {
-  Syx_Tokens tokens = syx_lexer_tokenize(source);
-  SYX_ASSERT(tokens.count, "Failed to parse syx script");
-  SYX_ASSERT(tokens.data[tokens.count - 1].kind == SYX_TOKEN_KIND_EOF, "Failed to parse syx script");
-  tokens.count -= 1;
+Syx_Value *parse_syx(Syx_Env *global_env, String_View source, bool ignore_errors) {
+  Syx_Parser_Ctx ctx = {.source = source, .global_env = global_env};
+  ctx.tokens = syx_lexer_tokenize(source);
+  SYX_ASSERT(ctx.tokens.count, "Failed to parse syx script");
+  SYX_ASSERT(ctx.tokens.data[ctx.tokens.count - 1].kind == SYX_TOKEN_KIND_EOF, "Failed to parse syx script");
+  ctx.tokens.count -= 1;
   Syx_Value *list = NULL;
   Syx_Value **pair_value = &list;
-  for (Syx_Tokens it = tokens; it.count;) {
-    Syx_Value *value = rc_acquire(parse_syx_value(&it));
+  while (ctx.tokens.count) {
+    Syx_Value *value = rc_acquire(parse_syx_value(&ctx));
     if (!ignore_errors) syx_value_early_exit(value, (list));
     *pair_value = rc_acquire(make_syx_value_pair(value, NULL));
     pair_value = &(*pair_value)->pair->right;

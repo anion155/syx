@@ -124,6 +124,9 @@ typedef struct Syx_Number {
   result;                                                                                                                        \
 })
 
+typedef struct Syx_Type Syx_Type;
+
+typedef Ht(Syx_Symbol *, Syx_Type *, Syx_Symbol_Type_Map) Syx_Symbol_Type_Map;
 typedef Ht(Syx_Symbol *, Syx_Value *, Syx_Symbol_Value_Map) Syx_Symbol_Value_Map;
 
 typedef struct Syx_Object {
@@ -134,13 +137,11 @@ typedef struct Syx_Object {
 typedef Syx_Value *(*Syx_Closure_Special_Form)(Syx_Eval_Ctx *ctx, Syx_Pair *arguments);
 typedef Syx_Value *(*Syx_Closure_Builtin)(Syx_Eval_Ctx *ctx, Syx_Pair *arguments);
 typedef struct Syx_Closure_Lambda Syx_Closure_Lambda;
-typedef struct Syx_Type Syx_Type;
 
 typedef enum Syx_Closure_Kind : unsigned int {
   SYX_CLOSURE_KIND_SPECIALF,
   SYX_CLOSURE_KIND_BUILTIN,
   SYX_CLOSURE_KIND_LAMBDA,
-  SYX_CLOSURE_KIND_NATIVE_CONSTRUCTOR,
 } Syx_Closure_Kind;
 
 typedef struct Syx_Closure {
@@ -227,7 +228,6 @@ void syx_value_closure_rename(Syx_Closure *closure, Syx_Symbol *name);
 Syx_Value *make_syx_value_closure_specialf(Syx_Symbol *name, Syx_Closure_Special_Form specialf);
 Syx_Value *make_syx_value_closure_builtin(Syx_Symbol *name, Syx_Closure_Builtin builtin);
 Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda lambda);
-Syx_Value *make_syx_value_closure_native_constructor(Syx_Symbol *name, Syx_Type *type);
 Syx_Value *make_syx_value_native(Syx_Native *parent, Syx_Type *type, void *data, size_t additional_size);
 Syx_Value *make_syx_value_native_instance(Syx_Type *type);
 Syx_Value *make_syx_value_exit_returned(Syx_Value *returned);
@@ -566,18 +566,6 @@ Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda la
   return value;
 }
 
-void syx_value_closure_native_constructor_destructor(void *data) {
-  Syx_Value *value = data;
-  rc_release(value->closure->native);
-}
-
-Syx_Value *make_syx_value_closure_native_constructor(Syx_Symbol *name, Syx_Type *type) {
-  Syx_Value *value = make_syx_value_closure(name, SYX_CLOSURE_KIND_NATIVE_CONSTRUCTOR, 0);
-  rc_get(value)->methods.destructor = syx_value_closure_native_constructor_destructor;
-  value->closure->native = rc_acquire(type);
-  return value;
-}
-
 void syx_value_native_destructor(void *data) {
   Syx_Value *value = data;
   rc_release(value->native->parent);
@@ -837,13 +825,15 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
 #undef X
           } break;
           case SYX_TYPE_KIND_STRUCTURE: TODO("TASK(20260913-075944): sb_append_syx_value: structure to string");
-          case SYX_TYPE_KIND_PTR:
+          case SYX_TYPE_KIND_PTR: {
             if (native->type == SYX_KNOWN_TYPES()->c_value) {
               Syx_Value *value = *(Syx_Value **)native->data;
               if (value) stringify_append(&state, sb_append_syx_value, value);
               else stringify_append(&state, sb_append_strlit, "null");
-              break;
+            } else {
+              stringify_append(&state, sb_append_unsigned_integer_number, (uintptr_t)(void **)native->data, .kind = SB_INTEGER_FORMAT_KIND_HEX_BIG, .min_width = sizeof(void *) * 2);
             }
+          } break;
           case SYX_TYPE_KIND_FUNCTION_PTR: {
             stringify_append(&state, sb_append_unsigned_integer_number, (uintptr_t)(void **)native->data, .kind = SB_INTEGER_FORMAT_KIND_HEX_BIG, .min_width = sizeof(void *) * 2);
           } break;

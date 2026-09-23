@@ -152,6 +152,8 @@ typedef struct Syx_Type {
 } Syx_Type;
 typedef Da_Slice(Syx_Type *, Syx_Types) Syx_Types;
 
+void syx_type_rename(Syx_Type *type, Syx_Symbol *name);
+
 typedef Syx_Value *(*Syx_Type_Structure_Constructor)(Syx_Eval_Ctx *ctx, void *data, Syx_Pair *arguments);
 // typedef Syx_Value *(*Syx_Type_Structure_Index_Getter)(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index);
 // typedef Syx_Value *(*Syx_Type_Structure_Index_Setter)(Syx_Eval_Ctx *ctx, void *data, syx_integer_t index, Syx_Value *argument);
@@ -239,7 +241,6 @@ typedef struct {
   Syx_Type *c_str;
   Syx_Type *c_string;
   Syx_Type *c_file;
-  Ht(String_View, Syx_Type *) registry;
 } SYX_KNOWN_TYPES_t;
 syx_predefine_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES);
 void syx_env_define_types(Syx_Env *env);
@@ -304,6 +305,12 @@ Syx_Type *make_syx_type_primitive_embed_types(Syx_Primitive_Type_Kind kind, size
   Syx_Type *type = make_syx_type_embed_types(SYX_TYPE_KIND_PRIMITIVE, size, alignment, name, ffi_t, 0);
   type->primitive = kind;
   return type;
+}
+
+void syx_type_rename(Syx_Type *type, Syx_Symbol *name) {
+  rc_acquire(syx_value_from_symbol(name));
+  rc_release(syx_value_from_symbol(type->name));
+  type->name = name;
 }
 
 void syx_type_pointer_destructor(void *data) {
@@ -509,7 +516,7 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
 }
 
 syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
-  SYX_KNOWN_TYPES->c_void = make_syx_type(SYX_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void, 0);
+  SYX_KNOWN_TYPES->c_void = rc_acquire(make_syx_type(SYX_TYPE_KIND_VOID, sizeof(void), alignof(void), NULL, &ffi_type_void, 0));
 
   SYX_KNOWN_TYPES->c_char = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_CHAR, sizeof(char), alignof(char), NULL, CHAR_MIN < 0 ? &ffi_type_schar : &ffi_type_uchar);
   SYX_KNOWN_TYPES->c_i8 = make_syx_type_primitive(SYX_PRIMITIVE_TYPE_KIND_I8, sizeof(int8_t), alignof(int8_t), NULL, &ffi_type_sint8);
@@ -605,106 +612,50 @@ syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
                                                                     (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("data")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_str},
                                                                     (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_size})});
   SYX_KNOWN_TYPES->c_file = make_syx_type_pointer(NULL, SYX_KNOWN_TYPES->c_void);
-
-  SYX_KNOWN_TYPES->registry.hasheq = ht_string_view_hasheq;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("void")) = SYX_KNOWN_TYPES->c_void;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("char")) = SYX_KNOWN_TYPES->c_char;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("i8")) = SYX_KNOWN_TYPES->c_i8;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("i16")) = SYX_KNOWN_TYPES->c_i16;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("i32")) = SYX_KNOWN_TYPES->c_i32;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("i64")) = SYX_KNOWN_TYPES->c_i64;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("i128")) = SYX_KNOWN_TYPES->c_i128;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("u8")) = SYX_KNOWN_TYPES->c_u8;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("u16")) = SYX_KNOWN_TYPES->c_u16;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("u32")) = SYX_KNOWN_TYPES->c_u32;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("u64")) = SYX_KNOWN_TYPES->c_u64;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("u128")) = SYX_KNOWN_TYPES->c_u128;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("f16")) = SYX_KNOWN_TYPES->c_f16;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("f32")) = SYX_KNOWN_TYPES->c_f32;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("f64")) = SYX_KNOWN_TYPES->c_f64;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("f80")) = SYX_KNOWN_TYPES->c_f80;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("f128")) = SYX_KNOWN_TYPES->c_f128;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("f64pair")) = SYX_KNOWN_TYPES->c_f64pair;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("short")) = SYX_KNOWN_TYPES->c_short;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("sshort")) = SYX_KNOWN_TYPES->c_sshort;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("ushort")) = SYX_KNOWN_TYPES->c_ushort;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("int")) = SYX_KNOWN_TYPES->c_int;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("sint")) = SYX_KNOWN_TYPES->c_sint;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("uint")) = SYX_KNOWN_TYPES->c_uint;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("long")) = SYX_KNOWN_TYPES->c_long;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("slong")) = SYX_KNOWN_TYPES->c_slong;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("ulong")) = SYX_KNOWN_TYPES->c_ulong;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("llong")) = SYX_KNOWN_TYPES->c_llong;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("sllong")) = SYX_KNOWN_TYPES->c_sllong;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("ullong")) = SYX_KNOWN_TYPES->c_ullong;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("uintptr")) = SYX_KNOWN_TYPES->c_uintptr;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("ptrdiff")) = SYX_KNOWN_TYPES->c_ptrdiff;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("size")) = SYX_KNOWN_TYPES->c_size;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("float")) = SYX_KNOWN_TYPES->c_float;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("double")) = SYX_KNOWN_TYPES->c_double;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("ldouble")) = SYX_KNOWN_TYPES->c_ldouble;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("value")) = SYX_KNOWN_TYPES->c_value;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("str")) = SYX_KNOWN_TYPES->c_str;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("string")) = SYX_KNOWN_TYPES->c_string;
-  *ht_put(&SYX_KNOWN_TYPES->registry, sv_from_strlit("file")) = SYX_KNOWN_TYPES->c_file;
-
-  String_Builder sb = {0};
-  ht_foreach(type, &SYX_KNOWN_TYPES->registry) {
-    sb_append_strlit(&sb, "c_");
-    sb_append_sv(&sb, ht_key(&SYX_KNOWN_TYPES->registry, type));
-    Syx_Value *name = rc_acquire(make_syx_value_symbol_n(sb.data, sb.count));
-    sb.count = 0;
-    (*type)->name = name->symbol;
-  }
-  sb_free(&sb);
 }
 
 void syx_env_define_types(Syx_Env *env) {
-#define DEFINE(name_lit) ({                                                               \
-  Syx_Type *type = *ht_find(&SYX_KNOWN_TYPES()->registry, sv_from_strlit(name_lit));      \
-  syx_env_define(env, type->name, make_syx_value_closure_native_constructor(NULL, type)); \
-})
-  DEFINE("void");
-  DEFINE("char");
-  DEFINE("i8");
-  DEFINE("i16");
-  DEFINE("i32");
-  DEFINE("i64");
-  DEFINE("i128");
-  DEFINE("u8");
-  DEFINE("u16");
-  DEFINE("u32");
-  DEFINE("u64");
-  DEFINE("u128");
-  DEFINE("f16");
-  DEFINE("f32");
-  DEFINE("f64");
-  DEFINE("f80");
-  DEFINE("f128");
-  DEFINE("f64pair");
-  DEFINE("short");
-  DEFINE("sshort");
-  DEFINE("ushort");
-  DEFINE("int");
-  DEFINE("sint");
-  DEFINE("uint");
-  DEFINE("long");
-  DEFINE("slong");
-  DEFINE("ulong");
-  DEFINE("llong");
-  DEFINE("sllong");
-  DEFINE("ullong");
-  DEFINE("uintptr");
-  DEFINE("ptrdiff");
-  DEFINE("size");
-  DEFINE("float");
-  DEFINE("double");
-  DEFINE("ldouble");
-  DEFINE("value");
-  DEFINE("str");
-  DEFINE("string");
-  DEFINE("file");
-#undef DEFINE
+  SYX_KNOWN_TYPES_t *types = SYX_KNOWN_TYPES();
+  syx_env_define_type_strlit(env, "c_void", types->c_void);
+  syx_env_define_type_strlit(env, "c_char", types->c_char);
+  syx_env_define_type_strlit(env, "c_i8", types->c_i8);
+  syx_env_define_type_strlit(env, "c_i16", types->c_i16);
+  syx_env_define_type_strlit(env, "c_i32", types->c_i32);
+  syx_env_define_type_strlit(env, "c_i64", types->c_i64);
+  syx_env_define_type_strlit(env, "c_i128", types->c_i128);
+  syx_env_define_type_strlit(env, "c_u8", types->c_u8);
+  syx_env_define_type_strlit(env, "c_u16", types->c_u16);
+  syx_env_define_type_strlit(env, "c_u32", types->c_u32);
+  syx_env_define_type_strlit(env, "c_u64", types->c_u64);
+  syx_env_define_type_strlit(env, "c_u128", types->c_u128);
+  syx_env_define_type_strlit(env, "c_f16", types->c_f16);
+  syx_env_define_type_strlit(env, "c_f32", types->c_f32);
+  syx_env_define_type_strlit(env, "c_f64", types->c_f64);
+  syx_env_define_type_strlit(env, "c_f80", types->c_f80);
+  syx_env_define_type_strlit(env, "c_f128", types->c_f128);
+  syx_env_define_type_strlit(env, "c_f64pair", types->c_f64pair);
+  syx_env_define_type_strlit(env, "c_short", types->c_short);
+  syx_env_define_type_strlit(env, "c_sshort", types->c_sshort);
+  syx_env_define_type_strlit(env, "c_ushort", types->c_ushort);
+  syx_env_define_type_strlit(env, "c_int", types->c_int);
+  syx_env_define_type_strlit(env, "c_sint", types->c_sint);
+  syx_env_define_type_strlit(env, "c_uint", types->c_uint);
+  syx_env_define_type_strlit(env, "c_long", types->c_long);
+  syx_env_define_type_strlit(env, "c_slong", types->c_slong);
+  syx_env_define_type_strlit(env, "c_ulong", types->c_ulong);
+  syx_env_define_type_strlit(env, "c_llong", types->c_llong);
+  syx_env_define_type_strlit(env, "c_sllong", types->c_sllong);
+  syx_env_define_type_strlit(env, "c_ullong", types->c_ullong);
+  syx_env_define_type_strlit(env, "c_uintptr", types->c_uintptr);
+  syx_env_define_type_strlit(env, "c_ptrdiff", types->c_ptrdiff);
+  syx_env_define_type_strlit(env, "c_size", types->c_size);
+  syx_env_define_type_strlit(env, "c_float", types->c_float);
+  syx_env_define_type_strlit(env, "c_double", types->c_double);
+  syx_env_define_type_strlit(env, "c_ldouble", types->c_ldouble);
+  syx_env_define_type_strlit(env, "c_value", types->c_value);
+  syx_env_define_type_strlit(env, "c_str", types->c_str);
+  syx_env_define_type_strlit(env, "c_string", types->c_string);
+  syx_env_define_type_strlit(env, "c_file", types->c_file);
 }
 
 #endif // SYX_TYPES_IMPL

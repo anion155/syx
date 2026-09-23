@@ -54,7 +54,7 @@ Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
   //   token = syx_parser_next_token(&ctx);
   //   printf("kind = %d; line = %zu; column = %zu; count = %zu; text = '%.*s'\n", token.kind, token.line, token.column, token.count, (int)token.count, token.data);
   // } while (token.kind != SYX_PARSER_TOKEN_KIND_EOF);
-  Syx_Value *expressions = rc_acquire(parse_syx(source, true));
+  Syx_Value *expressions = rc_acquire(parse_syx(eval_ctx->global_env, source, true));
   syx_list_for_each(expressions->pair, expression) {
     if (expression->kind == SYX_VALUE_KIND_EXIT) {
       syx_list_for_each(expressions->pair, expression) {
@@ -206,9 +206,9 @@ int main(int argc, char **argv) {
 
   script_ctx.eval_ctx = rc_acquire(make_global_syx_eval_ctx());
 
-  // syx_env_define_cstr(script_ctx.eval_ctx->global_env, "quit", make_syxv_builtin(NULL, eval_quit));
-  // syx_env_define_cstr(script_ctx.eval_ctx->global_env, "setopt", make_syxv_specialf(NULL, eval_setopt));
-  // syx_env_define_cstr(script_ctx.eval_ctx->global_env, "import", make_syxv_specialf(NULL, eval_import));
+  // syx_env_define_value_cstr(script_ctx.eval_ctx->global_env, "quit", make_syxv_builtin(NULL, eval_quit));
+  // syx_env_define_value_cstr(script_ctx.eval_ctx->global_env, "setopt", make_syxv_specialf(NULL, eval_setopt));
+  // syx_env_define_value_cstr(script_ctx.eval_ctx->global_env, "import", make_syxv_specialf(NULL, eval_import));
 
   int result = 0;
   if (commands->count) {

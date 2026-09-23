@@ -115,7 +115,7 @@ SyxV *syxv_test_vector_virtual_setter(Syx_Eval_Ctx *ctx, void *data, const char 
 
 void syx_env_define_test_vector(Syx_Env *env) {
   // clang-format off
-  syx_env_define_cstr(env, "test-vector", make_syxv_constructor(make_syx_type_info_opt((Syx_Type_Info){
+  syx_env_define_value_cstr(env, "test-vector", make_syxv_constructor(make_syx_type_info_opt((Syx_Type_Info){
     .size = sizeof(SyxV_Test_Vector),
     .symbol = (&make_syxv_symbol_cstr("test-vector")->symbol),
     .kind = SYX_TYPE_INFO_KIND_STRUCTURE,
