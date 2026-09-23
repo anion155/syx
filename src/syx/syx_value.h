@@ -124,10 +124,10 @@ typedef struct Syx_Number {
   result;                                                                                                                        \
 })
 
-typedef Ht(Syx_Symbol *, Syx_Value *) Syx_Symbols_Ht;
+typedef Ht(Syx_Symbol *, Syx_Value *, Syx_Symbol_Value_Map) Syx_Symbol_Value_Map;
 
 typedef struct Syx_Object {
-  Syx_Symbols_Ht fields;
+  Syx_Symbol_Value_Map fields;
   Syx_Object *proto;
 } Syx_Object;
 
@@ -489,7 +489,7 @@ Syx_Value *make_syx_value_stringf_dup(const char *format, ...) {
 void syx_value_object_destructor(void *data) {
   Syx_Value *value = data;
   rc_release(syx_value_from_object(value->object->proto));
-  Syx_Symbols_Ht *fields = &value->object->fields;
+  Syx_Symbol_Value_Map *fields = &value->object->fields;
   ht_foreach(value, fields) {
     Syx_Symbol *symbol = ht_key(fields, value);
     rc_release(syx_value_from_symbol(symbol));

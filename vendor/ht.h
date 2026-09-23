@@ -176,21 +176,6 @@ HT_PUBDEF uintptr_t ht_cstr_hasheq(Ht_Op op, void const *a, void const *b, size_
 // The default .hasheq implementation for when .hasheq == NULL.
 HT_PUBDEF uintptr_t ht_mem_hasheq(Ht_Op op, void const *a, void const *b, size_t n);
 
-#ifdef NOB_H_
-// If you are using nob.h we automatically provide hasheq for its String_View
-// type. We detect nob.h presence by NOB_H_ being defined. It is also checked under
-// HT_IMPLEMENTATION. So if you happen to compile ht.h as a separate translation unit do
-// not forget to defined NOB_H_ manually to make sure ht_sv_hasheq implementation
-// is provided:
-// ```console
-// $ gcc -DHT_IMPLEMENTATION -DNOB_H_ -x c -c ht.h
-// ```
-HT_PUBDEF uintptr_t ht_sv_hasheq(Ht_Op op, void const *a, void const *b, size_t n);
-#endif // NOB_H_
-#ifdef STR_H
-uintptr_t ht_string_view_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n)
-#endif // STR_H
-
 // Value *ht_put(Ht(Key, Value) *ht, Key key)
 //
 // Inserts the key with the value initialized with ht->default_value.
@@ -682,32 +667,6 @@ HT_PUBDEF uintptr_t ht_mem_hasheq(Ht_Op op, void const* a_, void const *b_, size
     return 0;
 }
 
-#ifdef NOB_H_
-HT_PUBDEF uintptr_t ht_sv_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n)
-{
-    (void) n; // not used
-    Nob_String_View const* a = (Nob_String_View const*)a_;
-    Nob_String_View const* b = (Nob_String_View const*)b_;
-    switch (op) {
-    case HT_HASH: return ht_default_hash(a->data, a->count);
-    case HT_EQ:   return nob_sv_eq(*a, *b);
-    }
-    return 0;
-}
-#endif // NOB_H_
-#ifdef STR_H
-uintptr_t ht_string_view_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n) {
-    (void)n; // not used
-    String_View const *a = (String_View const *)a_;
-    String_View const *b = (String_View const *)b_;
-    switch (op) {
-        case HT_HASH: return ht_default_hash(a->data, a->count);
-        case HT_EQ: return sv__eq(*a, *b);
-    }
-    return 0;
-}
-#endif // 
-
 HT_PUBDEF uintptr_t ht_djb2_hash(void const *data, size_t size)
 {
     const uint8_t *bytes = (const uint8_t *)data;
@@ -895,6 +854,51 @@ int ht__memcmp(const void *vl, const void *vr, size_t n)
 }
 
 #endif // HT_IMPLEMENTATION
+
+#if defined(NOB_H_) && !defined(HT_NOB_SV_HASH_H)
+#define HT_NOB_SV_HASH_H
+// If you are using nob.h we automatically provide hasheq for its String_View
+// type. We detect nob.h presence by NOB_H_ being defined. It is also checked under
+// HT_IMPLEMENTATION. So if you happen to compile ht.h as a separate translation unit do
+// not forget to defined NOB_H_ manually to make sure ht_sv_hasheq implementation
+// is provided:
+// ```console
+// $ gcc -DHT_IMPLEMENTATION -DNOB_H_ -x c -c ht.h
+// ```
+HT_PUBDEF uintptr_t ht_sv_hasheq(Ht_Op op, void const *a, void const *b, size_t n);
+#endif // HT_NOB_SV_HASH_H
+#if defined(NOB_H_) && defined(HT_IMPL) && !defined(HT_NOB_SV_HASH_IMPL_C)
+#define HT_NOB_SV_HASH_IMPL_C
+HT_PUBDEF uintptr_t ht_sv_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n)
+{
+    (void) n; // not used
+    Nob_String_View const* a = (Nob_String_View const*)a_;
+    Nob_String_View const* b = (Nob_String_View const*)b_;
+    switch (op) {
+    case HT_HASH: return ht_default_hash(a->data, a->count);
+    case HT_EQ:   return nob_sv_eq(*a, *b);
+    }
+    return 0;
+}
+#endif // HT_NOB_SV_HASH_IMPL_C
+
+#if defined(STR_H) && !defined(HT_STR_SV_HASH_H)
+#define HT_STR_SV_HASH_H
+uintptr_t ht_string_view_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n);
+#endif // HT_STR_SV_HASH_H
+#if defined(STR_H) && defined(HT_IMPL) && !defined(HT_STR_SV_HASH_IMPL_C)
+#define HT_STR_SV_HASH_IMPL_C
+uintptr_t ht_string_view_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n) {
+    (void)n; // not used
+    String_View const *a = (String_View const *)a_;
+    String_View const *b = (String_View const *)b_;
+    switch (op) {
+        case HT_HASH: return ht_default_hash(a->data, a->count);
+        case HT_EQ: return sv__eq(*a, *b);
+    }
+    return 0;
+}
+#endif // HT_STR_SV_HASH_IMPL_C
 
 /*
    Revision history:

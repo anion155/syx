@@ -149,10 +149,10 @@ Syx_Value *syx_special_form_unset(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   if (name_s->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "Symbol expression expected as name");
   Syx_Env *env = syx_env_lookup(ctx->env, name_s->symbol);
   if (!env) return NULL;
-  Syx_Value **storage = ht_find(&env->symbols, name_s->symbol);
+  Syx_Value **storage = ht_find(&env->values, name_s->symbol);
   if (!storage) return NULL;
   Syx_Value *value = *storage;
-  ht_delete(&env->symbols, storage);
+  ht_delete(&env->values, storage);
   rc_release(value);
   return NULL;
 }

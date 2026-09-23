@@ -249,6 +249,7 @@ void syx_env_define_types(Syx_Env *env);
 #if defined(SYX_TYPES_IMPL) && !defined(SYX_TYPES_IMPL_C)
 #define SYX_TYPES_IMPL_C
 
+#include <str.h>
 #define HT_IMPL
 #include <ht.h>
 #define SYX_VALUE_IMPL
