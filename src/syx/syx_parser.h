@@ -349,6 +349,7 @@ Syx_Value *parse_syx_dispatch(Syx_Parser_Ctx *ctx, Syx_Token token) {
       token = da_slice_shift(&ctx->tokens);
       SYX_ASSERT(token.kind == SYX_TOKEN_KIND_SYMBOL && token.source.count > 1 && token.source.data[0] == '_', "expected c type symbol");
       sv_chop_left(&token.source);
+      if (sv_eq(token.source, sv_from_strlit("fn"))) return syx_parse_native_function(ctx);
       Syx_Value *type_name = syx_value_symbolf("c_" SV_FMT, sv_fmt_arg(token.source));
       Syx_Type *type = syx_env_get_type(ctx->global_env, type_name->symbol);
       SYX_ASSERT(type != NULL, "c type '" SV_FMT "' not found", (sv_fmt_arg(token.source)));

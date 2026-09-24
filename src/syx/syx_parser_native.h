@@ -6,12 +6,14 @@
 
 typedef struct Syx_Parser_Ctx Syx_Parser_Ctx;
 Syx_Value *syx_parse_native_value(Syx_Parser_Ctx *ctx, Syx_Type *type);
+Syx_Value *syx_parse_native_function(Syx_Parser_Ctx *ctx);
 
 #endif // SYX_PARSER_NATIVE_H
 
 #if defined(SYX_PARSER_NATIVE_IMPL) && !defined(SYX_PARSER_NATIVE_IMPL_C)
 #define SYX_PARSER_NATIVE_IMPL_C
 
+#include <dlfcn.h>
 #define PARSER_IMPL
 #include <parser.h>
 #define SYX_PARSER_IMPL
@@ -119,8 +121,25 @@ Syx_Value *syx_parse_native_value(Syx_Parser_Ctx *ctx, Syx_Type *type) {
       return rc_move(value);
     } break;
     case SYX_TYPE_KIND_PTR: return make_syx_value_native_instance(type);
-    case SYX_TYPE_KIND_FUNCTION_PTR: SYX_TODO("parse type function literal");
+    case SYX_TYPE_KIND_FUNCTION_PTR: SYX_TODO("#c_<fn_type>:[<dl_handler>:]<fn_name> similar to `#c_fn` but withouf type parser");
   }
+  // Syx_Value *value = rc_acquire(make_syx_value_native_instance(type));
+  // token = da_slice_shift(&ctx->tokens);
+  // SYX_ASSERT(token.kind == SYX_TOKEN_KIND_PREFIX && token.source.data[0] == ':', "function name expected");
+  // token = da_slice_shift(&ctx->tokens);
+  // SYX_ASSERT(token.kind == SYX_TOKEN_KIND_SYMBOL, "function name expected");
+  // char *c_name = strndup(token.source.data, token.source.count);
+  // void *external = dlsym(RTLD_MAIN_ONLY, c_name);
+  // free(c_name);
+  // char *error = dlerror();
+  // SYX_EVAL_ASSERT(ctx, error == NULL, "error loading external symbol: %s", (error), (type));
+}
+
+// #c_fn:<fn_type>:[<dl_handler>:]<fn_name>
+Syx_Value *syx_parse_native_function(Syx_Parser_Ctx *ctx) {
+  Syx_Token token = da_slice_shift(&ctx->tokens);
+  SYX_ASSERT(token.kind == SYX_TOKEN_KIND_PREFIX && token.source.data[0] == ':', "function type expected");
+  TODO();
 }
 
 #endif // SYX_PARSER_NATIVE_IMPL_C

@@ -238,7 +238,7 @@ Fields and methods:
 ## Miscellaneous Builtins
 
 ### FD
-`stdout` | `stderr` | `stdin` | `<fd-id>`
+`:stdout` | `:stderr` | `:stdin` | `<fd-id>`
 
 ### print
 Print arguments to file.

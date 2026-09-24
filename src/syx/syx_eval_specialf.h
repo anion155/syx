@@ -369,14 +369,22 @@ Syx_Value *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   return rc_move(result);
 }
 
-/** Parses type and wraps external symbol. */
+/**
+ * Parses type and wraps external symbol.
+ * `(extern [<dl-handle>:]<c_name> [:<syx_symbol>] <fn_type>)`
+ */
 Syx_Value *syx_special_form_extern(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  void *handle = RTLD_MAIN_ONLY;
+  if (arguments->left->kind == SYX_VALUE_KIND_PREFIXED && arguments->left->prefixed == SYX_PREFIXED_KIND_COLON) {
+    Syx_Value *arg = syx_list_next(&arguments);
+    SYX_EVAL_TODO(ctx, "add support for handle passage");
+  }
   Syx_Value *arg = syx_list_next(&arguments);
   char *c_name = NULL;
   Syx_Symbol *syx_name = NULL;
   switch (arg->kind) {
     case SYX_VALUE_KIND_SYMBOL: {
-      c_name = strndup(arg->symbol->data, arg->symbol->count);
+      c_name = arg->symbol->data;
       if (arguments && arguments->left->kind == SYX_VALUE_KIND_PREFIXED && arguments->left->prefixed->kind == SYX_PREFIXED_KIND_COLON) {
         arg = syx_list_next(&arguments)->prefixed->value;
         SYX_EVAL_ASSERT(ctx, arg->kind == SYX_VALUE_KIND_SYMBOL, "expected symbol external value bound symbol");
@@ -386,7 +394,7 @@ Syx_Value *syx_special_form_extern(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       }
     } break;
     case SYX_VALUE_KIND_STRING: {
-      c_name = strndup(arg->string->data, arg->string->count);
+      c_name = arg->string->data;
       arg = syx_list_next(&arguments);
       SYX_EVAL_ASSERT(ctx, arg->kind == SYX_VALUE_KIND_PREFIXED && arg->prefixed->kind == SYX_PREFIXED_KIND_COLON && arg->prefixed->value->kind == SYX_VALUE_KIND_SYMBOL, "expected symbol external value bound symbol");
       syx_name = arg->prefixed->value->symbol;
@@ -396,8 +404,7 @@ Syx_Value *syx_special_form_extern(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   if (!c_name) SYX_EVAL_THROW(ctx, "external symbol name expected");
   Syx_Type *type = syx_list_next_type(ctx, &arguments);
   rc_acquire(type);
-  void *external = dlsym(RTLD_MAIN_ONLY, c_name);
-  free(c_name);
+  void *external = dlsym(handle, c_name);
   char *error = dlerror();
   SYX_EVAL_ASSERT(ctx, error == NULL, "error loading external symbol: %s", (error), (type));
   Syx_Value *value = NULL;
@@ -439,6 +446,7 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define_value_strlit(env, "object", make_syx_value_closure_specialf(NULL, syx_special_form_object));
   syx_env_define_value_strlit(env, "new", make_syx_value_closure_specialf(NULL, syx_special_form_new));
   syx_env_define_value_strlit(env, "extern", make_syx_value_closure_specialf(NULL, syx_special_form_extern));
+  // TODO: def-type
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL
