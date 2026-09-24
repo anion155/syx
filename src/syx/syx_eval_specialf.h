@@ -113,7 +113,7 @@ Syx_Value *syx_special_form_update(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   syx_value_early_exit(name);
   SYX_EVAL_ASSERT(ctx, name->kind == SYX_VALUE_KIND_SYMBOL, "malformed update expression");
 
-  Syx_Value *target = rc_acquire(syx_eval_ctx_get_value(ctx, name->symbol));
+  Syx_Value *target = rc_acquire(syx_env_get_value(ctx->env, name->symbol));
   rc_release(name);
   syx_value_early_exit(target);
 
@@ -137,7 +137,7 @@ Syx_Value *syx_special_form_update(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 Syx_Value *syx_special_form_is_set(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *name_s = syx_list_next(&arguments);
   if (name_s->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "Symbol expression expected as name");
-  Syx_Value *stored = syx_eval_ctx_get_value(ctx, name_s->symbol);
+  Syx_Value *stored = syx_env_get_value(ctx->env, name_s->symbol);
   return syx_value_bool(stored != NULL);
 }
 
@@ -145,7 +145,7 @@ Syx_Value *syx_special_form_is_set(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 Syx_Value *syx_special_form_get(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *name_s = syx_list_next(&arguments);
   if (name_s->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "Symbol expression expected as name");
-  return syx_eval_ctx_get_value(ctx, name_s->symbol);
+  return syx_env_get_value(ctx->env, name_s->symbol);
 }
 
 /** Unset value in current environment. */

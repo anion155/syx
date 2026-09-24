@@ -31,7 +31,6 @@ typedef struct Syx_Env {
 
 typedef struct Syx_Eval_Ctx {
   Syx_Frames_Stack *frames_stack;
-  Syx_Env *global_env;
   Syx_Env *env;
 } Syx_Eval_Ctx;
 
@@ -41,6 +40,13 @@ typedef struct Syx_Eval_Ctx {
 
 Syx_Env *make_syx_env(Syx_Symbol *name, Syx_Env *parent);
 Syx_Env *syx_env_lookup_values(Syx_Env *env, Syx_Symbol *symbol);
+Syx_Value *syx_env_get_value(Syx_Env *env, Syx_Symbol *symbol);
+#define syx_env_get_value_strlit(env, name) ({                           \
+  Syx_Value *_name_ = rc_acquire(syx_value_symbol_strlit(name))->symbol; \
+  Syx_Value *value = syx_env_get_value((env), _name_->symbol);           \
+  rc_release(_name_);                                                    \
+  value;                                                                 \
+})
 void syx_env_define_value(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value);
 void syx_env_define_value_cstr(Syx_Env *env, const char *name, Syx_Value *value);
 #define syx_env_define_value_strlit(env, name, value) ({         \
@@ -65,20 +71,6 @@ void syx_env_define_type(Syx_Env *env, Syx_Symbol *symbol, Syx_Type *type);
 })
 
 Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt);
-Syx_Type *syx_eval_ctx_get_type(Syx_Eval_Ctx *ctx, Syx_Symbol *symbol);
-#define syx_eval_ctx_get_type_strlit(ctx, name) ({                       \
-  Syx_Value *_name_ = rc_acquire(syx_value_symbol_strlit(name))->symbol; \
-  Syx_Type *type = syx_eval_ctx_get_type((ctx), _name_->symbol);         \
-  rc_release(_name_);                                                    \
-  type;                                                                  \
-})
-Syx_Value *syx_eval_ctx_get_value(Syx_Eval_Ctx *ctx, Syx_Symbol *symbol);
-#define syx_eval_ctx_get_value_strlit(ctx, name) ({                 \
-  Syx_Value *_name_ = rc_acquire(syx_value_symbol_strlit(name));    \
-  Syx_Value *value = syx_eval_ctx_get_value((ctx), _name_->symbol); \
-  rc_release(_name_);                                               \
-  value;                                                            \
-})
 Syx_Eval_Ctx *make_global_syx_eval_ctx();
 Syx_Eval_Ctx *inherit_syx_eval_ctx(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
 #define syx_eval_context_get_frame(ctx) ({    \
@@ -239,6 +231,12 @@ Syx_Env *syx_env_lookup_values(Syx_Env *env, Syx_Symbol *symbol) {
   return env;
 }
 
+Syx_Value *syx_env_get_value(Syx_Env *env, Syx_Symbol *symbol) {
+  env = syx_env_lookup_values(env, symbol);
+  if (env == NULL) return NULL;
+  return *ht_find(&env->values, symbol);
+}
+
 void syx_env_define_value(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value) {
   Syx_Value **item = ht_find(&env->values, symbol);
   if (item == NULL) {
@@ -297,7 +295,6 @@ void syx_eval_ctx_destructor(void *_data) {
   Syx_Eval_Ctx *ctx = _data;
   rc_release(ctx->frames_stack);
   rc_release(ctx->env);
-  rc_release(ctx->global_env);
 }
 
 Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt) {
@@ -305,29 +302,13 @@ Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt) {
   assert(ctx);
   *ctx = opt;
   rc_acquire(ctx->frames_stack);
-  rc_acquire(ctx->global_env);
   rc_acquire(ctx->env);
   return ctx;
-}
-
-Syx_Type *syx_eval_ctx_get_type(Syx_Eval_Ctx *ctx, Syx_Symbol *symbol) {
-  Syx_Env *env = syx_env_lookup_types(ctx->env, symbol);
-  if (env == NULL) env = syx_env_lookup_types(ctx->global_env, symbol);
-  if (env == NULL) return NULL;
-  return *ht_find(&env->types, symbol);
-}
-
-Syx_Value *syx_eval_ctx_get_value(Syx_Eval_Ctx *ctx, Syx_Symbol *symbol) {
-  Syx_Env *env = syx_env_lookup_values(ctx->env, symbol);
-  if (env == NULL) env = syx_env_lookup_values(ctx->global_env, symbol);
-  if (env == NULL) return NULL;
-  return *ht_find(&env->values, symbol);
 }
 
 Syx_Eval_Ctx *inherit_syx_eval_ctx(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt) {
   return make_syx_eval_ctx((Syx_Eval_Ctx){
       .frames_stack = opt.frames_stack ? opt.frames_stack : parent->frames_stack,
-      .global_env = opt.global_env ? opt.global_env : parent->global_env,
       .env = opt.env ? opt.env : parent->env});
 }
 
@@ -470,7 +451,7 @@ Syx_Value *syx_eval(Syx_Eval_Ctx *ctx, Syx_Value *input) {
   switch (input->kind) {
     case SYX_VALUE_KIND_EXIT: return input;
     case SYX_VALUE_KIND_SYMBOL: {
-      Syx_Value *item = syx_eval_ctx_get_value(ctx, input->symbol);
+      Syx_Value *item = syx_env_get_value(ctx->env, input->symbol);
       SYX_EVAL_ASSERT(ctx, item, "unbound symbol '" SV_FMT "'", (sv_fmt_arg(*input->symbol)));
       return item;
     }

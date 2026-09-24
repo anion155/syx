@@ -54,7 +54,7 @@ Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
   //   token = syx_parser_next_token(&ctx);
   //   printf("kind = %d; line = %zu; column = %zu; count = %zu; text = '%.*s'\n", token.kind, token.line, token.column, token.count, (int)token.count, token.data);
   // } while (token.kind != SYX_PARSER_TOKEN_KIND_EOF);
-  Syx_Value *expressions = rc_acquire(parse_syx(eval_ctx->global_env, source, true));
+  Syx_Value *expressions = rc_acquire(parse_syx(eval_ctx->env, source, true));
   syx_list_for_each(expressions->pair, expression) {
     if (expression->kind == SYX_VALUE_KIND_EXIT) {
       syx_list_for_each(expressions->pair, expression) {

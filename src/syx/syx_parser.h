@@ -5,12 +5,12 @@
 #include <syx/syx_lexer.h>
 
 typedef struct Syx_Parser_Ctx {
-  Syx_Env *global_env;
+  Syx_Env *env;
   String_View source;
   Syx_Tokens tokens;
 } Syx_Parser_Ctx;
 
-Syx_Value *parse_syx(Syx_Env *global_env, String_View source, bool ignore_errors);
+Syx_Value *parse_syx(Syx_Env *env, String_View source, bool ignore_errors);
 
 #endif // SYX_PARSER_H
 
@@ -351,7 +351,7 @@ Syx_Value *parse_syx_dispatch(Syx_Parser_Ctx *ctx, Syx_Token token) {
       sv_chop_left(&token.source);
       if (sv_eq(token.source, sv_from_strlit("fn"))) return syx_parse_native_function(ctx);
       Syx_Value *type_name = syx_value_symbolf("c_" SV_FMT, sv_fmt_arg(token.source));
-      Syx_Type *type = syx_env_get_type(ctx->global_env, type_name->symbol);
+      Syx_Type *type = syx_env_get_value(ctx->env, type_name->symbol);
       SYX_ASSERT(type != NULL, "c type '" SV_FMT "' not found", (sv_fmt_arg(token.source)));
       return syx_parse_native_value(ctx, type);
     } break;
@@ -388,8 +388,8 @@ Syx_Value *parse_syx_value(Syx_Parser_Ctx *ctx) {
   return parse__syx_value_from_token(ctx, first);
 }
 
-Syx_Value *parse_syx(Syx_Env *global_env, String_View source, bool ignore_errors) {
-  Syx_Parser_Ctx ctx = {.source = source, .global_env = global_env};
+Syx_Value *parse_syx(Syx_Env *env, String_View source, bool ignore_errors) {
+  Syx_Parser_Ctx ctx = {.source = source, .env = env};
   ctx.tokens = syx_lexer_tokenize(source);
   SYX_ASSERT(ctx.tokens.count, "Failed to parse syx script");
   SYX_ASSERT(ctx.tokens.data[ctx.tokens.count - 1].kind == SYX_TOKEN_KIND_EOF, "Failed to parse syx script");

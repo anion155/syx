@@ -249,8 +249,8 @@ void syx_env_define_types(Syx_Env *env);
 
 Syx_Value *syx__list_next_type(Syx_Eval_Ctx *ctx, Syx_Pair **list, Syx_Type **type);
 #define syx_list_next_type(ctx, list, ...) syx_get_non_value_with_early_exit(Syx_Type, syx__list_next_type, ((ctx), (list)), WITH_DEFAULT((), __VA_ARGS__))
-Syx_Value *syx__type_expression_eval(Syx_Eval_Ctx *ctx, Syx_Pair **expression, Syx_Type **type);
-#define syx_type_expression_eval(ctx, expression, ...) syx_get_non_value_with_early_exit(Syx_Type, syx__type_expression_eval, ((ctx), (expression)), WITH_DEFAULT((), __VA_ARGS__))
+Syx_Value *syx__eval_type_expression(Syx_Eval_Ctx *ctx, Syx_Pair **expression, Syx_Type **type);
+#define syx_eval_type_expression(ctx, expression, ...) syx_get_non_value_with_early_exit(Syx_Type, syx__eval_type_expression, ((ctx), (expression)), WITH_DEFAULT((), __VA_ARGS__))
 
 #endif // SYX_TYPES_H
 
@@ -677,11 +677,11 @@ void syx_env_define_types(Syx_Env *env) {
 Syx_Value *syx__list_next_type(Syx_Eval_Ctx *ctx, Syx_Pair **list, Syx_Type **type) {
   Syx_Value *value = syx_list_next(list);
   if (value->kind == SYX_VALUE_KIND_SYMBOL) {
-    *type = syx_eval_ctx_get_type(ctx, value->symbol);
+    *type = syx_env_get_value(ctx, value->symbol);
     SYX_EVAL_ASSERT(ctx, *type, "unknown type '" SV_FMT "'", (sv_fmt_arg(*value->symbol)));
   } else if (value->kind == SYX_VALUE_KIND_PAIR) {
     Syx_Pair *expression = value->pair;
-    *type = syx_type_expression_eval(ctx, &expression);
+    *type = syx_eval_type_expression(ctx, &expression);
   } else {
     SYX_EVAL_THROW(ctx, "unsupported type expression");
   }
@@ -692,7 +692,7 @@ void syx_types_da_descructor(void *data) {
   da_foreach(*types, type) rc_release(*type);
   da_free(types);
 }
-Syx_Value *syx__type_expression_eval(Syx_Eval_Ctx *ctx, Syx_Pair **expression, Syx_Type **type) {
+Syx_Value *syx__eval_type_expression(Syx_Eval_Ctx *ctx, Syx_Pair **expression, Syx_Type **type) {
   Syx_Value *kind = syx_list_next(expression);
   SYX_EVAL_ASSERT(ctx, kind->kind == SYX_VALUE_KIND_SYMBOL, "expected type kind");
   static Syx_Value *ptr_s = NULL;
