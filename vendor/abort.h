@@ -15,12 +15,14 @@
 #include <defines.h>
 
 [[noreturn]] void panicf(const char *file, int line, const char *label, PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(4, 5);
-#define TODO_DEFAULT_MESSAGE "not implemented yet"
 
+#define TODO_DEFAULT_MESSAGE "not implemented yet"
 /** Panics with "TODO" message */
 #define TODO(...) panicf(__FILE__, __LINE__, "TODO", WITH_DEFAULT(TODO_DEFAULT_MESSAGE, __VA_ARGS__) EXPAND_WITH_COMMA(REST_ARGS(__VA_ARGS__)))
+
+#define UNREACHABLE_DEFAULT_MESSAGE "should never happen"
 /** Panics with "UNREACHABLE" message */
-#define UNREACHABLE(format, ...) panicf(__FILE__, __LINE__, "UNREACHABLE", WITH_DEFAULT("should never happen", __VA_ARGS__) EXPAND_WITH_COMMA(REST_ARGS(__VA_ARGS__)))
+#define UNREACHABLE(...) panicf(__FILE__, __LINE__, "UNREACHABLE", WITH_DEFAULT(UNREACHABLE_DEFAULT_MESSAGE, __VA_ARGS__) EXPAND_WITH_COMMA(REST_ARGS(__VA_ARGS__)))
 
 /** If not `condition` panics with "UNREACHABLE" message */
 #define ASSERT(condition, format, ...) ({ if (!(condition)) UNREACHABLE(format __VA_OPT__(, ) __VA_ARGS__); })

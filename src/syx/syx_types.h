@@ -150,6 +150,7 @@ typedef struct Syx_Type {
     Syx_Type_Function *function;
   };
 } Syx_Type;
+typedef Da(Syx_Type *, Syx_Types_Array) Syx_Types_Array;
 typedef Da_Slice(Syx_Type *, Syx_Types) Syx_Types;
 
 void syx_type_rename(Syx_Type *type, Syx_Symbol *name);
@@ -178,8 +179,9 @@ typedef struct Syx_Type_Structure {
 
 typedef struct Syx_Type_Function {
   ffi_cif *ffi_f;
+  ffi_type **ffi_args;
   Syx_Type *return_type;
-  Syx_Types arg_types;
+  Syx_Types args_types;
   bool vaargs;
 } Syx_Type_Function;
 
@@ -245,14 +247,10 @@ typedef struct {
 syx_predefine_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES);
 void syx_env_define_types(Syx_Env *env);
 
-#define syx_list_next_type(ctx, list) ({                                                      \
-  Syx_Eval_Ctx *_ctx__ = (ctx);                                                               \
-  Syx_Value *value = syx_list_next((list));                                                   \
-  SYX_EVAL_ASSERT(_ctx__, value->kind == SYX_VALUE_KIND_SYMBOL, "type name symbol expected"); \
-  Syx_Type *type = syx_eval_ctx_get_type(_ctx__, value->symbol);                              \
-  SYX_EVAL_ASSERT(_ctx__, type, "unknown type '" SV_FMT "'", (sv_fmt_arg(*value->symbol)));   \
-  type;                                                                                       \
-})
+Syx_Value *syx__list_next_type(Syx_Eval_Ctx *ctx, Syx_Pair **list, Syx_Type **type);
+#define syx_list_next_type(ctx, list, ...) syx_get_non_value_with_early_exit(Syx_Type, syx__list_next_type, ((ctx), (list)), WITH_DEFAULT((), __VA_ARGS__))
+Syx_Value *syx__type_expression_eval(Syx_Eval_Ctx *ctx, Syx_Pair **expression, Syx_Type **type);
+#define syx_type_expression_eval(ctx, expression, ...) syx_get_non_value_with_early_exit(Syx_Type, syx__type_expression_eval, ((ctx), (expression)), WITH_DEFAULT((), __VA_ARGS__))
 
 #endif // SYX_TYPES_H
 
@@ -397,25 +395,29 @@ void syx_type_function_destructor(void *data) {
   syx_type_destructor(data);
   Syx_Type_Function *func = ((Syx_Type *)data)->function;
   rc_release(func->return_type);
-  da_foreach(func->arg_types, arg_type) rc_release((Syx_Type *)*arg_type);
+  da_foreach(func->args_types, arg_type) rc_release(*arg_type);
 }
 
 void syx_type_function_graph_visitor(Rc_Circulars *circulars, const void *data, const void *source) {
   Syx_Type_Function *func = ((const Syx_Type *)data)->function;
   rc_graph_visitor(circulars, (void **)&(func->return_type), source);
-  da_foreach(func->arg_types, arg_type) {
-    rc_graph_visitor(circulars, (void **)arg_type, source);
-  }
+  da_foreach(func->args_types, arg_type) rc_graph_visitor(circulars, (void **)arg_type, source);
 }
 
 Syx_Type *make_syx_type_function(Syx_Symbol *name, Syx_Type_Function func) {
-  Syx_Type *type = make_syx_type(SYX_TYPE_KIND_FUNCTION_PTR, sizeof(void (*)(void)), alignof(void (*)(void)), name, NULL, sizeof(Syx_Type_Function) + sizeof(ffi_cif) + sizeof(Syx_Type *) * func.arg_types.count);
+  Syx_Type *type = make_syx_type(SYX_TYPE_KIND_FUNCTION_PTR, sizeof(void (*)(void)), alignof(void (*)(void)), name, NULL, sizeof(Syx_Type_Function) + sizeof(ffi_cif) + sizeof(Syx_Type *) * func.args_types.count + sizeof(ffi_type *) * func.args_types.count);
   rc_get(type)->methods = (Rc_Methods){.destructor = syx_type_function_destructor, .graph_visitor = syx_type_function_graph_visitor};
   type->function = (Syx_Type_Function *)(type + 1);
   type->function->return_type = rc_acquire(func.return_type);
-  Da(Syx_Type *) arg_types = {.data = (Syx_Type **)((ffi_cif *)(type->function + 1) + 1), .capacity = func.arg_types.count, .count = 0};
-  da_append_many_n(&arg_types, func.arg_types.data, func.arg_types.count);
-  type->function->arg_types = da_slice(arg_types, Syx_Types);
+  type->function->ffi_f = (ffi_cif *)(type->function + 1);
+  Syx_Types_Array args_types = {.data = (Syx_Type **)(type->function->ffi_f + 1), .capacity = func.args_types.count, .count = 0};
+  memcpy(args_types.data, func.args_types.data, sizeof(Syx_Type *) * func.args_types.count);
+  args_types.count = func.args_types.count;
+  da_foreach(args_types, arg_type) rc_acquire(*arg_type);
+  type->function->args_types = da_slice(args_types, Syx_Types);
+  type->function->ffi_args = (ffi_type **)(args_types.data + 1);
+  da_foreach(args_types, arg_type) type->function->ffi_args[arg_type_index] = (*arg_type)->ffi_t;
+  type->function->ffi_f = NULL;
   type->function->vaargs = func.vaargs;
   return type;
 }
@@ -444,8 +446,8 @@ Syx_Value *syx_eval_native_structure(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_
 Syx_Value *syx_eval_native_pointer(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type *stored_type, Syx_Pair *arguments) {
   Syx_Value *argument = syx_list_next_nullable(&arguments);
   SYX_EVAL_ASSERT(ctx, argument->kind == SYX_VALUE_KIND_SYMBOL, "native pointer evaluation expects symbol argument");
-  Syx_Value *asterisk_symbol = rc_acquire(make_syx_value_symbol_strlit("*"));
-  Syx_Value *unref_symbol = rc_acquire(make_syx_value_symbol_strlit("unref"));
+  Syx_Value *asterisk_symbol = rc_acquire(syx_value_symbol_strlit("*"));
+  Syx_Value *unref_symbol = rc_acquire(syx_value_symbol_strlit("unref"));
   Syx_Value *value = NULL;
   if (argument == asterisk_symbol || argument == unref_symbol) {
     if (stored_type == SYX_KNOWN_TYPES()->c_value) {
@@ -465,21 +467,26 @@ Syx_Value *syx_eval_native_pointer(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Ty
 Syx_Value *syx_eval_native_function(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type_Function *function, Syx_Pair *arguments) {
   if (!function->ffi_f) {
     ffi_cif *ffi_f = (ffi_cif *)(function + 1);
-    if (ffi_prep_cif(ffi_f, FFI_DEFAULT_ABI, function->arg_types.count, function->return_type->ffi_t, (ffi_type **)function->arg_types.data) != FFI_OK) {
+    if (ffi_prep_cif(ffi_f, FFI_DEFAULT_ABI, function->args_types.count, function->return_type->ffi_t, function->ffi_args) != FFI_OK) {
       SYX_EVAL_THROW(ctx, "invalid native function descriptor");
     }
+    function->ffi_f = ffi_f;
   }
-  void *args_storage[function->arg_types.count];
-  da_foreach(function->arg_types, arg_type) {
-    Syx_Value *argument = syx_list_next(&arguments);
+  void *args_storage[function->args_types.count];
+  Syx_Value *evaluated = rc_acquire(syx_eval_map_list(ctx, arguments));
+  syx_value_early_exit(evaluated);
+  Syx_Pair *evaluated_pair = evaluated->pair;
+  da_foreach(function->args_types, arg_type) {
+    Syx_Value *argument = syx_list_next(&evaluated_pair);
     if (argument->kind != SYX_VALUE_KIND_NATIVE) SYX_EVAL_TODO(ctx, "TASK(20260913-075748): convert arguments to native values");
     if ((*arg_type) != argument->native->type) SYX_EVAL_TODO(ctx, "TASK(20260913-075748): convert arguments to native values");
-    args_storage[arg_type_index] = &argument->native->data;
+    args_storage[arg_type_index] = argument->native->data;
   }
-  if (arguments) SYX_EVAL_TODO(ctx, "TASK(20260913-075819): vaargs support");
+  if (evaluated_pair) SYX_EVAL_TODO(ctx, "TASK(20260913-075819): vaargs support", (), (evaluated));
   Syx_Value *result = rc_acquire(make_syx_value_native_instance(function->return_type));
   memset(result->native->data, 0, function->return_type->size);
   ffi_call(function->ffi_f, *(void (**)(void))native->data, result->native->data, args_storage);
+  rc_release(evaluated);
   return rc_move(result);
 }
 
@@ -508,13 +515,13 @@ size_t sb_append_syx_type(String_Builder *sb, const Syx_Type *type) {
       stringify_append(&state, sb_append, '(');
       stringify_append(&state, sb_append_syx_type, func->return_type);
       stringify_append(&state, sb_append, '(');
-      for (size_t index = 0; index < func->arg_types.count; index += 1) {
+      for (size_t index = 0; index < func->args_types.count; index += 1) {
         if (index != 0) stringify_append(&state, sb_append_strlit, ", ");
-        const Syx_Type *arg = func->arg_types.data[index];
+        const Syx_Type *arg = func->args_types.data[index];
         stringify_append(&state, sb_append_syx_type, arg);
       }
       if (type->function->vaargs) {
-        if (func->arg_types.count) stringify_append(&state, sb_append_strlit, ", ");
+        if (func->args_types.count) stringify_append(&state, sb_append_strlit, ", ");
         stringify_append(&state, sb_append_strlit, "...");
       }
       stringify_append(&state, sb_append, ')');
@@ -618,8 +625,8 @@ syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
   SYX_KNOWN_TYPES->c_str = make_syx_type_pointer(NULL, SYX_KNOWN_TYPES->c_char);
   SYX_KNOWN_TYPES->c_string = make_syx_type_structure(NULL, (Syx_Type_Structure){
                                                                 .fields = make_syx_type_structure_fields(
-                                                                    (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("data")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_str},
-                                                                    (Syx_Type_Structure_Field){.name = make_syx_value_symbol_strlit("count")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_size})});
+                                                                    (Syx_Type_Structure_Field){.name = syx_value_symbol_strlit("data")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_str},
+                                                                    (Syx_Type_Structure_Field){.name = syx_value_symbol_strlit("count")->symbol, .readonly = true, .type = SYX_KNOWN_TYPES->c_size})});
   SYX_KNOWN_TYPES->c_file = make_syx_type_pointer(NULL, SYX_KNOWN_TYPES->c_void);
 }
 
@@ -665,6 +672,64 @@ void syx_env_define_types(Syx_Env *env) {
   syx_env_define_type_strlit(env, "c_str", types->c_str);
   syx_env_define_type_strlit(env, "c_string", types->c_string);
   syx_env_define_type_strlit(env, "c_file", types->c_file);
+}
+
+Syx_Value *syx__list_next_type(Syx_Eval_Ctx *ctx, Syx_Pair **list, Syx_Type **type) {
+  Syx_Value *value = syx_list_next(list);
+  if (value->kind == SYX_VALUE_KIND_SYMBOL) {
+    *type = syx_eval_ctx_get_type(ctx, value->symbol);
+    SYX_EVAL_ASSERT(ctx, *type, "unknown type '" SV_FMT "'", (sv_fmt_arg(*value->symbol)));
+  } else if (value->kind == SYX_VALUE_KIND_PAIR) {
+    Syx_Pair *expression = value->pair;
+    *type = syx_type_expression_eval(ctx, &expression);
+  } else {
+    SYX_EVAL_THROW(ctx, "unsupported type expression");
+  }
+  return NULL;
+}
+void syx_types_da_descructor(void *data) {
+  Syx_Types_Array *types = data;
+  da_foreach(*types, type) rc_release(*type);
+  da_free(types);
+}
+Syx_Value *syx__type_expression_eval(Syx_Eval_Ctx *ctx, Syx_Pair **expression, Syx_Type **type) {
+  Syx_Value *kind = syx_list_next(expression);
+  SYX_EVAL_ASSERT(ctx, kind->kind == SYX_VALUE_KIND_SYMBOL, "expected type kind");
+  static Syx_Value *ptr_s = NULL;
+  if (!ptr_s) ptr_s = rc_acquire(syx_value_symbol_strlit("ptr"));
+  if (kind->symbol == ptr_s->symbol) {
+    Syx_Type *target = syx_list_next_type(ctx, expression);
+    *type = make_syx_type_pointer(NULL, target);
+    return NULL;
+  }
+  static Syx_Value *struct_s = NULL;
+  if (!struct_s) struct_s = rc_acquire(syx_value_symbol_strlit("struct"));
+  if (kind->symbol == struct_s->symbol) {
+    SYX_EVAL_TODO(ctx);
+    // return NULL;
+  }
+  static Syx_Value *fn_s = NULL;
+  if (!fn_s) fn_s = rc_acquire(syx_value_symbol_strlit("fn"));
+  if (kind->symbol == fn_s->symbol) {
+    Syx_Type *return_type = syx_list_next_type(ctx, expression);
+    rc_acquire(return_type);
+    Syx_Types_Array *args_types = rc_acquire(rc_malloc(sizeof(Syx_Types_Array)));
+    memset(args_types, 0, sizeof(Syx_Types_Array));
+    rc_get(args_types)->methods.destructor = syx_types_da_descructor;
+    Syx_Value *arg_definition_value = syx_list_next(expression);
+    SYX_EVAL_ASSERT(ctx, arg_definition_value->kind == SYX_VALUE_KIND_PAIR, "expected arguments definition", (), (return_type, args_types));
+    Syx_Pair *arg_definition = arg_definition_value->pair;
+    while (arg_definition) {
+      Syx_Type *arg_type = syx_list_next_type(ctx, &arg_definition, (return_type, args_types));
+      da_append(args_types, rc_acquire(arg_type));
+    }
+    *type = make_syx_type_function(NULL, (Syx_Type_Function){.args_types = da_slice(*args_types, Syx_Types), .return_type = rc_move(return_type), .vaargs = false});
+    rc_acquire(*type);
+    rc_release(args_types);
+    rc_move(*type);
+    return NULL;
+  }
+  SYX_EVAL_THROW(ctx, "expected type kind: '" SV_FMT "'", (sv_fmt_arg(*kind->symbol)));
 }
 
 #endif // SYX_TYPES_IMPL

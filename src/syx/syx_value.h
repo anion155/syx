@@ -205,11 +205,11 @@ Syx_Value *syx_value_nil();
 Syx_Value *make_syx_value_pair(Syx_Value *left, Syx_Value *right);
 Syx_Value *make_syx_value__list(size_t count, Syx_Value **items);
 #define make_syx_value_list(...) make_syx_value__list(sizeof((Syx_Value *[]){__VA_ARGS__}) / sizeof(Syx_Value *), (Syx_Value *[]){__VA_ARGS__})
-Syx_Value *make_syx_value_symbol_n(const char *symbol, size_t count);
-#define make_syx_value_symbol_strlit(symbol) make_syx_value_symbol_n((symbol), sizeof(symbol) - 1)
-Syx_Value *make_syx_value_symbol_sv(String_View symbol);
-Syx_Value *make_syx_value_symbolf(PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(1, 2);
-Syx_Value *make_syx_value_symbol_cstr(const char *symbol);
+Syx_Value *syx_value_symbol_sv(String_View symbol);
+Syx_Value *syx_value_symbol_n(const char *symbol, size_t count);
+#define syx_value_symbol_strlit(symbol) syx_value_symbol_n((symbol), sizeof(symbol) - 1)
+Syx_Value *syx_value_symbolf(PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(1, 2);
+Syx_Value *syx_value_symbol_cstr(const char *symbol);
 Syx_Value *syx_value_bool_false();
 Syx_Value *syx_value_bool_true();
 Syx_Value *syx_value_bool(bool value);
@@ -273,6 +273,14 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value);
     rc_release_all(EXPAND WITH_DEFAULT((), __VA_ARGS__)); \
     return rc_move(_value_);                              \
   }                                                       \
+})
+#define syx_get_non_value_with_early_exit(Storage_Type, fn, args, to_release) ({ \
+  Storage_Type *value = NULL;                                                    \
+  Syx_Value *result = rc_acquire(fn(EXPAND_BEFORE_COMMA args(&value)));          \
+  rc_acquire(value);                                                             \
+  syx_value_early_exit(result, (value EXPAND_WITH_COMMA to_release));            \
+  rc_release(result);                                                            \
+  rc_move(value);                                                                \
 })
 
 #define SYX_THROW(message, ...) ({                                                                                            \
@@ -345,13 +353,13 @@ Syx_Value *make_syx_value__list(size_t count, Syx_Value **items) {
   return expr;
 }
 
-syx_define_constant(Ht(const char *, Syx_Value *), SYX_SYMBOLS) {
-  SYX_SYMBOLS->hasheq = ht_cstr_hasheq;
+syx_define_constant(Ht(String_View, Syx_Value *), SYX_SYMBOLS) {
+  SYX_SYMBOLS->hasheq = ht_string_view_hasheq;
 }
 
 void syx_value_symbol_destructor(void *data) {
   Syx_Value *value = data;
-  Syx_Value **stored = ht_find(SYX_SYMBOLS(), value->symbol->data);
+  Syx_Value **stored = ht_find(SYX_SYMBOLS(), sv_from_like(*value->symbol));
   if (stored) ht_delete(SYX_SYMBOLS(), stored);
 }
 
@@ -374,42 +382,42 @@ int issymbol(int c) {
       isalnum(c));
 }
 
-Syx_Value *make_syx_value_symbol_n(const char *symbol, size_t count) {
+Syx_Value *syx_value_symbol_sv(String_View symbol) {
   Syx_Value **stored = ht_find(SYX_SYMBOLS(), symbol);
   if (stored) return *stored;
-  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_SYMBOL, sizeof(Syx_Symbol) + sizeof(char) * count);
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_SYMBOL, sizeof(Syx_Symbol) + sizeof(char) * symbol.count);
   rc_get(value)->methods.destructor = syx_value_symbol_destructor;
   value->symbol = (Syx_Symbol *)(value + 1);
   value->symbol->data = (char *)(value->symbol + 1);
-  value->symbol->count = count;
-  memcpy((char *)value->symbol->data, symbol, count);
-  *ht_put(SYX_SYMBOLS(), value->symbol->data) = value;
+  value->symbol->count = symbol.count;
+  memcpy((char *)value->symbol->data, symbol.data, symbol.count);
+  *ht_put(SYX_SYMBOLS(), symbol) = value;
   value->symbol->guarded = false;
-  for (size_t index = 0; index < count; index += 1) {
-    if (issymbol(symbol[index])) continue;
+  for (size_t index = 0; index < symbol.count; index += 1) {
+    if (issymbol(symbol.data[index])) continue;
     value->symbol->guarded = true;
     break;
   }
   return value;
 }
 
-inline Syx_Value *make_syx_value_symbol_sv(String_View symbol) {
-  return make_syx_value_symbol_n(symbol.data, symbol.count);
+inline Syx_Value *syx_value_symbol_n(const char *symbol, size_t count) {
+  return syx_value_symbol_sv(sv_from_parts((char *)symbol, count));
 }
 
-Syx_Value *make_syx_value_symbolf(const char *format, ...) {
+Syx_Value *syx_value_symbolf(const char *format, ...) {
   String_Builder sb = {0};
   va_list args;
   va_start(args, format);
   sb_vappendf(&sb, format, args);
-  Syx_Value *value = make_syx_value_symbol_n(sb.data, sb.count);
+  Syx_Value *value = syx_value_symbol_sv(sv_from_like(sb));
   va_end(args);
   sb_free(&sb);
   return value;
 }
 
-inline Syx_Value *make_syx_value_symbol_cstr(const char *symbol) {
-  return make_syx_value_symbol_n(symbol, strlen(symbol));
+inline Syx_Value *syx_value_symbol_cstr(const char *symbol) {
+  return syx_value_symbol_n(symbol, strlen(symbol));
 }
 
 inline Syx_Value *syx_value_bool_false() {
@@ -835,7 +843,7 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
             }
           } break;
           case SYX_TYPE_KIND_FUNCTION_PTR: {
-            stringify_append(&state, sb_append_unsigned_integer_number, (uintptr_t)(void **)native->data, .kind = SB_INTEGER_FORMAT_KIND_HEX_BIG, .min_width = sizeof(void *) * 2);
+            stringify_append(&state, sb_append_unsigned_integer_number, (uintptr_t)*(void (**)(void))native->data, .kind = SB_INTEGER_FORMAT_KIND_HEX_BIG, .min_width = sizeof(void *) * 2);
           } break;
         }
       }

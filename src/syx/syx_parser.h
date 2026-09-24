@@ -302,9 +302,9 @@ Syx_Value *parse_syx_number_hex_fractional_value(Syx_Parser_Ctx *ctx, Syx_Token 
 Syx_Value *parse_syx_symbol_value(Syx_Parser_Ctx *ctx, Syx_Token token) {
   UNUSED(ctx);
   if (token.source.data[0] == '|' && token.source.data[token.source.count - 1] == '|') {
-    return make_syx_value_symbol_n(token.source.data + 1, token.source.count - 2);
+    return syx_value_symbol_n(token.source.data + 1, token.source.count - 2);
   } else {
-    return make_syx_value_symbol_n(token.source.data, token.source.count);
+    return syx_value_symbol_n(token.source.data, token.source.count);
   }
 }
 
@@ -342,14 +342,14 @@ Syx_Value *parse_syx_dispatch(Syx_Parser_Ctx *ctx, Syx_Token token) {
     case '{': {
       Syx_Value *fields = rc_acquire(parse_syx_list_values(ctx, SYX_TOKEN_KIND_RCURLY));
       syx_value_early_exit(fields);
-      return make_syx_value_pair(make_syx_value_symbol_strlit("object"), rc_move(fields));
+      return make_syx_value_pair(syx_value_symbol_strlit("object"), rc_move(fields));
     } break;
     case 'c': {
       SYX_ASSERT(ctx->tokens.count >= 1, "expected symbol");
       token = da_slice_shift(&ctx->tokens);
       SYX_ASSERT(token.kind == SYX_TOKEN_KIND_SYMBOL && token.source.count > 1 && token.source.data[0] == '_', "expected c type symbol");
       sv_chop_left(&token.source);
-      Syx_Value *type_name = make_syx_value_symbolf("c_" SV_FMT, sv_fmt_arg(token.source));
+      Syx_Value *type_name = syx_value_symbolf("c_" SV_FMT, sv_fmt_arg(token.source));
       Syx_Type *type = syx_env_get_type(ctx->global_env, type_name->symbol);
       SYX_ASSERT(type != NULL, "c type '" SV_FMT "' not found", (sv_fmt_arg(token.source)));
       return syx_parse_native_value(ctx, type);

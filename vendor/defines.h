@@ -35,6 +35,8 @@
 #define EXPAND(...) __VA_ARGS__
 /** Macro that expands to __VA_ARGS__ with comma before it. */
 #define EXPAND_WITH_COMMA(...) __VA_OPT__(, ) __VA_ARGS__
+/** Macro that expands to __VA_ARGS__ with comma after it. */
+#define EXPAND_BEFORE_COMMA(...) __VA_ARGS__ __VA_OPT__(, )
 /** Macro that removes parentheses from `args`. */
 #define EXPAND_PARENS(args) EXPAND args
 /** Macro that expands to MACRO call with __VA_ARGS__. */

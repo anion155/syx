@@ -119,7 +119,7 @@ Syx_Value *syx_parse_native_value(Syx_Parser_Ctx *ctx, Syx_Type *type) {
       return rc_move(value);
     } break;
     case SYX_TYPE_KIND_PTR: return make_syx_value_native_instance(type);
-    case SYX_TYPE_KIND_FUNCTION_PTR: return make_syx_value_native_instance(type);
+    case SYX_TYPE_KIND_FUNCTION_PTR: SYX_TODO("parse type function literal");
   }
 }
 

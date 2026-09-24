@@ -434,9 +434,9 @@ typedef struct Syx_File_Constant {
 
 syx_define_constant(Ht(Syx_Symbol *, Syx_File_Constant), FD_CONSTANTS) {
   FD_CONSTANTS->hasheq = ht_syx_symbol_hasheq;
-  *ht_put(FD_CONSTANTS, rc_acquire(make_syx_value_symbol_strlit("stdout"))->symbol) = (Syx_File_Constant){.fd = STDOUT_FILENO, .stream = stdout};
-  *ht_put(FD_CONSTANTS, rc_acquire(make_syx_value_symbol_strlit("stderr"))->symbol) = (Syx_File_Constant){.fd = STDERR_FILENO, .stream = stderr};
-  *ht_put(FD_CONSTANTS, rc_acquire(make_syx_value_symbol_strlit("stdin"))->symbol) = (Syx_File_Constant){.fd = STDIN_FILENO, .stream = stdin};
+  *ht_put(FD_CONSTANTS, rc_acquire(syx_value_symbol_strlit("stdout"))->symbol) = (Syx_File_Constant){.fd = STDOUT_FILENO, .stream = stdout};
+  *ht_put(FD_CONSTANTS, rc_acquire(syx_value_symbol_strlit("stderr"))->symbol) = (Syx_File_Constant){.fd = STDERR_FILENO, .stream = stderr};
+  *ht_put(FD_CONSTANTS, rc_acquire(syx_value_symbol_strlit("stdin"))->symbol) = (Syx_File_Constant){.fd = STDIN_FILENO, .stream = stdin};
 }
 
 FILE *parse_optional_file_descriptor(Syx_Pair **arguments) {

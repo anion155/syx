@@ -114,7 +114,7 @@ Syx_Value *syx_object_update(Syx_Eval_Ctx *ctx, Syx_Object *object, Syx_Pair **a
 Syx_Value *syx_object_define(Syx_Eval_Ctx *ctx, Syx_Pair **arguments, Syx_Value *first_field) {
   Syx_Value *value = rc_acquire(make_syx_value_object(NULL));
 
-  Syx_Value *proto_symbol = rc_acquire(make_syx_value_symbol_strlit("proto"));
+  Syx_Value *proto_symbol = rc_acquire(syx_value_symbol_strlit("proto"));
   Syx_Value *field;
   if (first_field) {
     field = first_field;

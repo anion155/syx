@@ -43,41 +43,41 @@ Syx_Env *make_syx_env(Syx_Symbol *name, Syx_Env *parent);
 Syx_Env *syx_env_lookup_values(Syx_Env *env, Syx_Symbol *symbol);
 void syx_env_define_value(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value);
 void syx_env_define_value_cstr(Syx_Env *env, const char *name, Syx_Value *value);
-#define syx_env_define_value_strlit(env, name, value) ({              \
-  Syx_Value *_name_ = rc_acquire(make_syx_value_symbol_strlit(name)); \
-  syx_env_define_value((env), _name_->symbol, (value));               \
-  rc_release(_name_);                                                 \
+#define syx_env_define_value_strlit(env, name, value) ({         \
+  Syx_Value *_name_ = rc_acquire(syx_value_symbol_strlit(name)); \
+  syx_env_define_value((env), _name_->symbol, (value));          \
+  rc_release(_name_);                                            \
 })
 void syx_env_set_value(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value);
 Syx_Env *syx_env_lookup_types(Syx_Env *env, Syx_Symbol *symbol);
 Syx_Type *syx_env_get_type(Syx_Env *env, Syx_Symbol *symbol);
-#define syx_env_get_type_strlit(env, name) ({                                 \
-  Syx_Value *_name_ = rc_acquire(make_syx_value_symbol_strlit(name))->symbol; \
-  Syx_Type *type = syx_env_get_type((env), _name_->symbol);                   \
-  rc_release(_name_);                                                         \
-  type;                                                                       \
+#define syx_env_get_type_strlit(env, name) ({                            \
+  Syx_Value *_name_ = rc_acquire(syx_value_symbol_strlit(name))->symbol; \
+  Syx_Type *type = syx_env_get_type((env), _name_->symbol);              \
+  rc_release(_name_);                                                    \
+  type;                                                                  \
 })
 void syx_env_define_type(Syx_Env *env, Syx_Symbol *symbol, Syx_Type *type);
-#define syx_env_define_type_strlit(env, name, type) ({                \
-  Syx_Value *_name_ = rc_acquire(make_syx_value_symbol_strlit(name)); \
-  syx_env_define_type((env), _name_->symbol, (type));                 \
-  rc_release(_name_);                                                 \
+#define syx_env_define_type_strlit(env, name, type) ({           \
+  Syx_Value *_name_ = rc_acquire(syx_value_symbol_strlit(name)); \
+  syx_env_define_type((env), _name_->symbol, (type));            \
+  rc_release(_name_);                                            \
 })
 
 Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt);
 Syx_Type *syx_eval_ctx_get_type(Syx_Eval_Ctx *ctx, Syx_Symbol *symbol);
-#define syx_eval_ctx_get_type_strlit(ctx, name) ({                            \
-  Syx_Value *_name_ = rc_acquire(make_syx_value_symbol_strlit(name))->symbol; \
-  Syx_Type *type = syx_eval_ctx_get_type((ctx), _name_->symbol);              \
-  rc_release(_name_);                                                         \
-  type;                                                                       \
+#define syx_eval_ctx_get_type_strlit(ctx, name) ({                       \
+  Syx_Value *_name_ = rc_acquire(syx_value_symbol_strlit(name))->symbol; \
+  Syx_Type *type = syx_eval_ctx_get_type((ctx), _name_->symbol);         \
+  rc_release(_name_);                                                    \
+  type;                                                                  \
 })
 Syx_Value *syx_eval_ctx_get_value(Syx_Eval_Ctx *ctx, Syx_Symbol *symbol);
-#define syx_eval_ctx_get_value_strlit(ctx, name) ({                   \
-  Syx_Value *_name_ = rc_acquire(make_syx_value_symbol_strlit(name)); \
-  Syx_Value *value = syx_eval_ctx_get_value((ctx), _name_->symbol);   \
-  rc_release(_name_);                                                 \
-  value;                                                              \
+#define syx_eval_ctx_get_value_strlit(ctx, name) ({                 \
+  Syx_Value *_name_ = rc_acquire(syx_value_symbol_strlit(name));    \
+  Syx_Value *value = syx_eval_ctx_get_value((ctx), _name_->symbol); \
+  rc_release(_name_);                                               \
+  value;                                                            \
 })
 Syx_Eval_Ctx *make_global_syx_eval_ctx();
 Syx_Eval_Ctx *inherit_syx_eval_ctx(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
@@ -257,7 +257,7 @@ void syx_env_define_value(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value) {
 }
 
 void syx_env_define_value_cstr(Syx_Env *env, const char *name, Syx_Value *value) {
-  syx_env_define_value(env, make_syx_value_symbol_cstr(name)->symbol, value);
+  syx_env_define_value(env, syx_value_symbol_cstr(name)->symbol, value);
 }
 
 void syx_env_set_value(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value) {
@@ -585,12 +585,13 @@ Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value) {
 #undef X
         }
         case SYX_TYPE_KIND_STRUCTURE: SYX_EVAL_THROW(ctx, "native structure can't be converted to number");
-        case SYX_TYPE_KIND_PTR:
+        case SYX_TYPE_KIND_PTR: {
           if (native->type == SYX_KNOWN_TYPES()->c_value) {
             return syx_convert_to_number(ctx, *(Syx_Value **)native->data);
           }
-        case SYX_TYPE_KIND_FUNCTION_PTR:
           return make_syx_value_number_integer((uintptr_t)*(void **)native->data);
+        } break;
+        case SYX_TYPE_KIND_FUNCTION_PTR: return make_syx_value_number_integer((uintptr_t)*(void **)native->data);
       }
     }
     case SYX_VALUE_KIND_EXIT: SYX_EVAL_THROW(ctx, "exit value can't be converted to number");
@@ -627,7 +628,7 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value) {
             return make_syx_value_string((String *)native->data);
           }
           SYX_EVAL_THROW(ctx, "native pointer can't be converted to string");
-        }
+        } break;
         case SYX_TYPE_KIND_FUNCTION_PTR: SYX_EVAL_THROW(ctx, "native function pointer can't be converted to string");
       }
     }

@@ -164,7 +164,7 @@ Syx_Value *syx_special_form_unset(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 /** Create new variable bindings in parallel on new environment and execute a series of forms in that environment. */
 Syx_Value *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  Syx_Env *body_env = make_syx_env(make_syx_value_symbol_strlit("let")->symbol, ctx->env);
+  Syx_Env *body_env = make_syx_env(syx_value_symbol_strlit("let")->symbol, ctx->env);
   Syx_Eval_Ctx *body_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = body_env}));
   Syx_Value *bindings_src = syx_list_next(&arguments);
   if (bindings_src->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "List of definitions expected", (), (body_ctx));
@@ -218,8 +218,8 @@ Syx_Value *syx_special_form_if(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 /** Multi-branch conditional */
 Syx_Value *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *result = NULL;
-  Syx_Value *else_symbol = rc_acquire(make_syx_value_symbol_strlit("else"));
-  Syx_Value *apply_symbol = rc_acquire(make_syx_value_symbol_strlit("=>"));
+  Syx_Value *else_symbol = rc_acquire(syx_value_symbol_strlit("else"));
+  Syx_Value *apply_symbol = rc_acquire(syx_value_symbol_strlit("=>"));
   syx_list_for_each(arguments, branch) {
     if (branch->kind != SYX_VALUE_KIND_PAIR || !branch->pair) SYX_EVAL_THROW(ctx, "malformed cond branch, list expected");
     if (branch->pair->left == else_symbol) {
@@ -269,9 +269,9 @@ Syx_Value *syx_special_form_throw(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 Syx_Value *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   // `(try <body> ...[(catch (<symbol>)? ...<forms>)|(catch => <fn>)|(finally ...<forms>)])`
   Syx_Value *body = rc_acquire(syx_eval(ctx, syx_list_next(&arguments)));
-  Syx_Value *catch_symbol = rc_acquire(make_syx_value_symbol_strlit("catch"));
-  Syx_Value *apply_symbol = rc_acquire(make_syx_value_symbol_strlit("=>"));
-  Syx_Value *finally_symbol = rc_acquire(make_syx_value_symbol_strlit("finally"));
+  Syx_Value *catch_symbol = rc_acquire(syx_value_symbol_strlit("catch"));
+  Syx_Value *apply_symbol = rc_acquire(syx_value_symbol_strlit("=>"));
+  Syx_Value *finally_symbol = rc_acquire(syx_value_symbol_strlit("finally"));
   Syx_Value *result = NULL;
   syx_list_for_each(arguments, branch) {
     if (branch->kind != SYX_VALUE_KIND_PAIR || !branch->pair) {
@@ -318,7 +318,7 @@ Syx_Value *syx_special_form_try(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
         syx_value_early_exit(result, (body, catch_symbol, apply_symbol, finally_symbol));
         continue;
       }
-      Syx_Env *handler_env = make_syx_env(make_syx_value_symbol_strlit("try-catch")->symbol, ctx->env);
+      Syx_Env *handler_env = make_syx_env(syx_value_symbol_strlit("try-catch")->symbol, ctx->env);
       Syx_Eval_Ctx *handler_ctx = inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = handler_env});
       syx_env_define_value(handler_ctx->env, error_name->symbol, body->exit->thrown->reason);
       if (result) rc_release(result);
@@ -360,24 +360,23 @@ Syx_Value *syx_special_form_object(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 /** Instantiates a native type, allocates its dedicated block of native heap memory, and executes its associated constructor behavior. */
 Syx_Value *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Type *type = syx_list_next_type(ctx, &arguments);
+  rc_acquire(type);
   Syx_Value *evaluated = rc_acquire(syx_eval_map_list(ctx, arguments));
-  syx_value_early_exit(evaluated);
+  syx_value_early_exit(evaluated, (type));
   SYX_EVAL_ASSERT(ctx, evaluated->kind == SYX_VALUE_KIND_PAIR, "arguments list expected");
-  Syx_Value *result = rc_acquire(syx_eval_construct_native(ctx, type, evaluated->pair));
+  Syx_Value *result = rc_acquire(syx_eval_construct_native(ctx, rc_move(type), evaluated->pair));
   rc_release(evaluated);
   return rc_move(result);
 }
 
-int GG = 5;
-
 /** Parses type and wraps external symbol. */
 Syx_Value *syx_special_form_extern(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *arg = syx_list_next(&arguments);
-  const char *c_name = NULL;
+  char *c_name = NULL;
   Syx_Symbol *syx_name = NULL;
   switch (arg->kind) {
     case SYX_VALUE_KIND_SYMBOL: {
-      c_name = arg->symbol->data;
+      c_name = strndup(arg->symbol->data, arg->symbol->count);
       if (arguments && arguments->left->kind == SYX_VALUE_KIND_PREFIXED && arguments->left->prefixed->kind == SYX_PREFIXED_KIND_COLON) {
         arg = syx_list_next(&arguments)->prefixed->value;
         SYX_EVAL_ASSERT(ctx, arg->kind == SYX_VALUE_KIND_SYMBOL, "expected symbol external value bound symbol");
@@ -387,7 +386,7 @@ Syx_Value *syx_special_form_extern(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       }
     } break;
     case SYX_VALUE_KIND_STRING: {
-      c_name = arg->string->data;
+      c_name = strndup(arg->string->data, arg->string->count);
       arg = syx_list_next(&arguments);
       SYX_EVAL_ASSERT(ctx, arg->kind == SYX_VALUE_KIND_PREFIXED && arg->prefixed->kind == SYX_PREFIXED_KIND_COLON && arg->prefixed->value->kind == SYX_VALUE_KIND_SYMBOL, "expected symbol external value bound symbol");
       syx_name = arg->prefixed->value->symbol;
@@ -396,10 +395,19 @@ Syx_Value *syx_special_form_extern(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   }
   if (!c_name) SYX_EVAL_THROW(ctx, "external symbol name expected");
   Syx_Type *type = syx_list_next_type(ctx, &arguments);
+  rc_acquire(type);
   void *external = dlsym(RTLD_MAIN_ONLY, c_name);
+  free(c_name);
   char *error = dlerror();
-  SYX_EVAL_ASSERT(ctx, error == NULL, "error loading external symbol: %s", (error));
-  Syx_Value *value = rc_acquire(make_syx_value_native(NULL, type, external, 0));
+  SYX_EVAL_ASSERT(ctx, error == NULL, "error loading external symbol: %s", (error), (type));
+  Syx_Value *value = NULL;
+  switch (type->kind) {
+    case SYX_TYPE_KIND_FUNCTION_PTR: {
+      value = rc_acquire(make_syx_value_native_instance(rc_move(type)));
+      *(void **)value->native->data = external;
+    } break;
+    default: value = rc_acquire(make_syx_value_native(NULL, rc_move(type), external, 0));
+  }
   syx_env_define_value(ctx->env, syx_name, value);
   return rc_move(value);
 }
