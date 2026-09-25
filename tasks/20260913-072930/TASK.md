@@ -1,6 +1,6 @@
 # language based c bindings
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: ffi
 

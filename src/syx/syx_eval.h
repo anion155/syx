@@ -69,6 +69,7 @@ void syx_env_define_type(Syx_Env *env, Syx_Symbol *symbol, Syx_Type *type);
   syx_env_define_type((env), _name_->symbol, (type));            \
   rc_release(_name_);                                            \
 })
+void syx_env_set_type(Syx_Env *env, Syx_Symbol *symbol, Syx_Type *type);
 
 Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt);
 Syx_Eval_Ctx *make_global_syx_eval_ctx();
@@ -192,10 +193,16 @@ void syx_frames_stack__pop(Syx_Frames_Stack *frames_stack, Syx_Value **to_save, 
 
 void syx_env_destructor(void *data) {
   Syx_Env *env = data;
+  ht_foreach(type, &env->types) {
+    Syx_Symbol *symbol = ht_key(&env->types, type);
+    rc_release(syx_value_from_symbol(symbol));
+    rc_release(*type);
+  }
+  ht_free(&env->types);
   ht_foreach(value, &env->values) {
-    rc_release(*value);
     Syx_Symbol *symbol = ht_key(&env->values, value);
     rc_release(syx_value_from_symbol(symbol));
+    rc_release(*value);
   }
   ht_free(&env->values);
   if (env->parent) rc_release(env->parent);
@@ -203,10 +210,12 @@ void syx_env_destructor(void *data) {
 
 void syx_env_graph_visitor(Rc_Circulars *circulars, const void *data, const void *source) {
   const Syx_Env *env = data;
+  ht_foreach(type, &env->types) {
+    rc_graph_visitor(circulars, (void **)type, source);
+  }
   ht_foreach(value, &env->values) {
     rc_graph_visitor(circulars, (void **)value, source);
   }
-  ht_free(&env->values);
   if (env->parent) rc_release(env->parent);
 }
 
@@ -289,6 +298,11 @@ void syx_env_define_type(Syx_Env *env, Syx_Symbol *symbol, Syx_Type *type) {
     *item = rc_acquire(type);
   }
   if (!type->name) syx_type_rename(type, symbol);
+}
+
+void syx_env_set_type(Syx_Env *env, Syx_Symbol *symbol, Syx_Type *type) {
+  Syx_Env *container_env = syx_env_lookup_values(env, symbol);
+  syx_env_define_type(container_env == NULL ? env : container_env, symbol, type);
 }
 
 void syx_eval_ctx_destructor(void *_data) {

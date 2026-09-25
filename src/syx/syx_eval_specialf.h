@@ -11,7 +11,8 @@ void syx_env_define_special_forms(Syx_Env *env);
 #if defined(SYX_EVAL_SPECIALF_IMPL) && !defined(SYX_EVAL_SPECIALF_IMPL_C)
 #define SYX_EVAL_SPECIALF_IMPL_C
 
-#include <dlfcn.h>
+#define SYX_TYPE_EXPRESSIONS_IMPL
+#include <syx/syx_type_expressions.h>
 
 /** Special forms */
 
@@ -148,7 +149,7 @@ Syx_Value *syx_special_form_get(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   return syx_env_get_value(ctx->env, name_s->symbol);
 }
 
-/** Unset value in current environment. */
+/** Unbind value in current environment. */
 Syx_Value *syx_special_form_unset(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *name_s = syx_list_next(&arguments);
   if (name_s->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "Symbol expression expected as name");
@@ -180,6 +181,53 @@ Syx_Value *syx_special_form_let(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *result = rc_acquire(syx_eval_forms_list(body_ctx, arguments));
   rc_release(body_ctx);
   return rc_move(result);
+}
+
+/** Binds a name to type in the current environment. */
+Syx_Value *syx_special_form_define_type(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  Syx_Value *name = rc_acquire(syx_eval_unquote(ctx, syx_list_next(&arguments)));
+  syx_value_early_exit(name);
+  SYX_EVAL_ASSERT(ctx, name->kind == SYX_VALUE_KIND_SYMBOL, "symbol expected as type name");
+  SYX_EVAL_ASSERT(ctx, arguments->left->kind == SYX_VALUE_KIND_PAIR, "expected type expression");
+  Syx_Pair *expression = arguments->left->pair;
+  Syx_Type *type = syx_eval_type_expression(ctx, &expression, (name));
+  syx_env_define_type(ctx->env, name->symbol, type);
+  return NULL;
+}
+
+/** Binds a name to type. */
+Syx_Value *syx_special_form_set_type(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  Syx_Value *name = rc_acquire(syx_eval_unquote(ctx, syx_list_next(&arguments)));
+  syx_value_early_exit(name);
+  SYX_EVAL_ASSERT(ctx, name->kind == SYX_VALUE_KIND_SYMBOL, "symbol expected as type name");
+  SYX_EVAL_ASSERT(ctx, arguments->left->kind == SYX_VALUE_KIND_PAIR, "expected type expression");
+  Syx_Pair *expression = arguments->left->pair;
+  Syx_Type *type = syx_eval_type_expression(ctx, &expression, (name));
+  syx_env_set_type(ctx->env, name->symbol, rc_move(type));
+  return NULL;
+}
+
+/** Checks if environment has type binding. */
+Syx_Value *syx_special_form_has_type(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  Syx_Value *name = rc_acquire(syx_eval_unquote(ctx, syx_list_next(&arguments)));
+  syx_value_early_exit(name);
+  SYX_EVAL_ASSERT(ctx, name->kind == SYX_VALUE_KIND_SYMBOL, "symbol expected as type name");
+  Syx_Type *stored = syx_env_get_type(ctx->env, name->symbol);
+  return syx_value_bool(stored != NULL);
+}
+
+/** Unbind type in current env. */
+Syx_Value *syx_special_form_unset_type(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  Syx_Value *name = rc_acquire(syx_eval_unquote(ctx, syx_list_next(&arguments)));
+  syx_value_early_exit(name);
+  SYX_EVAL_ASSERT(ctx, name->kind == SYX_VALUE_KIND_SYMBOL, "symbol expected as type name");
+  Syx_Env *env = syx_env_lookup_types(ctx->env, name->symbol);
+  if (!env) return NULL;
+  Syx_Type **storage = ht_find(&env->types, name->symbol);
+  Syx_Type *type = *storage;
+  ht_delete(&env->types, storage);
+  rc_release(type);
+  return NULL;
 }
 
 Syx_Value *syx_special_form_and_reduce(Syx_Eval_Ctx *ctx, Syx_Value *evaluated) {
@@ -375,16 +423,16 @@ Syx_Value *syx_special_form_new(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
  */
 Syx_Value *syx_special_form_extern(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   void *handle = RTLD_MAIN_ONLY;
-  if (arguments->left->kind == SYX_VALUE_KIND_PREFIXED && arguments->left->prefixed == SYX_PREFIXED_KIND_COLON) {
-    Syx_Value *arg = syx_list_next(&arguments);
-    SYX_EVAL_TODO(ctx, "add support for handle passage");
+  if (arguments->left->kind == SYX_VALUE_KIND_PREFIXED && arguments->left->prefixed->kind == SYX_PREFIXED_KIND_COLON) {
+    // Syx_Value *arg = syx_list_next(&arguments);
+    SYX_EVAL_TODO(ctx, "TASK(20260925-073650): add support for handle passage");
   }
   Syx_Value *arg = syx_list_next(&arguments);
-  char *c_name = NULL;
+  String_View c_name = {0};
   Syx_Symbol *syx_name = NULL;
   switch (arg->kind) {
     case SYX_VALUE_KIND_SYMBOL: {
-      c_name = arg->symbol->data;
+      c_name = sv_from_like(*arg->symbol);
       if (arguments && arguments->left->kind == SYX_VALUE_KIND_PREFIXED && arguments->left->prefixed->kind == SYX_PREFIXED_KIND_COLON) {
         arg = syx_list_next(&arguments)->prefixed->value;
         SYX_EVAL_ASSERT(ctx, arg->kind == SYX_VALUE_KIND_SYMBOL, "expected symbol external value bound symbol");
@@ -394,29 +442,19 @@ Syx_Value *syx_special_form_extern(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
       }
     } break;
     case SYX_VALUE_KIND_STRING: {
-      c_name = arg->string->data;
+      c_name = sv_from_like(*arg->string);
       arg = syx_list_next(&arguments);
       SYX_EVAL_ASSERT(ctx, arg->kind == SYX_VALUE_KIND_PREFIXED && arg->prefixed->kind == SYX_PREFIXED_KIND_COLON && arg->prefixed->value->kind == SYX_VALUE_KIND_SYMBOL, "expected symbol external value bound symbol");
       syx_name = arg->prefixed->value->symbol;
     } break;
     default: SYX_EVAL_THROW(ctx, "external symbol name expected");
   }
-  if (!c_name) SYX_EVAL_THROW(ctx, "external symbol name expected");
+  if (!c_name.data) SYX_EVAL_THROW(ctx, "external symbol name expected");
   Syx_Type *type = syx_list_next_type(ctx, &arguments);
   rc_acquire(type);
-  void *external = dlsym(handle, c_name);
-  char *error = dlerror();
-  SYX_EVAL_ASSERT(ctx, error == NULL, "error loading external symbol: %s", (error), (type));
-  Syx_Value *value = NULL;
-  switch (type->kind) {
-    case SYX_TYPE_KIND_FUNCTION_PTR: {
-      value = rc_acquire(make_syx_value_native_instance(rc_move(type)));
-      *(void **)value->native->data = external;
-    } break;
-    default: value = rc_acquire(make_syx_value_native(NULL, rc_move(type), external, 0));
-  }
+  Syx_Value *value = syx_load_external_symbol(type, handle, c_name);
   syx_env_define_value(ctx->env, syx_name, value);
-  return rc_move(value);
+  return value;
 }
 
 void syx_env_define_special_forms(Syx_Env *env) {
@@ -432,6 +470,11 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define_value_strlit(env, "unset", make_syx_value_closure_specialf(NULL, syx_special_form_unset));
   syx_env_define_value_strlit(env, "let", make_syx_value_closure_specialf(NULL, syx_special_form_let));
 
+  syx_env_define_value_strlit(env, "define-type", make_syx_value_closure_specialf(NULL, syx_special_form_define_type));
+  syx_env_define_value_strlit(env, "set-type", make_syx_value_closure_specialf(NULL, syx_special_form_set_type));
+  syx_env_define_value_strlit(env, "has-type?", make_syx_value_closure_specialf(NULL, syx_special_form_has_type));
+  syx_env_define_value_strlit(env, "unset-type", make_syx_value_closure_specialf(NULL, syx_special_form_unset_type));
+
   syx_env_define_value_strlit(env, "and", make_syx_value_closure_specialf(NULL, syx_special_form_and));
   syx_env_define_value_strlit(env, "or", make_syx_value_closure_specialf(NULL, syx_special_form_or));
 
@@ -446,7 +489,6 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define_value_strlit(env, "object", make_syx_value_closure_specialf(NULL, syx_special_form_object));
   syx_env_define_value_strlit(env, "new", make_syx_value_closure_specialf(NULL, syx_special_form_new));
   syx_env_define_value_strlit(env, "extern", make_syx_value_closure_specialf(NULL, syx_special_form_extern));
-  // TODO: def-type
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL

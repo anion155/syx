@@ -9,6 +9,8 @@ Syx_Value *syx_native_set(Syx_Eval_Ctx *ctx, Syx_Type *type, void *data, Syx_Val
 Syx_Value *syx_native_structure_set(Syx_Eval_Ctx *ctx, Syx_Type_Structure *structure, void *data, Syx_Symbol *field, Syx_Value *argument);
 Syx_Value *syx_native_structure_update(Syx_Eval_Ctx *ctx, Syx_Native *native, Syx_Type_Structure *structure, Syx_Pair **arguments);
 
+Syx_Value *syx_load_external_symbol(Syx_Type *type, void *handle, String_View name);
+
 #define syx_native_primitive_xy_macro(type, X, Y) ({                     \
   switch (type->primitive) {                                             \
     case SYX_PRIMITIVE_TYPE_KIND_CHAR: X(char); break;                   \
@@ -56,6 +58,7 @@ Syx_Value *syx_native_structure_update(Syx_Eval_Ctx *ctx, Syx_Native *native, Sy
 #if defined(SYX_NATIVE_IMPL) && !defined(SYX_NATIVE_IMPL_C)
 #define SYX_NATIVE_IMPL_C
 
+#include <dlfcn.h>
 #include <syx/syx_object.h>
 
 Syx_Value *syx_eval_construct_native(Syx_Eval_Ctx *ctx, Syx_Type *type, Syx_Pair *arguments) {
@@ -291,6 +294,17 @@ Syx_Value *syx_native_structure_update(Syx_Eval_Ctx *ctx, Syx_Native *native, Sy
     rc_release_all(result, field, value);
   }
   return syx_value_nil();
+}
+
+Syx_Value *syx_load_external_symbol(Syx_Type *type, void *handle, String_View name) {
+  char *c_name;
+  if (name.data[name.count] != '\0') c_name = strndup(name.data, name.count);
+  else c_name = name.data;
+  void *external = dlsym(handle, c_name);
+  if (name.data[name.count] != '\0') free(c_name);
+  char *error = dlerror();
+  SYX_ASSERT(error == NULL, "failed to load external symbol: %s", (error));
+  return make_syx_value_native_external(type, external);
 }
 
 #endif // SYX_NATIVE_IMPL_C

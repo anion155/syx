@@ -1,6 +1,6 @@
 # implement ffi declaration from language
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: ffi
 

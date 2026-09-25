@@ -230,6 +230,7 @@ Syx_Value *make_syx_value_closure_builtin(Syx_Symbol *name, Syx_Closure_Builtin 
 Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda lambda);
 Syx_Value *make_syx_value_native(Syx_Native *parent, Syx_Type *type, void *data, size_t additional_size);
 Syx_Value *make_syx_value_native_instance(Syx_Type *type);
+Syx_Value *make_syx_value_native_external(Syx_Type *type, void *data);
 Syx_Value *make_syx_value_exit_returned(Syx_Value *returned);
 Syx_Value *make_syx_value_exit_thrown(Syx_Value *reason, Syx_Frame *stack_frame);
 Syx_Value *make_syx_value_prefixed(Syx_Prefixed_Kind kind, Syx_Value *inner_value);
@@ -276,7 +277,8 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value);
 })
 #define syx_get_non_value_with_early_exit(Storage_Type, fn, args, to_release) ({ \
   Storage_Type *value = NULL;                                                    \
-  Syx_Value *result = rc_acquire(fn(EXPAND_BEFORE_COMMA args(&value)));          \
+  Syx_Value *result = fn(EXPAND_BEFORE_COMMA args(&value));                      \
+  rc_acquire(result);                                                            \
   rc_acquire(value);                                                             \
   syx_value_early_exit(result, (value EXPAND_WITH_COMMA to_release));            \
   rc_release(result);                                                            \
@@ -391,7 +393,8 @@ Syx_Value *syx_value_symbol_sv(String_View symbol) {
   value->symbol->data = (char *)(value->symbol + 1);
   value->symbol->count = symbol.count;
   memcpy((char *)value->symbol->data, symbol.data, symbol.count);
-  *ht_put(SYX_SYMBOLS(), symbol) = value;
+  value->symbol->data[value->symbol->count] = '\0';
+  *ht_put(SYX_SYMBOLS(), sv_from_like(*value->symbol)) = value;
   value->symbol->guarded = false;
   for (size_t index = 0; index < symbol.count; index += 1) {
     if (issymbol(symbol.data[index])) continue;
@@ -610,6 +613,18 @@ Syx_Value *make_syx_value_native_instance(Syx_Type *type) {
   return value;
 }
 
+Syx_Value *make_syx_value_native_external(Syx_Type *type, void *data) {
+  Syx_Value *value = NULL;
+  switch (type->kind) {
+    case SYX_TYPE_KIND_FUNCTION_PTR: {
+      value = make_syx_value_native_instance(rc_move(type));
+      *(void **)value->native->data = data;
+    } break;
+    default: value = make_syx_value_native(NULL, rc_move(type), data, 0);
+  }
+  return value;
+}
+
 void syx_value_exit_returned_destructor(void *data) {
   Syx_Value *value = data;
   rc_release(value->exit->returned);
@@ -724,7 +739,7 @@ uintptr_t ht_syx_symbol_hasheq(Ht_Op op, void const *a_, void const *b_, size_t 
   Syx_Symbol const **b = (Syx_Symbol const **)b_;
   switch (op) {
     case HT_HASH: return ht_default_hash((*a)->data, (*a)->count);
-    case HT_EQ: return (*a)->count != (*b)->count ? false : memcmp((*a)->data, (*b)->data, (*a)->count) == 0;
+    case HT_EQ: return *a == *b;
   }
   return 0;
 }

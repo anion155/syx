@@ -138,7 +138,7 @@ int syx_lexer_is_invalid_delimeter(int character) {
 }
 
 Syx_Token syx_lexer_get_next_token(String_View *it) {
-  Syx_Token token = {.source = *it};
+  Syx_Token token = {.source = {.data = it->data, .count = sv_first_utf_length(*it)}};
 #define it_chop_next() sv_chop_left(it, it->count ? sv_first_utf_length(*it) : 0)
 #define set_kind_return(kind_value) ({ \
   token.kind = kind_value;             \

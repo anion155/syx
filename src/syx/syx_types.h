@@ -152,6 +152,7 @@ typedef struct Syx_Type {
 } Syx_Type;
 typedef Da(Syx_Type *, Syx_Types_Array) Syx_Types_Array;
 typedef Da_Slice(Syx_Type *, Syx_Types) Syx_Types;
+void syx_types_da_descructor(void *data);
 
 void syx_type_rename(Syx_Type *type, Syx_Symbol *name);
 
@@ -247,11 +248,6 @@ typedef struct {
 syx_predefine_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES);
 void syx_env_define_types(Syx_Env *env);
 
-Syx_Value *syx__list_next_type(Syx_Eval_Ctx *ctx, Syx_Pair **list, Syx_Type **type);
-#define syx_list_next_type(ctx, list, ...) syx_get_non_value_with_early_exit(Syx_Type, syx__list_next_type, ((ctx), (list)), WITH_DEFAULT((), __VA_ARGS__))
-Syx_Value *syx__eval_type_expression(Syx_Eval_Ctx *ctx, Syx_Pair **expression, Syx_Type **type);
-#define syx_eval_type_expression(ctx, expression, ...) syx_get_non_value_with_early_exit(Syx_Type, syx__eval_type_expression, ((ctx), (expression)), WITH_DEFAULT((), __VA_ARGS__))
-
 #endif // SYX_TYPES_H
 
 #if defined(SYX_TYPES_IMPL) && !defined(SYX_TYPES_IMPL_C)
@@ -312,6 +308,12 @@ Syx_Type *make_syx_type_primitive_embed_types(Syx_Primitive_Type_Kind kind, size
   Syx_Type *type = make_syx_type_embed_types(SYX_TYPE_KIND_PRIMITIVE, size, alignment, name, ffi_t, 0);
   type->primitive = kind;
   return type;
+}
+
+void syx_types_da_descructor(void *data) {
+  Syx_Types_Array *types = data;
+  da_foreach(*types, type) rc_release(*type);
+  da_free(types);
 }
 
 void syx_type_rename(Syx_Type *type, Syx_Symbol *name) {
@@ -632,104 +634,52 @@ syx_define_constant(SYX_KNOWN_TYPES_t, SYX_KNOWN_TYPES) {
 
 void syx_env_define_types(Syx_Env *env) {
   SYX_KNOWN_TYPES_t *types = SYX_KNOWN_TYPES();
-  syx_env_define_type_strlit(env, "c_void", types->c_void);
-  syx_env_define_type_strlit(env, "c_char", types->c_char);
-  syx_env_define_type_strlit(env, "c_i8", types->c_i8);
-  syx_env_define_type_strlit(env, "c_i16", types->c_i16);
-  syx_env_define_type_strlit(env, "c_i32", types->c_i32);
-  syx_env_define_type_strlit(env, "c_i64", types->c_i64);
-  syx_env_define_type_strlit(env, "c_i128", types->c_i128);
-  syx_env_define_type_strlit(env, "c_u8", types->c_u8);
-  syx_env_define_type_strlit(env, "c_u16", types->c_u16);
-  syx_env_define_type_strlit(env, "c_u32", types->c_u32);
-  syx_env_define_type_strlit(env, "c_u64", types->c_u64);
-  syx_env_define_type_strlit(env, "c_u128", types->c_u128);
-  syx_env_define_type_strlit(env, "c_f16", types->c_f16);
-  syx_env_define_type_strlit(env, "c_f32", types->c_f32);
-  syx_env_define_type_strlit(env, "c_f64", types->c_f64);
-  syx_env_define_type_strlit(env, "c_f80", types->c_f80);
-  syx_env_define_type_strlit(env, "c_f128", types->c_f128);
-  syx_env_define_type_strlit(env, "c_f64pair", types->c_f64pair);
-  syx_env_define_type_strlit(env, "c_short", types->c_short);
-  syx_env_define_type_strlit(env, "c_sshort", types->c_sshort);
-  syx_env_define_type_strlit(env, "c_ushort", types->c_ushort);
-  syx_env_define_type_strlit(env, "c_int", types->c_int);
-  syx_env_define_type_strlit(env, "c_sint", types->c_sint);
-  syx_env_define_type_strlit(env, "c_uint", types->c_uint);
-  syx_env_define_type_strlit(env, "c_long", types->c_long);
-  syx_env_define_type_strlit(env, "c_slong", types->c_slong);
-  syx_env_define_type_strlit(env, "c_ulong", types->c_ulong);
-  syx_env_define_type_strlit(env, "c_llong", types->c_llong);
-  syx_env_define_type_strlit(env, "c_sllong", types->c_sllong);
-  syx_env_define_type_strlit(env, "c_ullong", types->c_ullong);
-  syx_env_define_type_strlit(env, "c_uintptr", types->c_uintptr);
-  syx_env_define_type_strlit(env, "c_ptrdiff", types->c_ptrdiff);
-  syx_env_define_type_strlit(env, "c_size", types->c_size);
-  syx_env_define_type_strlit(env, "c_float", types->c_float);
-  syx_env_define_type_strlit(env, "c_double", types->c_double);
-  syx_env_define_type_strlit(env, "c_ldouble", types->c_ldouble);
-  syx_env_define_type_strlit(env, "c_value", types->c_value);
-  syx_env_define_type_strlit(env, "c_str", types->c_str);
-  syx_env_define_type_strlit(env, "c_string", types->c_string);
-  syx_env_define_type_strlit(env, "c_file", types->c_file);
-}
-
-Syx_Value *syx__list_next_type(Syx_Eval_Ctx *ctx, Syx_Pair **list, Syx_Type **type) {
-  Syx_Value *value = syx_list_next(list);
-  if (value->kind == SYX_VALUE_KIND_SYMBOL) {
-    *type = syx_env_get_value(ctx, value->symbol);
-    SYX_EVAL_ASSERT(ctx, *type, "unknown type '" SV_FMT "'", (sv_fmt_arg(*value->symbol)));
-  } else if (value->kind == SYX_VALUE_KIND_PAIR) {
-    Syx_Pair *expression = value->pair;
-    *type = syx_eval_type_expression(ctx, &expression);
-  } else {
-    SYX_EVAL_THROW(ctx, "unsupported type expression");
-  }
-  return NULL;
-}
-void syx_types_da_descructor(void *data) {
-  Syx_Types_Array *types = data;
-  da_foreach(*types, type) rc_release(*type);
-  da_free(types);
-}
-Syx_Value *syx__eval_type_expression(Syx_Eval_Ctx *ctx, Syx_Pair **expression, Syx_Type **type) {
-  Syx_Value *kind = syx_list_next(expression);
-  SYX_EVAL_ASSERT(ctx, kind->kind == SYX_VALUE_KIND_SYMBOL, "expected type kind");
-  static Syx_Value *ptr_s = NULL;
-  if (!ptr_s) ptr_s = rc_acquire(syx_value_symbol_strlit("ptr"));
-  if (kind->symbol == ptr_s->symbol) {
-    Syx_Type *target = syx_list_next_type(ctx, expression);
-    *type = make_syx_type_pointer(NULL, target);
-    return NULL;
-  }
-  static Syx_Value *struct_s = NULL;
-  if (!struct_s) struct_s = rc_acquire(syx_value_symbol_strlit("struct"));
-  if (kind->symbol == struct_s->symbol) {
-    SYX_EVAL_TODO(ctx);
-    // return NULL;
-  }
-  static Syx_Value *fn_s = NULL;
-  if (!fn_s) fn_s = rc_acquire(syx_value_symbol_strlit("fn"));
-  if (kind->symbol == fn_s->symbol) {
-    Syx_Type *return_type = syx_list_next_type(ctx, expression);
-    rc_acquire(return_type);
-    Syx_Types_Array *args_types = rc_acquire(rc_malloc(sizeof(Syx_Types_Array)));
-    memset(args_types, 0, sizeof(Syx_Types_Array));
-    rc_get(args_types)->methods.destructor = syx_types_da_descructor;
-    Syx_Value *arg_definition_value = syx_list_next(expression);
-    SYX_EVAL_ASSERT(ctx, arg_definition_value->kind == SYX_VALUE_KIND_PAIR, "expected arguments definition", (), (return_type, args_types));
-    Syx_Pair *arg_definition = arg_definition_value->pair;
-    while (arg_definition) {
-      Syx_Type *arg_type = syx_list_next_type(ctx, &arg_definition, (return_type, args_types));
-      da_append(args_types, rc_acquire(arg_type));
-    }
-    *type = make_syx_type_function(NULL, (Syx_Type_Function){.args_types = da_slice(*args_types, Syx_Types), .return_type = rc_move(return_type), .vaargs = false});
-    rc_acquire(*type);
-    rc_release(args_types);
-    rc_move(*type);
-    return NULL;
-  }
-  SYX_EVAL_THROW(ctx, "expected type kind: '" SV_FMT "'", (sv_fmt_arg(*kind->symbol)));
+#define DEFINE(type) ({                                                        \
+  Syx_Value *name = rc_acquire(syx_value_symbol_strlit("c_" STRINGIFY(type))); \
+  types->c_##type->name = name->symbol;                                        \
+  syx_env_define_type_strlit(env, STRINGIFY(type), types->c_##type);           \
+})
+  DEFINE(void);
+  DEFINE(char);
+  DEFINE(i8);
+  DEFINE(i16);
+  DEFINE(i32);
+  DEFINE(i64);
+  DEFINE(i128);
+  DEFINE(u8);
+  DEFINE(u16);
+  DEFINE(u32);
+  DEFINE(u64);
+  DEFINE(u128);
+  DEFINE(f16);
+  DEFINE(f32);
+  DEFINE(f64);
+  DEFINE(f80);
+  DEFINE(f128);
+  DEFINE(f64pair);
+  DEFINE(short);
+  DEFINE(sshort);
+  DEFINE(ushort);
+  DEFINE(int);
+  DEFINE(sint);
+  DEFINE(uint);
+  DEFINE(long);
+  DEFINE(slong);
+  DEFINE(ulong);
+  DEFINE(llong);
+  DEFINE(sllong);
+  DEFINE(ullong);
+  DEFINE(uintptr);
+  DEFINE(ptrdiff);
+  DEFINE(size);
+  DEFINE(float);
+  DEFINE(double);
+  DEFINE(ldouble);
+  DEFINE(value);
+  DEFINE(str);
+  DEFINE(string);
+  DEFINE(file);
+#undef DEFINE
 }
 
 #endif // SYX_TYPES_IMPL
