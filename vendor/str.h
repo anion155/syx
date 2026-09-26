@@ -121,10 +121,17 @@ static inline size_t sb_append_repeat(String_Builder *sb, char character, size_t
   return count;
 }
 /**
- * Appends `'\0'` directly to `sb`.
- * Returns number of characters added.
+ * Appends `'\0'` directly to `sb`. Does not update `count`.
+ * Returns number of characters added (0).
  */
-#define sb_append_null(sb) sb_append((sb), '\0')
+static inline size_t sb_append_null(String_Builder *sb) {
+  if (!sb) return 0;
+  if (sb->capacity <= sb->count || sb->data[sb->count] != '\0') {
+    da_append(sb, '\0');
+    sb->count -= 1;
+  }
+  return 0;
+}
 size_t sb__append_pad_align(String_Builder *sb, size_t size, char filler);
 /**
  * Pads `sb` up to a multiple boundary of `size` using `filler` (defaults to `'\0'`).
@@ -396,9 +403,9 @@ String_View sv_chop_by_char_delim(String_View *sv, char delimeter);
 String_View sv_chop_right_by_char_delim(String_View *sv, char delimeter);
 
 /** Splits `sv` at first occurrence of `String_View` `delimeter`. */
-String_View sv_chop_by_sv(String_View *sv, String_View delimeter);
+String_View sv_chop_by_sv_delim(String_View *sv, String_View delimeter);
 /** Splits `sv` from right at last occurrence of `String_View` `delimeter`. */
-String_View sv_chop_right_by_sv(String_View *sv, String_View delimeter);
+String_View sv_chop_right_by_sv_delim(String_View *sv, String_View delimeter);
 
 /** Format string constant `"%.*s"` for `printf` family functions. */
 #define SV_FMT "%.*s"
@@ -411,11 +418,8 @@ String_View sv_chop_right_by_sv(String_View *sv, String_View delimeter);
 #define STR_IMPL_C
 
 String_Builder *sb_null_terminate(String_Builder *sb) {
-  if (sb->capacity > sb->count && sb->data[sb->count] == '\0') {
-    sb->count += 1;
-  } else {
-    sb_append_null(sb);
-  }
+  sb_append_null(sb);
+  sb->count += 1;
   da_trim_realloc(sb);
   sb->count -= 1;
   return sb;
@@ -510,7 +514,7 @@ String_View sv_chop_right_by_char_delim(String_View *sv, char delimeter) {
   return sv_chop_right_by_delim_expr(sv, character, *character == delimeter);
 }
 
-String_View sv_chop_by_sv(String_View *sv, String_View delimeter) {
+String_View sv_chop_by_sv_delim(String_View *sv, String_View delimeter) {
   if (!sv->count || !delimeter.count) return (String_View){.data = sv->data, .count = 0};
   if (sv->count == delimeter.count) {
     if (memcmp(sv->data, delimeter.data, delimeter.count) != 0) goto not_found;
@@ -539,7 +543,7 @@ not_found:
   return error;
 }
 
-String_View sv_chop_right_by_sv(String_View *sv, String_View delimeter) {
+String_View sv_chop_right_by_sv_delim(String_View *sv, String_View delimeter) {
   if (!sv->count || !delimeter.count) return (String_View){.data = sv->data, .count = 0};
   if (sv->count == delimeter.count) {
     if (memcmp(sv->data, delimeter.data, delimeter.count) != 0) goto not_found;

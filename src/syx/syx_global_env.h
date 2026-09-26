@@ -5,7 +5,7 @@
 #include <syx/syx_eval.h>
 
 Syx_Env *make_global_syx_env();
-Syx_Eval_Ctx *make_global_syx_eval_ctx();
+Syx_Eval_Ctx *make_global_syx_eval_ctx(String_View cwd);
 
 #endif // SYX_GLOBAL_ENV_H
 
@@ -35,8 +35,9 @@ Syx_Env *make_global_syx_env() {
   return env;
 }
 
-Syx_Eval_Ctx *make_global_syx_eval_ctx() {
+Syx_Eval_Ctx *make_global_syx_eval_ctx(String_View cwd) {
   return make_syx_eval_ctx((Syx_Eval_Ctx){
+      .cwd = cwd,
       .frames_stack = make_syx_frames_stack(),
       .env = make_syx_env(syx_value_symbol_strlit("global")->symbol, make_global_syx_env()),
   });

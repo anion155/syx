@@ -31,7 +31,7 @@ Syx_Value *syx__special_form_make_lambda(Syx_Eval_Ctx *ctx, Syx_Symbol *name, Sy
     if (name->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "malformed lambda arguments definitions list");
     if (default_value->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "malformed lambda arguments definitions list");
   }
-  if (rest_define->kind != SYX_VALUE_KIND_PAIR) {
+  if (rest_define && rest_define->kind != SYX_VALUE_KIND_PAIR) {
     if (rest_define->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "malformed lambda rest argument");
   }
   return make_syx_value_closure_lambda(name, (Syx_Closure_Lambda){.env = ctx->env, .defines = defines, .forms = forms});
@@ -116,6 +116,7 @@ Syx_Value *syx_special_form_update(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
   Syx_Value *target = rc_acquire(syx_env_get_value(ctx->env, name->symbol));
   rc_release(name);
+  SYX_EVAL_ASSERT(ctx, target, "value to update not found");
   syx_value_early_exit(target);
 
   switch (target->kind) {

@@ -553,9 +553,10 @@ Syx_Value *make_syx_value_closure_builtin(Syx_Symbol *name, Syx_Closure_Builtin 
 
 void syx_value_closure_lambda_destructor(void *data) {
   Syx_Value *value = data;
-  rc_release(value->closure->lambda->env);
-  rc_release(value->closure->lambda->defines);
-  rc_release(value->closure->lambda->forms);
+  Syx_Closure_Lambda *lambda = value->closure->lambda;
+  rc_release(lambda->env);
+  rc_release(syx_value_from_pair(lambda->defines));
+  rc_release(syx_value_from_pair(lambda->forms));
   syx_value_closure_destructor(data);
 }
 
@@ -572,8 +573,10 @@ Syx_Value *make_syx_value_closure_lambda(Syx_Symbol *name, Syx_Closure_Lambda la
   rc_get(value)->methods.graph_visitor = syx_value_closure_lambda_graph_visitor;
   value->closure->lambda = (Syx_Closure_Lambda *)(value->closure + 1);
   value->closure->lambda->env = rc_acquire(lambda.env);
-  value->closure->lambda->defines = rc_acquire(lambda.defines);
-  value->closure->lambda->forms = rc_acquire(lambda.forms);
+  value->closure->lambda->defines = lambda.defines;
+  rc_acquire(syx_value_from_pair(lambda.defines));
+  value->closure->lambda->forms = lambda.forms;
+  rc_acquire(syx_value_from_pair(lambda.forms));
   return value;
 }
 

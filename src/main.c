@@ -49,7 +49,7 @@ syx_define_constant(Ht(const char *, bool *), ctx_options) {
   *ht_put(ctx_options, "e") = &script_ctx.opt_error;
 }
 
-Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
+Syx_Value *syx_parse_and_eval_main(Syx_Eval_Ctx *eval_ctx, String_View source) {
   // do {
   //   token = syx_parser_next_token(&ctx);
   //   printf("kind = %d; line = %zu; column = %zu; count = %zu; text = '%.*s'\n", token.kind, token.line, token.column, token.count, (int)token.count, token.data);
@@ -57,16 +57,12 @@ Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
   Syx_Value *expressions = rc_acquire(parse_syx(eval_ctx->env, source, true));
   syx_list_for_each(expressions->pair, expression) {
     if (expression->kind == SYX_VALUE_KIND_EXIT) {
-      syx_list_for_each(expressions->pair, expression) {
-        if (expression->kind == SYX_VALUE_KIND_EXIT) {
-          printf(CLI_BG_RED CLI_FG_WHITE "Parser exception:" CLI_RESET CLI_DIM " ");
-          switch (expression->exit->kind) {
-            case SYX_EXIT_KIND_RETURNED: printf("unexpected return value"); break;
-            case SYX_EXIT_KIND_THROWN: printf(SV_FMT, sv_fmt_arg(*expression->exit->thrown->reason->string)); break;
-          }
-          printf("\n" CLI_RESET);
-        }
+      printf(CLI_BG_RED CLI_FG_WHITE "Parser exception:" CLI_RESET CLI_DIM " ");
+      switch (expression->exit->kind) {
+        case SYX_EXIT_KIND_RETURNED: printf("unexpected return value"); break;
+        case SYX_EXIT_KIND_THROWN: printf(SV_FMT, sv_fmt_arg(*expression->exit->thrown->reason->string)); break;
       }
+      printf("\n" CLI_RESET);
       return syx_value_nil();
     }
   }
@@ -109,7 +105,7 @@ Syx_Value *syx_parse_and_eval(Syx_Eval_Ctx *eval_ctx, String_View source) {
 }
 
 int run_syx(String_View source_sv) {
-  Syx_Value *result = rc_acquire(syx_parse_and_eval(script_ctx.eval_ctx, source_sv));
+  Syx_Value *result = rc_acquire(syx_parse_and_eval_main(script_ctx.eval_ctx, source_sv));
   if (!result || result->kind != SYX_VALUE_KIND_EXIT || result->exit->kind != SYX_EXIT_KIND_RETURNED) {
     rc_release(result);
     return -1;
@@ -143,25 +139,6 @@ int run_syx(String_View source_sv) {
 //   syx_convert_to(ctx, evaluated, &value);
 //   (**option) = value;
 //   return NULL;
-// }
-
-// SyxV *eval_import(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
-//   UNUSED(callable);
-//   SyxV *name = syx_eval(ctx, syxv_list_next(&arguments));
-//   if (name->kind != SYXV_KIND_STRING) RUNTIME_ERROR(ctx, "module name expected");
-//   String_Builder module_sb = {0};
-//   if (!nob_read_entire_file(name->string.data, &module_sb)) UNREACHABLE("Failed to read file");
-//   sb_append(&module_sb, 0);
-//   module_sb.items = rc_acquire(rc_manage(module_sb.items, module_sb.count));
-//   syx_ctx_push_frame(ctx, "import");
-//   Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, .env = syx_env_global(ctx->env)));
-//   SyxV *result = rc_acquire(syx_parse_and_eval(import_ctx, sb_to_sv(module_sb)));
-//   syx_ctx_pop_frame(ctx, result);
-//   syx_eval_early_exit(result, module_sb.items, import_ctx);
-//   // TODO: implement exports from module
-//   rc_release(result);
-//   rc_release(import_ctx);
-//   return make_syxv_nil();
 // }
 
 void usage(FILE *stream) {
@@ -204,20 +181,24 @@ int main(int argc, char **argv) {
   if (*opt_print) script_ctx.opt_print = true;
   if (!(*opt_error)) script_ctx.opt_error = false;
 
-  script_ctx.eval_ctx = rc_acquire(make_global_syx_eval_ctx());
+  String_View working_dir = sv_from_cstr((char *)nob_get_current_dir_temp());
+  script_ctx.eval_ctx = rc_acquire(make_global_syx_eval_ctx(working_dir));
 
   // syx_env_define_value_cstr(script_ctx.eval_ctx->global_env, "quit", make_syxv_builtin(NULL, eval_quit));
   // syx_env_define_value_cstr(script_ctx.eval_ctx->global_env, "setopt", make_syxv_specialf(NULL, eval_setopt));
-  // syx_env_define_value_cstr(script_ctx.eval_ctx->global_env, "import", make_syxv_specialf(NULL, eval_import));
 
   int result = 0;
   if (commands->count) {
+    // Run some commands, get output from them
+    // `syx -c '(do-something)' -c '(do-other)'`
     String_Builder sb = {0};
     nob_da_foreach(const char *, command, commands) sb_append_cstr(&sb, *command);
     sb_append(&sb, 0);
     int run_result = run_syx(sv_from_like(sb));
     if (run_result >= 0) return run_result;
   } else if (*opt_stdin) {
+    // Run some commands from stdin, get output from them
+    // `cat script.syx | syx -s`
     String_Builder sb = {0};
     if (!nob_read_entire_stdin((Nob_String_Builder *)&sb)) UNREACHABLE("Failed to read stdin");
     sb_append(&sb, 0);
@@ -225,13 +206,18 @@ int main(int argc, char **argv) {
     sb_free(&sb);
     if (run_result >= 0) return run_result;
   } else if (argc == 1) {
+    // Run script
+    // `syx script.syx`
     String_Builder sb = {0};
+    script_ctx.eval_ctx->cwd = sv_from_cstr(nob_temp_dir_name(argv[0]));
     if (!nob_read_entire_file(argv[0], (Nob_String_Builder *)&sb)) UNREACHABLE("Failed to read file");
     sb_append(&sb, 0);
     int run_result = run_syx(sv_from_like(sb));
     sb_free(&sb);
     if (run_result >= 0) return run_result;
   } else {
+    // REPL
+    // `syx`
     printf("Syx Language REPL\n");
     read_history(HIST_FILE);
     char *line;

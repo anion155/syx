@@ -342,6 +342,7 @@ Syx_Tokens syx_lexer_tokenize(String_View source) {
   Syx_Tokens_Da tokens = {};
   for (String_View it = source; it.count;) {
     while (it.count && syx_lexer_is_whitespace(*it.data)) sv_chop_left(&it, sv_first_utf_length(it));
+    if (!it.count) break;
     Syx_Token token = syx_lexer_get_next_token(&it);
     switch (token.kind) {
       case SYX_TOKEN_KIND_NULL: continue;

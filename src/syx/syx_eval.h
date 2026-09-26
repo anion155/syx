@@ -30,6 +30,7 @@ typedef struct Syx_Env {
 } Syx_Env;
 
 typedef struct Syx_Eval_Ctx {
+  String_View cwd;
   Syx_Frames_Stack *frames_stack;
   Syx_Env *env;
 } Syx_Eval_Ctx;
@@ -39,6 +40,7 @@ typedef struct Syx_Eval_Ctx {
 #define syx_ctx_pop_frame(ctx, ...) syx_frames_stack_pop((ctx)->frames_stack __VA_OPT__(, ) __VA_ARGS__)
 
 Syx_Env *make_syx_env(Syx_Symbol *name, Syx_Env *parent);
+Syx_Env *syx_env_global(Syx_Env *env);
 Syx_Env *syx_env_lookup_values(Syx_Env *env, Syx_Symbol *symbol);
 Syx_Value *syx_env_get_value(Syx_Env *env, Syx_Symbol *symbol);
 #define syx_env_get_value_strlit(env, name) ({                           \
@@ -72,7 +74,6 @@ void syx_env_define_type(Syx_Env *env, Syx_Symbol *symbol, Syx_Type *type);
 void syx_env_set_type(Syx_Env *env, Syx_Symbol *symbol, Syx_Type *type);
 
 Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt);
-Syx_Eval_Ctx *make_global_syx_eval_ctx();
 Syx_Eval_Ctx *inherit_syx_eval_ctx(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt);
 #define syx_eval_context_get_frame(ctx) ({    \
   Syx_Eval_Ctx *_ctx_ = (ctx);                \
@@ -230,6 +231,11 @@ Syx_Env *make_syx_env(Syx_Symbol *name, Syx_Env *parent) {
   return env;
 }
 
+Syx_Env *syx_env_global(Syx_Env *env) {
+  while (env->parent) env = env->parent;
+  return env;
+}
+
 Syx_Env *syx_env_lookup_values(Syx_Env *env, Syx_Symbol *symbol) {
   Syx_Value **item = NULL;
   while (env != NULL) {
@@ -322,6 +328,7 @@ Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt) {
 
 Syx_Eval_Ctx *inherit_syx_eval_ctx(Syx_Eval_Ctx *parent, Syx_Eval_Ctx opt) {
   return make_syx_eval_ctx((Syx_Eval_Ctx){
+      .cwd = opt.cwd.data ? opt.cwd : parent->cwd,
       .frames_stack = opt.frames_stack ? opt.frames_stack : parent->frames_stack,
       .env = opt.env ? opt.env : parent->env});
 }

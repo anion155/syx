@@ -1,6 +1,6 @@
 # implement exports from module
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: language
 
