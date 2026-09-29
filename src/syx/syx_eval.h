@@ -608,8 +608,12 @@ Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value) {
     case SYX_VALUE_KIND_CONST: SYX_EVAL_THROW(ctx, "constant can't be converted to string");
     case SYX_VALUE_KIND_SYMBOL: SYX_EVAL_THROW(ctx, "symbol can't be converted to string");
     case SYX_VALUE_KIND_NUMBER: {
-      String str = string_from(sb_append_number, syx_number_get(value->number));
-      return make_syx_value_string_dup(str);
+      String_Builder sb = {0};
+      switch (value->number->kind) {
+        case SYX_NUMBER_KIND_INTEGER: sb_append_number(&sb, value->number->integer); break;
+        case SYX_NUMBER_KIND_FRACTIONAL: sb_append_number(&sb, value->number->fractional); break;
+      }
+      return make_syx_value_string_dup(string_from_sb(&sb));
     }
     case SYX_VALUE_KIND_STRING: return value;
     case SYX_VALUE_KIND_OBJECT: SYX_EVAL_TODO(ctx, "TASK(20260913-075343): object converted to string");

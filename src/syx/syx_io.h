@@ -112,7 +112,7 @@ error:
 
 ssize_t syx__io_values_fprintln(Syx_Eval_Ctx *ctx, FILE *f, Syx_Pair *arguments) {
   ssize_t count = syx__io_values_fprint(ctx, f, arguments);
-  if (count <= 0) return count;
+  if (count < 0) return count;
   if (!syx_io_putc(f, '\n')) return count;
   return count + 1;
 }

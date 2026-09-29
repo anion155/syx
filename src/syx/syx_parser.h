@@ -33,32 +33,45 @@ Syx_Value *parse_syx(Syx_Env *env, String_View source, bool ignore_errors);
 
 Syx_Value *parse_syx_value(Syx_Parser_Ctx *ctx);
 
+#define get_first_token(ctx) ({                                                         \
+  Syx_Parser_Ctx *_ctx_ = (ctx);                                                        \
+  Syx_Token token = {.kind = SYX_TOKEN_KIND_EOF, .source = {.data = NULL, .count = 0}}; \
+  if (_ctx_->tokens.count) token = _ctx_->tokens.data[0];                               \
+  token;                                                                                \
+})
+#define pop_first_token(ctx) ({                                                         \
+  Syx_Parser_Ctx *_ctx_ = (ctx);                                                        \
+  Syx_Token token = {.kind = SYX_TOKEN_KIND_EOF, .source = {.data = NULL, .count = 0}}; \
+  if (_ctx_->tokens.count) token = da_slice_shift(&_ctx_->tokens);                      \
+  token;                                                                                \
+})
+
 Syx_Value *parse_syx_list_values(Syx_Parser_Ctx *ctx, Syx_Token_Kind closing_token) {
-  if (da_first(ctx->tokens).kind == closing_token) {
-    da_slice_shift(&ctx->tokens);
+  if (get_first_token(ctx).kind == closing_token) {
+    pop_first_token(ctx);
     return syx_value_nil();
   }
   Syx_Value *list = NULL;
   Syx_Value **pair_value = &list;
   while (ctx->tokens.count) {
-    Syx_Token first = da_first(ctx->tokens);
+    Syx_Token first = get_first_token(ctx);
     if (first.kind == SYX_TOKEN_KIND_SYMBOL && sv_eq(first.source, sv_from_strlit("."))) {
       Syx_Value *value = rc_acquire(parse_syx_value(ctx));
       syx_value_early_exit(value, (list));
       *pair_value = value;
-      SYX_ASSERT(da_first(ctx->tokens).kind == closing_token, "expected end token", (), (list));
+      SYX_ASSERT(get_first_token(ctx).kind == closing_token, "expected end token", (), (list));
       goto without_nil;
     }
     Syx_Value *value = rc_acquire(parse_syx_value(ctx));
     syx_value_early_exit(value, (list));
     *pair_value = rc_acquire(make_syx_value_pair(value, NULL));
     pair_value = &(*pair_value)->pair->right;
-    if (da_first(ctx->tokens).kind == closing_token) break;
+    if (get_first_token(ctx).kind == closing_token) break;
   }
   *pair_value = rc_acquire(syx_value_nil());
 without_nil:
-  SYX_ASSERT(da_first(ctx->tokens).kind == closing_token, "expected end token", (), (list));
-  da_slice_shift(&ctx->tokens);
+  SYX_ASSERT(get_first_token(ctx).kind == closing_token, "expected end token", (), (list));
+  pop_first_token(ctx);
   return list;
 }
 
@@ -318,7 +331,7 @@ Syx_Value *parse_syx_prefix(Syx_Parser_Ctx *ctx, Syx_Token token) {
     }
     case ':':
     case '$': {
-      Syx_Token symbol = da_slice_shift(&ctx->tokens);
+      Syx_Token symbol = pop_first_token(ctx);
       SYX_ASSERT(symbol.kind == SYX_TOKEN_KIND_SYMBOL, "symbol expected");
       return make_syx_value_prefixed((Syx_Prefixed_Kind)type, parse_syx_symbol_value(ctx, symbol));
     }
@@ -335,7 +348,7 @@ Syx_Value *parse_syx_dispatch(Syx_Parser_Ctx *ctx, Syx_Token token) {
     case 'f': return syx_value_bool_false();
     case 'R': {
       SYX_ASSERT(ctx->tokens.count >= 1, "expected string literal");
-      token = da_slice_shift(&ctx->tokens);
+      token = pop_first_token(ctx);
       SYX_ASSERT(token.kind == SYX_TOKEN_KIND_STRLIT, "expected string literal");
       return make_syx_value_string_n_dup(token.source.data, token.source.count);
     } break;
@@ -346,7 +359,7 @@ Syx_Value *parse_syx_dispatch(Syx_Parser_Ctx *ctx, Syx_Token token) {
     } break;
     case 'c': {
       SYX_ASSERT(ctx->tokens.count >= 1, "expected symbol");
-      token = da_slice_shift(&ctx->tokens);
+      token = pop_first_token(ctx);
       SYX_ASSERT(token.kind == SYX_TOKEN_KIND_SYMBOL && token.source.count > 1 && token.source.data[0] == '_', "expected c type symbol");
       sv_chop_left(&token.source);
       if (sv_eq(token.source, sv_from_strlit("fn"))) return syx_parse_native_function(ctx);
@@ -384,7 +397,7 @@ Syx_Value *parse__syx_value_from_token(Syx_Parser_Ctx *ctx, Syx_Token first) {
 
 Syx_Value *parse_syx_value(Syx_Parser_Ctx *ctx) {
   SYX_ASSERT(ctx->tokens.count, "expected value");
-  Syx_Token first = da_slice_shift(&ctx->tokens);
+  Syx_Token first = pop_first_token(ctx);
   return parse__syx_value_from_token(ctx, first);
 }
 
