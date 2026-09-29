@@ -83,10 +83,6 @@ const char *syx_token_kind_string(Syx_Token_Kind kind) {
   }
 }
 
-int syx_lexer_is_whitespace(int character) {
-  return isspace(character);
-}
-
 int syx_lexer_is_binary_digit(int character) {
   switch (character) {
     case '0':
@@ -340,8 +336,9 @@ return_error:
 
 Syx_Tokens syx_lexer_tokenize(String_View source) {
   Syx_Tokens_Da tokens = {};
+  sv_chop_right_while_expr(&source, character, *character == '\0');
   for (String_View it = source; it.count;) {
-    while (it.count && syx_lexer_is_whitespace(*it.data)) sv_chop_left(&it, sv_first_utf_length(it));
+    while (it.count && (isspace(*it.data) || *it.data == '\n')) sv_chop_left(&it, sv_first_utf_length(it));
     if (!it.count) break;
     Syx_Token token = syx_lexer_get_next_token(&it);
     switch (token.kind) {

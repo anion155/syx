@@ -388,7 +388,8 @@ Syx_Value *syx_eval_closure_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda
     syx_value_early_exit(value, (call_ctx));
     *ht_put(&call_ctx->env->values, symbol) = value;
   }
-  syx_ctx_push_frame_f(ctx, SV_FMT "()", sv_fmt_arg(*name));
+  if (name) syx_ctx_push_frame_f(ctx, SV_FMT "()", sv_fmt_arg(*name));
+  else syx_ctx_push_frame_f(ctx, "<anonim>()");
   Syx_Value *result = rc_acquire(syx_eval_forms_list(call_ctx, lambda->forms));
   syx_ctx_pop_frame(ctx);
   rc_release(call_ctx);
