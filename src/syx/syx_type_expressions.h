@@ -50,9 +50,8 @@ Syx_Value *syx__parse_type_expression(Syx_Parser_Ctx *ctx, Syx_Type **type) {
   } else if (sv_eq(token.source, sv_from_strlit("fn"))) {
     Syx_Type *return_type = syx_parse_type(ctx);
     rc_acquire(return_type);
-    Syx_Types_Array *args_types = rc_acquire(rc_malloc(sizeof(Syx_Types_Array)));
+    Syx_Types_Array *args_types = rc_acquire(rc_malloc(sizeof(Syx_Types_Array), .destructor = syx_types_da_descructor));
     memset(args_types, 0, sizeof(Syx_Types_Array));
-    rc_get(args_types)->methods.destructor = syx_types_da_descructor;
     token = da_slice_shift(&ctx->tokens);
     SYX_ASSERT(token.kind == SYX_TOKEN_KIND_LPAREN, "expected arguments definition start", (), (return_type, args_types));
     while (ctx->tokens.data[0].kind != SYX_TOKEN_KIND_RPAREN) {
@@ -108,9 +107,8 @@ Syx_Value *syx__eval_type_expression(Syx_Eval_Ctx *ctx, Syx_Pair **expression, S
   if (kind->symbol == fn_s->symbol) {
     Syx_Type *return_type = syx_list_next_type(ctx, expression);
     rc_acquire(return_type);
-    Syx_Types_Array *args_types = rc_acquire(rc_malloc(sizeof(Syx_Types_Array)));
+    Syx_Types_Array *args_types = rc_acquire(rc_malloc(sizeof(Syx_Types_Array), .destructor = syx_types_da_descructor));
     memset(args_types, 0, sizeof(Syx_Types_Array));
-    rc_get(args_types)->methods.destructor = syx_types_da_descructor;
     Syx_Value *arg_definition_value = syx_list_next(expression);
     SYX_EVAL_ASSERT(ctx, arg_definition_value->kind == SYX_VALUE_KIND_PAIR, "expected arguments definition", (), (return_type, args_types));
     Syx_Pair *arg_definition = arg_definition_value->pair;

@@ -503,8 +503,7 @@ Syx_Value *syx_builtin_printf(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 Syx_Value *syx_builtin_import(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *arg = syx_list_next(&arguments);
   SYX_EVAL_ASSERT(ctx, arg->kind == SYX_VALUE_KIND_STRING && arg->string->count, "module name expected");
-  Fs_Path *path = rc_acquire(rc_malloc(sizeof(Fs_Path)));
-  rc_get(path)->methods.destructor = fs_path_destructor;
+  Fs_Path *path = rc_acquire(rc_malloc(sizeof(Fs_Path), .destructor = fs_path_destructor));
   memset(path, 0, sizeof(Fs_Path));
   if (da_first(*arg->string) == '/') {
     fs_path_block(*arg->string, arg_path) fs_path_append_path(path, arg_path);
@@ -513,8 +512,7 @@ Syx_Value *syx_builtin_import(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
     fs_path_block(*arg->string, arg_path) fs_path_append_path(path, arg_path);
   } else {
     Fs_Path modules_dir = fs_path_copy(ctx->cwd);
-    Fs_Path *module_path = rc_acquire(rc_malloc(sizeof(Fs_Path)));
-    rc_get(module_path)->methods.destructor = fs_path_destructor;
+    Fs_Path *module_path = rc_acquire(rc_malloc(sizeof(Fs_Path), .destructor = fs_path_destructor));
     fs_path_assign(module_path, fs_path_parse(*arg->string));
     bool found = false;
     while (true) {
@@ -561,7 +559,8 @@ Syx_Value *syx_builtin_import(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
                    (sv_fmt_arg(*arg->string), sv_fmt_arg(path->cstr)),
                    (path));
   }
-  rc_release(path);
+  Syx_Module *stored_module = ht_find(&ctx->modules, path);
+  if (stored_module) return syx_value_from_object(stored_module->exports);
   syx_ctx_push_frame(ctx, sv_from_strlit("import"));
   Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = syx_env_global(ctx->env)}));
   Syx_Value *exports = rc_acquire(make_syx_value_object(NULL));
@@ -571,6 +570,7 @@ Syx_Value *syx_builtin_import(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   sb_free(&source);
   syx_value_early_exit(result, (import_ctx, exports));
   rc_release_all(result, import_ctx);
+  *ht_put(&ctx->modules, rc_acquire(path)) = (Syx_Module){.exports = rc_acquire(exports)->object};
   return rc_move(exports);
 }
 

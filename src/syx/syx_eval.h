@@ -31,10 +31,15 @@ typedef struct Syx_Env {
   Syx_Symbol_Value_Map values;
 } Syx_Env;
 
+typedef struct Syx_Module {
+  Syx_Object *exports;
+} Syx_Module;
+typedef Ht(Fs_Path *, Syx_Module, Syx_Modules) Syx_Modules;
 typedef struct Syx_Eval_Ctx {
   Fs_Path cwd;
   Syx_Frames_Stack *frames_stack;
   Syx_Env *env;
+  Syx_Modules modules;
 } Syx_Eval_Ctx;
 
 #define syx_ctx_push_frame(ctx, trace) syx_frames_stack_push((ctx)->frames_stack, trace)
@@ -320,6 +325,22 @@ void syx_eval_ctx_destructor(void *_data) {
   Syx_Eval_Ctx *ctx = _data;
   rc_release(ctx->frames_stack);
   rc_release(ctx->env);
+  ht_foreach(module, &ctx->modules) {
+    rc_release(syx_value_from_object(module->exports));
+    rc_release(ht_key(&ctx->modules, module));
+  }
+  ht_free(&ctx->modules);
+}
+
+uintptr_t ht_path_ptr_hasheq(Ht_Op op, void const *a_, void const *b_, size_t n) {
+  UNUSED(n);
+  Fs_Path **a = (Fs_Path **)a_;
+  Fs_Path **b = (Fs_Path **)b_;
+  switch (op) {
+    case HT_HASH: return ht_default_hash((*a)->cstr.data, (*a)->cstr.count);
+    case HT_EQ: return sv_eq((*a)->cstr, (*b)->cstr);
+  }
+  return 0;
 }
 
 Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt) {
@@ -327,9 +348,11 @@ Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt) {
   assert(ctx);
   fs_path_assign(&ctx->cwd, opt.cwd);
   ctx->env = opt.env;
+  rc_acquire(ctx->env);
   ctx->frames_stack = opt.frames_stack;
   rc_acquire(ctx->frames_stack);
-  rc_acquire(ctx->env);
+  ctx->modules = opt.modules;
+  ctx->modules.hasheq = ht_path_ptr_hasheq;
   return ctx;
 }
 

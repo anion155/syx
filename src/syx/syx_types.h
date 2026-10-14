@@ -267,9 +267,8 @@ void syx_type_destructor(void *data) {
 }
 
 Syx_Type *make_syx_type(Syx_Type_Kind kind, size_t size, size_t alignment, Syx_Symbol *name, ffi_type *ffi_t, size_t additional_size) {
-  Syx_Type *type = rc_malloc(sizeof(Syx_Type) + additional_size);
+  Syx_Type *type = rc_malloc(sizeof(Syx_Type) + additional_size, .destructor = syx_type_destructor);
   assert(type);
-  rc_get(type)->methods.destructor = syx_type_destructor;
   type->kind = kind;
   type->size = size;
   type->alignment = alignment;
