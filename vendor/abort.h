@@ -24,12 +24,15 @@
 /** Panics with "UNREACHABLE" message */
 #define UNREACHABLE(...) panicf(__FILE__, __LINE__, "UNREACHABLE", WITH_DEFAULT(UNREACHABLE_DEFAULT_MESSAGE, __VA_ARGS__) EXPAND_WITH_COMMA(REST_ARGS(__VA_ARGS__)))
 
+#define ASSERT_DEFAULT_MESSAGE "assertion failed"
 /** If not `condition` panics with "UNREACHABLE" message */
-#define ASSERT(condition, format, ...) ({ if (!(condition)) UNREACHABLE(format __VA_OPT__(, ) __VA_ARGS__); })
+#define ASSERT(condition, ...) ({ if (!(condition)) UNREACHABLE(WITH_DEFAULT(ASSERT_DEFAULT_MESSAGE, __VA_ARGS__) EXPAND_WITH_COMMA(REST_ARGS(__VA_ARGS__))); })
 /** Static assert as an expression. */
-#define STATIC_ASSERT(condition, msg) sizeof(struct { _Static_assert((condition), msg); int dummy; })
+#define STATIC_ASSERT(condition, ...) sizeof(struct { _Static_assert((condition), WITH_DEFAULT(ASSERT_DEFAULT_MESSAGE, __VA_ARGS__)); int dummy; })
+
+#define TYPE_ASSERT_DEFAULT_MESSAGE "type assertion failed"
 /** Static types are compatible assert. */
-#define TYPE_ASSERT(value, expected, ...) STATIC_ASSERT(_Generic((value), expected: true, default: false), WITH_DEFAULT("Type mismatch", __VA_ARGS__))
+#define TYPE_ASSERT(value, expected, ...) STATIC_ASSERT(_Generic((value), expected: true, default: false), WITH_DEFAULT(TYPE_ASSERT_DEFAULT_MESSAGE, __VA_ARGS__))
 
 #endif // ABORT_H
 

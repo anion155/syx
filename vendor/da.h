@@ -30,7 +30,7 @@
 #ifndef DA_H
 #define DA_H
 
-#include <assert.h>
+#include <abort.h>
 #include <defines.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -81,7 +81,7 @@
  */
 #define da_first(da) ({         \
   typeof((da)) *_da_f_ = &(da); \
-  assert(_da_f_->count);        \
+  ASSERT(_da_f_->count);        \
   _da_f_->data[0];              \
 })
 
@@ -91,7 +91,7 @@
  */
 #define da_last(da) ({             \
   typeof((da)) *_da_l_ = &(da);    \
-  assert(_da_l_->count);           \
+  ASSERT(_da_l_->count);           \
   _da_l_->data[_da_l_->count - 1]; \
 })
 
@@ -102,7 +102,7 @@
 #define da_at(da, index) ({                         \
   typeof((da)) *_da_a_ = &(da);                     \
   size_t _index_ = (index);                         \
-  assert(_da_a_->count && _da_a_->count > _index_); \
+  ASSERT(_da_a_->count && _da_a_->count > _index_); \
   _da_a_->data[_index_];                            \
 })
 
@@ -137,7 +137,7 @@
   size_t id##_index = 0;                                   \
   while (id##_index < id##_count) {                        \
     id = &id##_data[id##_index];                           \
-    if (!(expr)) break;                                    \
+    if (expr) break;                                       \
     id##_index += 1;                                       \
   }                                                        \
   id##_index;                                              \
@@ -148,14 +148,14 @@
  * `predicate` - is function or macro that accepts (Value_Type item, size_t index).
  * Can be used with any da compatible structures.
  */
-#define da_find_pred(da, predicate) ({                        \
-  typeof((da)) *_da_fp_ = &(da);                              \
-  size_t _index_ = 0;                                         \
-  while (_index_ < _da_fp_->count) {                          \
-    if (!(predicate(_da_fp_->data[_index_], _index_))) break; \
-    _index_ += 1;                                             \
-  }                                                           \
-  _index_;                                                    \
+#define da_find_pred(da, predicate) ({                     \
+  typeof((da)) *_da_fp_ = &(da);                           \
+  size_t _index_ = 0;                                      \
+  while (_index_ < _da_fp_->count) {                       \
+    if (predicate(_da_fp_->data[_index_], _index_)) break; \
+    _index_ += 1;                                          \
+  }                                                        \
+  _index_;                                                 \
 })
 
 /**
@@ -180,7 +180,7 @@
   ssize_t id##_index = id##_count;                           \
   while (id##_index > 0) {                                   \
     id = &id##_data[id##_index - 1];                         \
-    if (!(expr)) break;                                      \
+    if (expr) break;                                         \
     id##_index -= 1;                                         \
   }                                                          \
   id##_index;                                                \
@@ -191,22 +191,22 @@
  * `predicate` - is function or macro that accepts (Value_Type *item, size_t index).
  * Can be used with any da compatible structures.
  */
-#define da_find_right_pred(da, predicate) ({                   \
-  typeof((da)) *_da_frp_ = &(da);                              \
-  ssize_t _index_ = _da_frp_->count;                           \
-  while (_index_ > 0) {                                        \
-    if (!(predicate(_da_frp_->data[_index_], _index_))) break; \
-    _index_ -= 1;                                              \
-  }                                                            \
-  _index_;                                                     \
+#define da_find_right_pred(da, predicate) ({                \
+  typeof((da)) *_da_frp_ = &(da);                           \
+  ssize_t _index_ = _da_frp_->count;                        \
+  while (_index_ > 0) {                                     \
+    if (predicate(_da_frp_->data[_index_], _index_)) break; \
+    _index_ -= 1;                                           \
+  }                                                         \
+  _index_;                                                  \
 })
 
 /**
  * Internal helper to get modifiable pointer to `data.
  */
-#define da__reassign(da) ({                           \
-  typeof(*(da)) *_da_dnc_ = (da);                     \
-  (typeof_unqual(*_da_dnc_->data) **)&_da_dnc_->data; \
+#define da__reassign(da) ({                    \
+  typeof(*(da)) *_da_dnc_ = (da);              \
+  (typeof(*_da_dnc_->data) **)&_da_dnc_->data; \
 })
 
 /**
@@ -231,7 +231,7 @@
     if (_da_r_->capacity == 0) _da_r_->capacity = DA_INIT_CAP;                                                     \
     while ((target_capacity) > _da_r_->capacity) _da_r_->capacity *= 2;                                            \
     *da__reassign(_da_r_) = (typeof(_da_r_->data))realloc(_da_r_->data, _da_r_->capacity * sizeof(*_da_r_->data)); \
-    assert(_da_r_->data != NULL && "Failed to reallocate dynamic array");                                          \
+    ASSERT(_da_r_->data != NULL && "Failed to reallocate dynamic array");                                          \
   }                                                                                                                \
   _da_r_->capacity;                                                                                                \
 })
@@ -244,7 +244,7 @@
   if ((target_capacity) > _da_re_->capacity) {                                                                          \
     _da_re_->capacity = (target_capacity);                                                                              \
     *da__reassign(_da_re_) = (typeof(_da_re_->data))realloc(_da_re_->data, (target_capacity) * sizeof(*_da_re_->data)); \
-    assert(_da_re_->data != NULL && "Failed to reallocate dynamic array");                                              \
+    ASSERT(_da_re_->data != NULL && "Failed to reallocate dynamic array");                                              \
   }                                                                                                                     \
   _da_re_->capacity;                                                                                                    \
 })
@@ -260,7 +260,7 @@
     } else {                                                                                                           \
       _da_tr_->capacity = _da_tr_->count;                                                                              \
       *da__reassign(_da_tr_) = (typeof(_da_tr_->data))realloc(_da_tr_->data, _da_tr_->count * sizeof(*_da_tr_->data)); \
-      assert(_da_tr_->data != NULL && "Failed to reallocate dynamic array");                                           \
+      ASSERT(_da_tr_->data != NULL && "Failed to reallocate dynamic array");                                           \
     }                                                                                                                  \
   }                                                                                                                    \
   _da_tr_->capacity;                                                                                                   \
@@ -278,24 +278,28 @@
 /**
  * Appends a single `item` to the dynamic array, growing capacity if necessary.
  */
-#define da_append(da, item) ({           \
-  typeof(*(da)) *_da_a_ = (da);          \
-  da_reserve(_da_a_, _da_a_->count + 1); \
-  _da_a_->data[_da_a_->count] = (item);  \
-  _da_a_->count += 1;                    \
-  1;                                     \
+#define da_append(da, item) ({                                                     \
+  typeof(*(da)) *_da_a_ = (da);                                                    \
+  da_reserve(_da_a_, _da_a_->count + 1);                                           \
+  typeof(*_da_a_->data) _item_da_ = (item);                                        \
+  memcpy(_da_a_->data + _da_a_->count, &_item_da_, sizeof(typeof(*_da_a_->data))); \
+  _da_a_->count += 1;                                                              \
+  1;                                                                               \
 })
 
 /**
  * Appends `new_count` elements from buffer `new_items`.
  */
-#define da_append_many_n(da, new_items, new_count) ({                                           \
-  typeof(*(da)) *_da_amn_ = (da);                                                               \
-  size_t _new_count_ = (new_count);                                                             \
-  da_reserve(_da_amn_, _da_amn_->count + _new_count_);                                          \
-  memcpy(_da_amn_->data + _da_amn_->count, (new_items), _new_count_ * sizeof(*_da_amn_->data)); \
-  _da_amn_->count += _new_count_;                                                               \
-  _new_count_;                                                                                  \
+#define da_append_many_n(da, new_items, new_count) ({                                              \
+  typeof(*(da)) *_da_amn_ = (da);                                                                  \
+  const typeof(*_da_amn_->data) *_items_damn_ = (new_items);                                       \
+  size_t _new_count_ = (new_count);                                                                \
+  if (_new_count_) {                                                                               \
+    da_reserve(_da_amn_, _da_amn_->count + _new_count_);                                           \
+    memcpy(_da_amn_->data + _da_amn_->count, _items_damn_, _new_count_ * sizeof(*_da_amn_->data)); \
+    _da_amn_->count += _new_count_;                                                                \
+  }                                                                                                \
+  _new_count_;                                                                                     \
 })
 
 /**
@@ -324,12 +328,13 @@
 /**
  * Removes element at `index` by swapping it with the last element.
  */
-#define da_remove_unordered(da, index) ({                     \
-  typeof(*(da)) *_da_ru_ = (da);                              \
-  size_t _index_ = (index);                                   \
-  assert(_index_ < _da_ru_->count);                           \
-  _da_ru_->data[_index_] = _da_ru_->data[_da_ru_->count - 1]; \
-  _da_ru_->count -= 1;                                        \
+#define da_remove_unordered(da, index) ({                                                      \
+  typeof(*(da)) *_da_ru_ = (da);                                                               \
+  size_t _index_ = (index);                                                                    \
+  ASSERT(_index_ < _da_ru_->count);                                                            \
+  _da_ru_->data[_index_] = _da_ru_->data[_da_ru_->count - 1];                                  \
+  memcpy(_da_ru_->data + _index_, _da_ru_->data + _da_ru_->count - 1, sizeof(*_da_ru_->data)); \
+  _da_ru_->count -= 1;                                                                         \
 })
 
 /**
@@ -337,7 +342,7 @@
  */
 #define da_remove_ordered(da, index) ({                                                                         \
   typeof(*(da)) *_da_ru_ = (da);                                                                                \
-  assert(index < _da_ru_->count);                                                                               \
+  ASSERT(index < _da_ru_->count);                                                                               \
   memmove(_da_ru_->data + index, _da_ru_->data + index + 1, sizeof(*_da_ru_->data) * (_da_ru_->count - index)); \
   _da_ru_->count -= 1;                                                                                          \
 })
@@ -353,10 +358,10 @@
 #define da_slice(da, Slice_Type, ...) ({                                                                       \
   typeof(da) _da_s_ = (da);                                                                                    \
   size_t start = WITH_DEFAULT(0, __VA_ARGS__);                                                                 \
-  assert(_da_s_.count >= start);                                                                               \
+  ASSERT(_da_s_.count >= start);                                                                               \
   size_t slice_count = EXPAND_MACRO(WITH_DEFAULT, _da_s_.count - start __VA_OPT__(, ) REST_ARGS(__VA_ARGS__)); \
-  assert(_da_s_.count >= start + slice_count);                                                                 \
-  typeof_unqual(*((Slice_Type){0}).data) *_data_ = _da_s_.data;                                                \
+  ASSERT(_da_s_.count >= start + slice_count);                                                                 \
+  typeof(*((Slice_Type){0}).data) *_data_ = _da_s_.data;                                                       \
   UNUSED(_data_);                                                                                              \
   (Slice_Type){.data = (typeof(((Slice_Type){0}).data))_da_s_.data + start, .count = slice_count};             \
 })
@@ -414,10 +419,10 @@
  * - `id##_data` - pointer to start of the array,
  * - `id##_count` - count of the array.
  */
-#define da_slice_chop_while_expr(das, id, expr) ({     \
-  typeof(*(das)) *_das_cwe_ = (das);                   \
-  size_t _index_ = da_find_expr(*_das_cwe_, id, expr); \
-  da_slice_chop_left(_das_cwe_, _index_);              \
+#define da_slice_chop_while_expr(das, id, expr) ({        \
+  typeof(*(das)) *_das_cwe_ = (das);                      \
+  size_t _index_ = da_find_expr(*_das_cwe_, id, !(expr)); \
+  da_slice_chop_left(_das_cwe_, _index_);                 \
 })
 
 /**
@@ -437,10 +442,10 @@
  * - `id##_data` - pointer to start of the array,
  * - `id##_count` - count of the array.
  */
-#define da_slice_chop_right_while_expr(das, id, expr) ({        \
-  typeof(*(das)) *_das_crwe_ = (das);                           \
-  size_t _index_ = da_find_right_expr(*_das_crwe_, id, (expr)); \
-  da_slice_chop_right(_das_crwe_, _das_crwe_->count - _index_); \
+#define da_slice_chop_right_while_expr(das, id, expr) ({         \
+  typeof(*(das)) *_das_crwe_ = (das);                            \
+  size_t _index_ = da_find_right_expr(*_das_crwe_, id, !(expr)); \
+  da_slice_chop_right(_das_crwe_, _das_crwe_->count - _index_);  \
 })
 
 /**
@@ -495,7 +500,7 @@
  */
 #define da_slice_chop_right_by_delim_expr(das, id, expr) ({                \
   typeof(*(das)) *_das_crde_ = (das);                                      \
-  size_t _index_ = da_find_right_expr(*_das_crde_, id, !(expr));           \
+  size_t _index_ = da_find_right_expr(*_das_crde_, id, (expr));            \
   typeof(*(das)) _tail_;                                                   \
   if (_index_ == 0) {                                                      \
     _tail_.data = NULL;                                                    \
@@ -523,6 +528,59 @@
 #define da_const_init_from_arraylit(Value_Type, ...) EXPAND_PARENS(IF_VA_OPT(                                   \
     ({.data = (Value_Type[]){__VA_ARGS__}, .count = sizeof((Value_Type[]){__VA_ARGS__}) / sizeof(Value_Type)}), \
     ({.data = NULL, .count = 0}), __VA_ARGS__))
+
+#define da_const_assign(dc, src) ({            \
+  typeof(*(dc)) *_dc_a_ = (dc);                \
+  ASSERT(_dc_a_ && !_dc_a_->data);             \
+  typeof(src) _src_dca_ = (src);               \
+  memcpy(_dc_a_, &_src_dca_, sizeof(*_dc_a_)); \
+})
+
+/**
+ * Frees `data` buffer, zeroes `count`, and resets pointer to `NULL`.
+ */
+#define da_const_free(dc) ({         \
+  typeof(*(dc)) *_dc_f_ = (dc);      \
+  if (_dc_f_->data) {                \
+    free((void *)_dc_f_->data);      \
+    *da__reassign(_dc_f_) = NULL;    \
+    *(size_t *)(&_dc_f_->count) = 0; \
+  }                                  \
+})
+
+#define Queue(Value_Type, ...) \
+  struct __VA_ARGS__ {         \
+    Da(Value_Type) array;      \
+    typeof(Value_Type) *data;  \
+    size_t count;              \
+  }
+
+#define queue_update(qu) ({                                                    \
+  typeof(*qu) *_qu_p_ = (qu);                                                  \
+  ssize_t offset = _qu_p_->array.data ? _qu_p_->data - _qu_p_->array.data : 0; \
+  ASSERT(offset >= 0);                                                         \
+  _qu_p_->data = _qu_p_->array.data + offset;                                  \
+  _qu_p_->count = _qu_p_->array.count - offset;                                \
+})
+#define queue_push(qu, value) ({      \
+  typeof(*qu) *_qu_p_ = (qu);         \
+  da_append(&_qu_p_->array, (value)); \
+  queue_update(_qu_p_);               \
+})
+#define queue_push_many_n(qu, new_items, new_count) ({          \
+  typeof(*qu) *_qu_pmn_ = (qu);                                 \
+  da_append_many_n(&_qu_pmn_->array, (new_items), (new_count)); \
+  queue_update(_qu_pmn_);                                       \
+})
+#define queue_push_many(qu, ...) ({              \
+  typeof(*qu) *_qu_pmn_ = (qu);                  \
+  da_append_many(&_qu_pmn_->array, __VA_ARGS__); \
+  queue_update(_qu_pmn_);                        \
+})
+#define queue_shift(qu) ({      \
+  typeof(*qu) *_qu_pmn_ = (qu); \
+  da_slice_shift(_qu_pmn_);     \
+})
 
 #endif // DA_H
 

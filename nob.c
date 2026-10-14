@@ -267,6 +267,8 @@ static const Da_Const(Vendored_Source, Vendored_Sources) vendored_sources = da_c
     ((Vendored_Source){.name = string_from_strlit("str_integers.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/anion155/c-tools/refs/heads/main/str_integers.h")}),
     ((Vendored_Source){.name = string_from_strlit("str_floats.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/anion155/c-tools/refs/heads/main/str_floats.h")}),
     ((Vendored_Source){.name = string_from_strlit("str_numbers.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/anion155/c-tools/refs/heads/main/str_numbers.h")}),
+    ((Vendored_Source){.name = string_from_strlit("fs_path.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/anion155/c-tools/refs/heads/main/fs_path.h")}),
+    ((Vendored_Source){.name = string_from_strlit("fs.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/anion155/c-tools/refs/heads/main/fs.h")}),
     ((Vendored_Source){.name = string_from_strlit("nob.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/nob.h/refs/heads/main/nob.h")}),
     ((Vendored_Source){.name = string_from_strlit("flag.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/flag.h/refs/heads/master/flag.h")}),
     ((Vendored_Source){.name = string_from_strlit("jim.h"), .latest_link = string_from_strlit("https://raw.githubusercontent.com/tsoding/jim/refs/heads/master/jim2.h")}),
