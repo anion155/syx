@@ -40,13 +40,14 @@ typedef struct Fs_Path {
       .capacity = sizeof((String_View[]){__VA_ARGS__}) / sizeof(String_View), \
       .count = sizeof((String_View[]){__VA_ARGS__}) / sizeof(String_View),    \
       .cstr = {.data = strlit, .capacity = sizeof(strlit) - 1, .count = sizeof(strlit) - 1}}
-void fs_path_assign(Fs_Path *dst, Fs_Path src);
 Fs_Path fs_path_copy(Fs_Path path);
 #define fs_path_free(path) ({    \
   typeof(*path) *_fpt_ = (path); \
   sb_free(&_fpt_->cstr);         \
   da_free(_fpt_);                \
 })
+void fs_path_assign(Fs_Path *dst, Fs_Path src);
+void fs_path_destructor(void *data);
 void fs_path_trim(Fs_Path *path);
 
 #define fs_path_is_absolute(path) ({     \
@@ -78,10 +79,11 @@ void fs_path_append_many_n(Fs_Path *path, String_View *files, size_t n);
     __VA_ARGS__)
 void fs_path_append_path(Fs_Path *path, Fs_Path other);
 
-Fs_Path fs_path_parse(String_View str);
-#define fs_path_parse_n(str, n) fs_path_parse(sv_from_parts(str, n))
-#define fs_path_parse_cstr(str) fs_path_parse(sv_from_cstr(str))
-#define fs_path_parse_strlit(str) fs_path_parse(sv_from_strlit(str))
+Fs_Path fs__path_parse(String_View str);
+#define fs_path_parse(str) fs__path_parse(sv_from_like(str))
+#define fs_path_parse_n(str, n) fs__path_parse(sv_from_parts(str, n))
+#define fs_path_parse_cstr(str) fs__path_parse(sv_from_cstr(str))
+#define fs_path_parse_strlit(str) fs__path_parse(sv_from_strlit(str))
 
 Fs_Path fs_path_join(Fs_Path base, Fs_Path other);
 
@@ -123,14 +125,19 @@ void fs__path_resync(Fs_Path *path, const char *orig_cstr) {
   }
 }
 
-void fs_path_assign(Fs_Path *dst, Fs_Path src) {
-  da_const_assign(dst, src);
-}
-
 Fs_Path fs_path_copy(Fs_Path path) {
   Fs_Path result = {0};
   fs_path_append_path(&result, path);
   return result;
+}
+
+void fs_path_assign(Fs_Path *dst, Fs_Path src) {
+  da_const_assign(dst, src);
+}
+
+void fs_path_destructor(void *data) {
+  Fs_Path *path = data;
+  fs_path_free(path);
 }
 
 void fs_path_trim(Fs_Path *path) {
@@ -186,7 +193,7 @@ void fs_path_append_path(Fs_Path *path, Fs_Path other) {
   fs_path_append_many_n(path, other.data, other.count);
 }
 
-Fs_Path fs_path_parse(String_View str) {
+Fs_Path fs__path_parse(String_View str) {
   Fs_Path path = {0};
   if (str.count && *str.data == '/') fs_path_append_root(&path);
   String_View start = sv_from_like(str);

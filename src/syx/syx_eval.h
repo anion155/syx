@@ -3,6 +3,7 @@
 
 #include <da.h>
 #include <defines.h>
+#include <fs_path.h>
 #include <str.h>
 #include <syx/syx_value.h>
 
@@ -30,7 +31,7 @@ typedef struct Syx_Env {
 } Syx_Env;
 
 typedef struct Syx_Eval_Ctx {
-  String_View cwd;
+  Fs_Path cwd;
   Syx_Frames_Stack *frames_stack;
   Syx_Env *env;
 } Syx_Eval_Ctx;
@@ -320,7 +321,9 @@ void syx_eval_ctx_destructor(void *_data) {
 Syx_Eval_Ctx *make_syx_eval_ctx(Syx_Eval_Ctx opt) {
   Syx_Eval_Ctx *ctx = rc_malloc(sizeof(Syx_Eval_Ctx), .destructor = syx_eval_ctx_destructor);
   assert(ctx);
-  *ctx = opt;
+  fs_path_assign(&ctx->cwd, opt.cwd);
+  ctx->env = opt.env;
+  ctx->frames_stack = opt.frames_stack;
   rc_acquire(ctx->frames_stack);
   rc_acquire(ctx->env);
   return ctx;

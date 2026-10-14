@@ -11,15 +11,14 @@
 
 #include <cli.h>
 
-#define NOB_UNSTRIP_PREFIX
-#define NOB_IMPL
-#include <nob.h>
 #define FLAG_IMPL
 #include <flag.h>
 #define HT_IMPL
 #include <ht.h>
 #define RC_IMPL
 #include <rc.h>
+#define FS_IMPL
+#include <fs.h>
 
 #define SYX_VALUE_IMPL
 #include <syx/syx_value.h>
@@ -181,7 +180,7 @@ int main(int argc, char **argv) {
   if (*opt_print) script_ctx.opt_print = true;
   if (!(*opt_error)) script_ctx.opt_error = false;
 
-  String_View working_dir = sv_from_cstr((char *)nob_get_current_dir_temp());
+  Fs_Path working_dir = fs_get_cwd();
   script_ctx.eval_ctx = rc_acquire(make_global_syx_eval_ctx(working_dir));
 
   // syx_env_define_value_cstr(script_ctx.eval_ctx->global_env, "quit", make_syxv_builtin(NULL, eval_quit));
@@ -192,7 +191,9 @@ int main(int argc, char **argv) {
     // Run some commands, get output from them
     // `syx -c '(do-something)' -c '(do-other)'`
     String_Builder sb = {0};
-    nob_da_foreach(const char *, command, commands) sb_append_cstr(&sb, *command);
+    for (size_t index = 0; index < commands->count; index += 1) {
+      sb_append_cstr(&sb, commands->items[index]);
+    }
     sb_append(&sb, 0);
     int run_result = run_syx(sv_from_like(sb));
     if (run_result >= 0) return run_result;
@@ -200,7 +201,7 @@ int main(int argc, char **argv) {
     // Run some commands from stdin, get output from them
     // `cat script.syx | syx -s`
     String_Builder sb = {0};
-    if (!nob_read_entire_stdin((Nob_String_Builder *)&sb)) UNREACHABLE("Failed to read stdin");
+    if (!fs_read_from_stdin(&sb)) UNREACHABLE("Failed to read stdin");
     sb_append(&sb, 0);
     int run_result = run_syx(sv_from_like(sb));
     sb_free(&sb);
@@ -209,11 +210,14 @@ int main(int argc, char **argv) {
     // Run script
     // `syx script.syx`
     String_Builder sb = {0};
-    script_ctx.eval_ctx->cwd = sv_from_cstr(nob_temp_dir_name(argv[0]));
-    if (!nob_read_entire_file(argv[0], (Nob_String_Builder *)&sb)) UNREACHABLE("Failed to read file");
-    sb_append(&sb, 0);
+    Fs_Path script_path = fs_path_parse_cstr(argv[0]);
+    script_ctx.eval_ctx->cwd.count = 0;
+    fs_path_append_path(&script_ctx.eval_ctx->cwd, fs_path_dir_name(script_path));
+    if (!fs_read_from_file(&sb, script_path)) UNREACHABLE("Failed to read file");
+    sb_append_null(&sb);
     int run_result = run_syx(sv_from_like(sb));
     sb_free(&sb);
+    fs_path_free(&script_path);
     if (run_result >= 0) return run_result;
   } else {
     // REPL

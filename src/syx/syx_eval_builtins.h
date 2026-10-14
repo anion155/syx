@@ -14,6 +14,9 @@ void syx_env_define_builtins(Syx_Env *env);
 
 #include <math.h>
 #include <stdio.h>
+#include <unistd.h>
+#define FS_IMPL
+#include <fs.h>
 #define SYX_IO_IMPL
 #include <syx/syx_io.h>
 #define SYX_PARSE_AND_EVAL_IMPL
@@ -500,59 +503,74 @@ Syx_Value *syx_builtin_printf(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 Syx_Value *syx_builtin_import(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *arg = syx_list_next(&arguments);
   SYX_EVAL_ASSERT(ctx, arg->kind == SYX_VALUE_KIND_STRING && arg->string->count, "module name expected");
-  String_Builder path = {0};
+  Fs_Path *path = rc_acquire(rc_malloc(sizeof(Fs_Path)));
+  rc_get(path)->methods.destructor = fs_path_destructor;
+  memset(path, 0, sizeof(Fs_Path));
   if (da_first(*arg->string) == '/') {
-    sb_append_sv(&path, *arg->string);
+    fs_path_block(*arg->string, arg_path) fs_path_append_path(path, arg_path);
   } else if (sv_starts_with(*arg->string, sv_from_strlit("./"))) {
-    sb_append_sv(&path, ctx->cwd);
-    if (da_last(path) != '/') sb_append(&path, '/');
-    sb_append_buf(&path, arg->string->data + 2, arg->string->count - 2);
+    fs_path_append_path(path, ctx->cwd);
+    fs_path_block(*arg->string, arg_path) fs_path_append_path(path, arg_path);
   } else {
-    String_View modules_dir = ctx->cwd;
+    Fs_Path modules_dir = fs_path_copy(ctx->cwd);
+    Fs_Path *module_path = rc_acquire(rc_malloc(sizeof(Fs_Path)));
+    rc_get(module_path)->methods.destructor = fs_path_destructor;
+    fs_path_assign(module_path, fs_path_parse(*arg->string));
     bool found = false;
     while (true) {
-      path.count = 0;
-      sb_append_sv(&path, modules_dir);
-      if (da_last(path) != '/') sb_append(&path, '/');
-      sb_append_strlit(&path, "syx_modules/");
-      sb_append_null(&path);
-      if (nob_file_exists(path.data) && nob_get_file_type(path.data) == NOB_FILE_DIRECTORY) {
-        found = true;
-        break;
-      }
-      if (sv_eq(modules_dir, sv_from_strlit("/"))) break;
-      sv_chop_right_by_char_delim(&modules_dir, '/');
-      if (!modules_dir.count) break;
-      modules_dir.count += 1;
+      path->count = 0;
+      fs_path_append_path(path, modules_dir);
+      fs_path_append_strlit(path, "syx_modules");
+      if (!fs_file_exists(*path) || fs_file_kind(*path) != FS_FILE_KIND_DIRECTORY) goto continue_search;
+      fs_path_append_path(path, *module_path);
+      if (!fs_file_exists(*path)) goto continue_search;
+      found = true;
+      break;
+    continue_search:
+      if (fs_path_is_root(modules_dir)) break;
+      fs_path_pop(&modules_dir);
     }
-    SYX_EVAL_ASSERT(ctx, found, "failed to resolve module '" SV_FMT "': syx_modules directory not found", (sv_fmt_arg(*arg->string)));
-    sb_append_sv(&path, *arg->string);
-    sb_append_null(&path);
+    fs_path_free(&modules_dir);
+    SYX_EVAL_ASSERT(ctx, found,
+                    "failed to resolve module '" SV_FMT "': syx_modules directory not found",
+                    (sv_fmt_arg(*arg->string)),
+                    (module_path, path));
+    fs_path_append_path(path, *module_path);
+    rc_release(module_path);
   }
-  if (!sv_ends_with(path, sv_from_strlit(".syx")) && nob_get_file_type(path.data) == NOB_FILE_DIRECTORY) {
-    if (da_last(path) != '/') sb_append(&path, '/');
-    sb_append_strlit(&path, "index.syx");
-    sb_append_null(&path);
+  if (!sv_eq(fs_path_file_ext(*path), sv_from_strlit(".syx")) && fs_file_kind(*path) == FS_FILE_KIND_DIRECTORY) {
+    fs_path_append_strlit(path, "index.syx");
   }
-  SYX_EVAL_ASSERT(ctx, nob_file_exists(path.data), "failed to resolve module '" SV_FMT "': module not found '" SV_FMT "'", (sv_fmt_arg(*arg->string), sv_fmt_arg(path)));
-  while (nob_get_file_type(path.data) == NOB_FILE_SYMLINK) {
-    SYX_EVAL_TODO(ctx, "failed to resolve module '" SV_FMT "': symlinks are not supported", (sv_fmt_arg(*arg->string)));
+  SYX_EVAL_ASSERT(ctx, fs_file_exists(*path),
+                  "failed to resolve module '" SV_FMT "': module not found '" SV_FMT "'",
+                  (sv_fmt_arg(*arg->string), sv_fmt_arg(path->cstr)),
+                  (path));
+  while (fs_file_kind(*path) == FS_FILE_KIND_SYMLINK) {
+    SYX_EVAL_TODO(ctx,
+                  "failed to resolve module '" SV_FMT "': symlinks are not supported",
+                  (sv_fmt_arg(*arg->string)),
+                  (path));
   }
-  SYX_EVAL_ASSERT(ctx, nob_get_file_type(path.data) == NOB_FILE_REGULAR, "failed to resolve module '" SV_FMT "': unsupported file type '" SV_FMT "'", (sv_fmt_arg(*arg->string), sv_fmt_arg(path)));
-  Nob_String_Builder source_sb = {0};
-  if (!nob_read_entire_file(path.data, &source_sb)) UNREACHABLE("Failed to read file");
-  sb_free(&path);
-  String_View source = (String_View){.data = rc_acquire(rc_malloc(source_sb.count + 1)), .count = source_sb.count};
-  memcpy(source.data, source_sb.items, source_sb.count + 1);
-  nob_sb_free(source_sb);
+  SYX_EVAL_ASSERT(ctx, fs_file_kind(*path) == FS_FILE_KIND_REGULAR,
+                  "failed to resolve module '" SV_FMT "': unsupported file type '" SV_FMT "'",
+                  (sv_fmt_arg(*arg->string), sv_fmt_arg(path->cstr)),
+                  (path));
+  String_Builder source = {0};
+  if (!fs_read_from_file(&source, *path)) {
+    SYX_EVAL_THROW(ctx, "failed to resolve module '" SV_FMT "': failed to read file '" SV_FMT "'",
+                   (sv_fmt_arg(*arg->string), sv_fmt_arg(path->cstr)),
+                   (path));
+  }
+  rc_release(path);
   syx_ctx_push_frame(ctx, sv_from_strlit("import"));
   Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = syx_env_global(ctx->env)}));
   Syx_Value *exports = rc_acquire(make_syx_value_object(NULL));
   syx_env_define_value_strlit(import_ctx->env, "exports", exports);
-  Syx_Value *result = rc_acquire(syx_parse_and_eval(import_ctx, source));
+  Syx_Value *result = rc_acquire(syx_parse_and_eval(import_ctx, sv_from_like(source)));
   syx_ctx_pop_frame(ctx, exports);
-  syx_value_early_exit(result, (source.data, import_ctx, exports));
-  rc_release_all(result, source.data, import_ctx);
+  sb_free(&source);
+  syx_value_early_exit(result, (import_ctx, exports));
+  rc_release_all(result, import_ctx);
   return rc_move(exports);
 }
 
