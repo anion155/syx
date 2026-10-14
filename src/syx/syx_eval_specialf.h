@@ -233,7 +233,7 @@ Syx_Value *syx_special_form_unset_type(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 
 Syx_Value *syx_special_form_and_reduce(Syx_Eval_Ctx *ctx, Syx_Value *evaluated) {
   bool value = {0};
-  syx_convert_to(ctx, evaluated, &value);
+  syx_convert_to_storage(ctx, evaluated, &value);
   return syx_value_bool(!value);
 }
 
@@ -255,7 +255,7 @@ Syx_Value *syx_special_form_or(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 /** if - Evaluates condition then evaluates only one branch */
 Syx_Value *syx_special_form_if(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   bool cond = {0};
-  syx_convert_to(ctx, syx_eval(ctx, syx_list_next(&arguments)), &cond);
+  syx_convert_to_storage(ctx, syx_eval(ctx, syx_list_next(&arguments)), &cond);
   Syx_Value *then_body = syx_list_next(&arguments);
   Syx_Value *else_body = syx_list_next(&arguments);
   Syx_Value *result;
@@ -281,7 +281,7 @@ Syx_Value *syx_special_form_cond(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
     if (result) rc_release(result);
     result = rc_acquire(syx_eval(ctx, branch->pair->left));
     bool cond = {0};
-    syx_convert_to(ctx, result, &cond, (result, else_symbol, apply_symbol));
+    syx_convert_to_storage(ctx, result, &cond, (result, else_symbol, apply_symbol));
     if (!cond) continue;
     branch = branch->pair->right;
     if (branch->kind != SYX_VALUE_KIND_PAIR) SYX_EVAL_THROW(ctx, "malformed cond branch, forms list expected");

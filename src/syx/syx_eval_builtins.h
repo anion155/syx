@@ -118,13 +118,13 @@ Syx_Value *syx_builtin_concat(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
         return make_syx_value_number(value);                       \
       }                                                            \
     }                                                              \
-    default: syx_convert_to((ctx), first, &value);                 \
+    default: syx_convert_to_storage((ctx), first, &value);         \
   }                                                                \
   syx_list_for_each((arguments), argument) {                       \
     Syx_Number next = {0};                                         \
     switch (argument->kind) {                                      \
       case SYX_VALUE_KIND_NUMBER: next = *argument->number; break; \
-      default: syx_convert_to((ctx), argument, &next);             \
+      default: syx_convert_to_storage((ctx), argument, &next);     \
     }                                                              \
     value = syx_number_operate(&value, operator, & next);          \
   }                                                                \
@@ -158,7 +158,7 @@ Syx_Value *syx_builtin_div(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 /** Returns `false` if argument is truthy, `true` if falsy. */
 Syx_Value *syx_builtin_not(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   bool value = {0};
-  syx_convert_to(ctx, syx_list_next(&arguments), &value);
+  syx_convert_to_storage(ctx, syx_list_next(&arguments), &value);
   return syx_value_bool(!value);
 }
 
@@ -494,7 +494,7 @@ Syx_Value *syx_builtin_println(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 Syx_Value *syx_builtin_printf(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   FILE *f = parse_optional_file_descriptor(&arguments);
   String fmt = {0};
-  syx_convert_to(ctx, syx_list_next(&arguments), &fmt);
+  syx_convert_to_storage(ctx, syx_list_next(&arguments), &fmt);
   ssize_t count = syx__io_values_fprintf(ctx, f, fmt, arguments);
   return make_syx_value_number_integer(count);
 }

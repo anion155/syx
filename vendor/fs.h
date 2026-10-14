@@ -5,7 +5,7 @@
 #include <fs_path.h>
 #include <stdio.h>
 
-#define fs_file_exists(path) (access((path).cstr.data, F_OK))
+#define fs_file_exists(path) (access((path).cstr.data, F_OK) == 0)
 
 typedef enum Fs_File_Kind {
   FS_FILE_KIND_ERROR = -1,

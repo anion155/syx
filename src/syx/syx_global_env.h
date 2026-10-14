@@ -4,6 +4,7 @@
 #include <defines.h>
 #include <syx/syx_eval.h>
 
+Syx_Env *get_builtins_syx_env();
 Syx_Env *make_global_syx_env();
 Syx_Eval_Ctx *make_global_syx_eval_ctx(Fs_Path cwd);
 
@@ -18,21 +19,21 @@ Syx_Eval_Ctx *make_global_syx_eval_ctx(Fs_Path cwd);
 #include <syx/syx_eval_builtins.h>
 
 Syx_Env *make_global_syx_env() {
-  Syx_Env *env = make_syx_env(syx_value_symbol_strlit("builtins")->symbol, NULL);
-  syx_env_define_special_forms(env);
-  syx_env_define_builtins(env);
-  syx_env_define_types(env);
+  Syx_Env *builtins_env = make_syx_env(syx_value_symbol_strlit("builtins")->symbol, NULL);
+  syx_env_define_special_forms(builtins_env);
+  syx_env_define_builtins(builtins_env);
+  syx_env_define_types(builtins_env);
   // syx_env_define_vector(env);
   // syx_env_define_test_vector(env);
-  //   syx_env_define_arithmetic(env);
-  //   syx_env_define_comparison(env);
-  //   syx_env_define_equality(env);
-  //   syx_env_define_list(env);
-  //   syx_env_define_string(env);
-  //   syx_env_define_type_predicates(env);
-  //   syx_env_define_type_conversion(env);
-  //   syx_env_define_io(env);
-  return env;
+  // syx_env_define_arithmetic(env);
+  // syx_env_define_comparison(env);
+  // syx_env_define_equality(env);
+  // syx_env_define_list(env);
+  // syx_env_define_string(env);
+  // syx_env_define_type_predicates(env);
+  // syx_env_define_type_conversion(env);
+  // syx_env_define_io(env);
+  return make_syx_env(syx_value_symbol_strlit("global")->symbol, builtins_env);
 }
 
 Syx_Eval_Ctx *make_global_syx_eval_ctx(Fs_Path cwd) {

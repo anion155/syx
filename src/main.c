@@ -119,26 +119,23 @@ int run_syx(String_View source_sv) {
   return code;
 }
 
-// SyxV *eval_quit(Syx_Eval_Ctx *ctx, SyxV *arguments) {
-//   UNUSED(ctx);
-//   UNUSED(arguments);
-//   TODO("TASK(20260913-072941): eval_quit");
-//   // SyxV *result = syxv_list_next(&arguments);
-//   // if (result->kind == SYXV_KIND_NIL) result = make_syxv_integer(0);
-// }
+Syx_Value *eval_quit(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  UNUSED(ctx);
+  UNUSED(arguments);
+  TODO("TASK(20260913-072941): eval_quit");
+  // SyxV *result = syxv_list_next(&arguments);
+  // if (result->kind == SYXV_KIND_NIL) result = make_syxv_integer(0);
+}
 
-// SyxV *eval_setopt(Syx_Eval_Ctx *ctx, Syx_SpecialF *callable, SyxV *arguments) {
-//   UNUSED(callable);
-//   SyxV *name = syxv_list_next(&arguments);
-//   if (name->kind != SYXV_KIND_SYMBOL) RUNTIME_ERROR(ctx, "option name expected");
-//   bool **option = ht_find(ctx_options(), name->symbol.name);
-//   if (option == NULL) RUNTIME_ERROR(ctx, "option not found");
-//   SyxV *evaluated = syx_eval(ctx, syxv_list_next(&arguments));
-//   bool value = {0};
-//   syx_convert_to(ctx, evaluated, &value);
-//   (**option) = value;
-//   return NULL;
-// }
+Syx_Value *eval_setopt(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  Syx_Value *name = syx_list_next(&arguments);
+  SYX_EVAL_ASSERT(ctx, name->kind == SYX_VALUE_KIND_SYMBOL, "option name expected");
+  bool **option = ht_find(ctx_options(), name->symbol->data);
+  SYX_EVAL_ASSERT(ctx, option, "option not found");
+  Syx_Value *evaluated = rc_acquire(syx_eval(ctx, syx_list_next(&arguments)));
+  syx_convert_to_storage(ctx, evaluated, *option);
+  return NULL;
+}
 
 void usage(FILE *stream) {
   fprintf(stream, "usage: %s [options] [file]\n", flag_program_name());
@@ -183,8 +180,8 @@ int main(int argc, char **argv) {
   Fs_Path working_dir = fs_get_cwd();
   script_ctx.eval_ctx = rc_acquire(make_global_syx_eval_ctx(working_dir));
 
-  // syx_env_define_value_cstr(script_ctx.eval_ctx->global_env, "quit", make_syxv_builtin(NULL, eval_quit));
-  // syx_env_define_value_cstr(script_ctx.eval_ctx->global_env, "setopt", make_syxv_specialf(NULL, eval_setopt));
+  syx_env_define_value_cstr(script_ctx.eval_ctx->env->parent, "quit", make_syx_value_closure_builtin(NULL, eval_quit));
+  syx_env_define_value_cstr(script_ctx.eval_ctx->env->parent, "setopt", make_syx_value_closure_builtin(NULL, eval_setopt));
 
   int result = 0;
   if (commands->count) {

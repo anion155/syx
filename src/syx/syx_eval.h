@@ -26,6 +26,7 @@ void syx_frames_stack__pop(Syx_Frames_Stack *frames_stack, Syx_Value **to_save, 
 typedef struct Syx_Env {
   Syx_Symbol *name;
   Syx_Env *parent;
+  bool writable;
   Syx_Symbol_Type_Map types;
   Syx_Symbol_Value_Map values;
 } Syx_Env;
@@ -102,7 +103,7 @@ Syx_Value *syx_eval_forms_list_opt(Syx_Eval_Ctx *ctx, Syx_Pair *forms, Syx_Eval_
 Syx_Value *syx_convert_to_bool(Syx_Eval_Ctx *ctx, Syx_Value *value);
 Syx_Value *syx_convert_to_number(Syx_Eval_Ctx *ctx, Syx_Value *value);
 Syx_Value *syx_convert_to_string(Syx_Eval_Ctx *ctx, Syx_Value *value);
-#define syx_convert_to(ctx, value, storage, ...) ({                                                             \
+#define syx_convert_to_storage(ctx, value, storage, ...) ({                                                     \
   Syx_Value *__value = rc_acquire((value));                                                                     \
   syx_value_early_exit(__value __VA_OPT__(, ) __VA_ARGS__);                                                     \
   Syx_Value *converted = _Generic(storage,                                                                      \
@@ -227,6 +228,7 @@ Syx_Env *make_syx_env(Syx_Symbol *name, Syx_Env *parent) {
   rc_acquire(syx_value_from_symbol(name));
   env->name = name;
   env->parent = rc_acquire(parent);
+  env->writable = true;
   env->types.hasheq = ht_syx_symbol_hasheq;
   env->values.hasheq = ht_syx_symbol_hasheq;
   return env;
@@ -254,6 +256,7 @@ Syx_Value *syx_env_get_value(Syx_Env *env, Syx_Symbol *symbol) {
 }
 
 void syx_env_define_value(Syx_Env *env, Syx_Symbol *symbol, Syx_Value *value) {
+  if (!env->writable) UNREACHABLE("trying to define value in readonly environment");
   Syx_Value **item = ht_find(&env->values, symbol);
   if (item == NULL) {
     rc_acquire(syx_value_from_symbol(symbol));
@@ -296,6 +299,7 @@ Syx_Type *syx_env_get_type(Syx_Env *env, Syx_Symbol *symbol) {
 }
 
 void syx_env_define_type(Syx_Env *env, Syx_Symbol *symbol, Syx_Type *type) {
+  if (!env->writable) UNREACHABLE("trying to define type in readonly environment");
   Syx_Type **item = ht_find(&env->types, symbol);
   if (item == NULL) {
     rc_acquire(syx_value_from_symbol(symbol));
@@ -358,8 +362,7 @@ Syx_Value *syx_eval_closure_builtin(Syx_Eval_Ctx *ctx, Syx_Closure_Builtin *buil
 
 Syx_Value *syx_eval_closure_lambda(Syx_Eval_Ctx *ctx, Syx_Closure_Lambda *lambda, Syx_Pair *arguments) {
   Syx_Symbol *name = syx_closure_from_lambda(lambda)->name;
-  Syx_Env *call_env = make_syx_env(name, lambda->env);
-  Syx_Eval_Ctx *call_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = call_env}));
+  Syx_Eval_Ctx *call_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = make_syx_env(name, lambda->env)}));
   for (Syx_Value *arg_current,
        *arg_next = syx_value_from_pair(arguments),
        *arg,
@@ -524,7 +527,7 @@ Syx_Value *syx_eval_forms_list_opt(Syx_Eval_Ctx *ctx, Syx_Pair *forms, Syx_Eval_
     syx_value_early_exit(result);
     if (opt.should_stop != NULL) {
       bool should_stop = {0};
-      syx_convert_to(ctx, opt.should_stop(ctx, result), &should_stop, (result));
+      syx_convert_to_storage(ctx, opt.should_stop(ctx, result), &should_stop, (result));
       if (should_stop) return rc_move(result);
     }
   }

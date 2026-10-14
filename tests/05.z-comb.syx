@@ -16,4 +16,4 @@
 
 (define factorial (Z factorial-generator))
 
-(println (factorial 1))
+(println (factorial 5))
