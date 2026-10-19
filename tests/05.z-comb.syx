@@ -15,5 +15,6 @@
         (* n (rec (- n 1)))))))
 
 (define factorial (Z factorial-generator))
+(export :factorial factorial)
 
 (println (factorial 10))

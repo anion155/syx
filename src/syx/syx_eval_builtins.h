@@ -19,8 +19,6 @@ void syx_env_define_builtins(Syx_Env *env);
 #include <fs.h>
 #define SYX_IO_IMPL
 #include <syx/syx_io.h>
-#define SYX_PARSE_AND_EVAL_IMPL
-#include <syx/syx_parse_and_eval.h>
 
 /** Builtins */
 
@@ -499,81 +497,6 @@ Syx_Value *syx_builtin_printf(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   return make_syx_value_number_integer(count);
 }
 
-/** Import module */
-Syx_Value *syx_builtin_import(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
-  Syx_Value *arg = syx_list_next(&arguments);
-  SYX_EVAL_ASSERT(ctx, arg->kind == SYX_VALUE_KIND_STRING && arg->string->count, "module name expected");
-  Fs_Path *path = rc_acquire(rc_malloc(sizeof(Fs_Path), .destructor = fs_path_destructor));
-  memset(path, 0, sizeof(Fs_Path));
-  if (da_first(*arg->string) == '/') {
-    fs_path_block(*arg->string, arg_path) fs_path_append_path(path, arg_path);
-  } else if (sv_starts_with(*arg->string, sv_from_strlit("./"))) {
-    fs_path_append_path(path, ctx->cwd);
-    fs_path_block(*arg->string, arg_path) fs_path_append_path(path, arg_path);
-  } else {
-    Fs_Path modules_dir = fs_path_copy(ctx->cwd);
-    Fs_Path *module_path = rc_acquire(rc_malloc(sizeof(Fs_Path), .destructor = fs_path_destructor));
-    fs_path_assign(module_path, fs_path_parse(*arg->string));
-    bool found = false;
-    while (true) {
-      path->count = 0;
-      fs_path_append_path(path, modules_dir);
-      fs_path_append_strlit(path, "syx_modules");
-      if (!fs_file_exists(*path) || fs_file_kind(*path) != FS_FILE_KIND_DIRECTORY) goto continue_search;
-      fs_path_append_path(path, *module_path);
-      if (!fs_file_exists(*path)) goto continue_search;
-      found = true;
-      break;
-    continue_search:
-      if (fs_path_is_root(modules_dir)) break;
-      fs_path_pop(&modules_dir);
-    }
-    fs_path_free(&modules_dir);
-    SYX_EVAL_ASSERT(ctx, found,
-                    "failed to resolve module '" SV_FMT "': syx_modules directory not found",
-                    (sv_fmt_arg(*arg->string)),
-                    (module_path, path));
-    fs_path_append_path(path, *module_path);
-    rc_release(module_path);
-  }
-  if (!sv_eq(fs_path_file_ext(*path), sv_from_strlit(".syx")) && fs_file_kind(*path) == FS_FILE_KIND_DIRECTORY) {
-    fs_path_append_strlit(path, "index.syx");
-  }
-  SYX_EVAL_ASSERT(ctx, fs_file_exists(*path),
-                  "failed to resolve module '" SV_FMT "': module not found '" SV_FMT "'",
-                  (sv_fmt_arg(*arg->string), sv_fmt_arg(path->cstr)),
-                  (path));
-  while (fs_file_kind(*path) == FS_FILE_KIND_SYMLINK) {
-    SYX_EVAL_TODO(ctx,
-                  "failed to resolve module '" SV_FMT "': symlinks are not supported",
-                  (sv_fmt_arg(*arg->string)),
-                  (path));
-  }
-  SYX_EVAL_ASSERT(ctx, fs_file_kind(*path) == FS_FILE_KIND_REGULAR,
-                  "failed to resolve module '" SV_FMT "': unsupported file type '" SV_FMT "'",
-                  (sv_fmt_arg(*arg->string), sv_fmt_arg(path->cstr)),
-                  (path));
-  String_Builder source = {0};
-  if (!fs_read_from_file(&source, *path)) {
-    SYX_EVAL_THROW(ctx, "failed to resolve module '" SV_FMT "': failed to read file '" SV_FMT "'",
-                   (sv_fmt_arg(*arg->string), sv_fmt_arg(path->cstr)),
-                   (path));
-  }
-  Syx_Module *stored_module = ht_find(&ctx->modules, path);
-  if (stored_module) return syx_value_from_object(stored_module->exports);
-  syx_ctx_push_frame(ctx, sv_from_strlit("import"));
-  Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = syx_env_global(ctx->env)}));
-  Syx_Value *exports = rc_acquire(make_syx_value_object(NULL));
-  syx_env_define_value_strlit(import_ctx->env, "exports", exports);
-  Syx_Value *result = rc_acquire(syx_parse_and_eval(import_ctx, sv_from_like(source)));
-  syx_ctx_pop_frame(ctx, exports);
-  sb_free(&source);
-  syx_value_early_exit(result, (import_ctx, exports));
-  rc_release_all(result, import_ctx);
-  *ht_put(&ctx->modules, rc_acquire(path)) = (Syx_Module){.exports = rc_acquire(exports)->object};
-  return rc_move(exports);
-}
-
 void syx_env_define_builtins(Syx_Env *env) {
   /** Builtins */
   syx_env_define_value_strlit(env, "cons", make_syx_value_closure_builtin(NULL, syx_builtin_cons));
@@ -626,8 +549,6 @@ void syx_env_define_builtins(Syx_Env *env) {
   syx_env_define_value_strlit(env, "print-flash", make_syx_value_closure_builtin(NULL, syx_builtin_print_flash));
   syx_env_define_value_strlit(env, "println", make_syx_value_closure_builtin(NULL, syx_builtin_println));
   syx_env_define_value_strlit(env, "printf", make_syx_value_closure_builtin(NULL, syx_builtin_printf));
-
-  syx_env_define_value_strlit(env, "import", make_syx_value_closure_builtin(NULL, syx_builtin_import));
 }
 
 #endif // SYX_EVAL_BUILTINS_IMPL

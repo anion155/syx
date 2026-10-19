@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <str.h>
 #include <str_numbers.h>
+#include <syx/syx_fields.h>
 #include <syx/syx_utils.h>
 
 typedef struct Syx_Frame Syx_Frame;
@@ -126,11 +127,17 @@ typedef struct Syx_Number {
 
 typedef struct Syx_Type Syx_Type;
 
-typedef Ht(Syx_Symbol *, Syx_Type *, Syx_Symbol_Type_Map) Syx_Symbol_Type_Map;
-typedef Ht(Syx_Symbol *, Syx_Value *, Syx_Symbol_Value_Map) Syx_Symbol_Value_Map;
-
+typedef enum Syx_Object_Access_Flags {
+  SYX_OBJECT_ACCESS_FLAG_WRITE = 1 << 0,
+  SYX_OBJECT_ACCESS_FLAG_EXTEND = 1 << 1,
+  SYX_OBJECT_ACCESS_FLAG_DELETE = 1 << 2,
+} Syx_Object_Access_Flags;
+constexpr uint8_t SYX_OBJECT_ACCESS_SEALED = SYX_OBJECT_ACCESS_FLAG_WRITE;
+constexpr uint8_t SYX_OBJECT_ACCESS_FROZEN = 0;
+constexpr uint8_t SYX_OBJECT_ACCESS_OPEN = SYX_OBJECT_ACCESS_FLAG_WRITE | SYX_OBJECT_ACCESS_FLAG_EXTEND | SYX_OBJECT_ACCESS_FLAG_DELETE;
 typedef struct Syx_Object {
-  Syx_Symbol_Value_Map fields;
+  uint8_t access; // Syx_Object_Access_Flags
+  Syx_Fields_Map *fields;
   Syx_Object *proto;
 } Syx_Object;
 
@@ -205,7 +212,7 @@ Syx_Value *syx_value_nil();
 Syx_Value *make_syx_value_pair(Syx_Value *left, Syx_Value *right);
 Syx_Value *make_syx_value__list(size_t count, Syx_Value **items);
 #define make_syx_value_list(...) make_syx_value__list(sizeof((Syx_Value *[]){__VA_ARGS__}) / sizeof(Syx_Value *), (Syx_Value *[]){__VA_ARGS__})
-Syx_Value *syx_value_symbol_sv(String_View symbol);
+Syx_Value *syx_value_symbol_sv(String_View sv);
 Syx_Value *syx_value_symbol_n(const char *symbol, size_t count);
 #define syx_value_symbol_strlit(symbol) syx_value_symbol_n((symbol), sizeof(symbol) - 1)
 Syx_Value *syx_value_symbolf(PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(1, 2);
@@ -222,7 +229,8 @@ Syx_Value *make_syx_value_string_n_dup(const char *data, size_t count);
 Syx_Value *make_syx_value_string_cstr_dup(const char *data);
 #define make_syx_value_string_strlit_dup(string) make_syx_value_string_n_dup((string), sizeof(string) - 1);
 Syx_Value *make_syx_value_stringf_dup(PRINTF_FMT_PARAM const char *format, ...) PRINTF_ATTRIBUTE(1, 2);
-Syx_Value *make_syx_value_object(Syx_Object *proto);
+Syx_Value *make__syx_value_object(Syx_Object *proto, Syx_Fields_Map *fields, uint8_t /*Syx_Object_Access_Flags*/ access);
+#define make_syx_value_object(...) make__syx_value_object(WITH_DEFAULT(NULL, FIRST_ARG(__VA_ARGS__)), WITH_DEFAULT(NULL, SECOND_ARG(__VA_ARGS__, )), WITH_DEFAULT(SYX_OBJECT_ACCESS_OPEN, THIRD_ARG(__VA_ARGS__, , )))
 Syx_Value *make_syx_value_closure(Syx_Symbol *name, Syx_Closure_Kind kind, size_t size);
 void syx_value_closure_rename(Syx_Closure *closure, Syx_Symbol *name);
 Syx_Value *make_syx_value_closure_specialf(Syx_Symbol *name, Syx_Closure_Special_Form specialf);
@@ -268,12 +276,22 @@ Syx_Value *syx_list_next(Syx_Pair **list);
 size_t sb_append_syx_symbol(String_Builder *sb, const Syx_Symbol *symbol);
 size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value);
 
-#define syx_value_early_exit(value, ...) ({               \
-  Syx_Value *_value_ = (value);                           \
-  if (_value_ && _value_->kind == SYX_VALUE_KIND_EXIT) {  \
-    rc_release_all(EXPAND WITH_DEFAULT((), __VA_ARGS__)); \
-    return rc_move(_value_);                              \
-  }                                                       \
+#define syx_value_early_exit(value, ...) ({                    \
+  Syx_Value *_value_ee_ = (value);                             \
+  if (_value_ee_ && _value_ee_->kind == SYX_VALUE_KIND_EXIT) { \
+    rc_release_all(EXPAND WITH_DEFAULT((), __VA_ARGS__));      \
+    return rc_move(_value_ee_);                                \
+  }                                                            \
+})
+#define syx_safe_call(call, ...) ({                            \
+  Syx_Value *_value_sc_ = call;                                \
+  rc_acquire(_value_sc_);                                      \
+  syx_value_early_exit(_value_sc_ __VA_OPT__(, ) __VA_ARGS__); \
+  _value_sc_;                                                  \
+})
+#define syx_safe_call_with_release(call, ...) ({                           \
+  Syx_Value *_value_sfr_ = syx_safe_call(call __VA_OPT__(, ) __VA_ARGS__); \
+  rc_release(_value_sfr_);                                                 \
 })
 #define syx_get_non_value_with_early_exit(Storage_Type, fn, args, to_release) ({ \
   Storage_Type *value = NULL;                                                    \
@@ -302,6 +320,8 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value);
 #define SYX_VALUE_IMPL_C
 
 #define FLOATS_IGNORE_F16_WARNINGS
+#define FLOATS_IMPL
+#include <floats.h>
 #define HT_IMPL
 #include <ht.h>
 #define RC_IMPL
@@ -312,6 +332,8 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value);
 #include <syx/syx_utils.h>
 #define SYX_TYPES_IMPL
 #include <syx/syx_types.h>
+#define SYX_FIELDS_IMPL
+#include <syx/syx_fields.h>
 
 syx_define_constant(struct { Syx_Value *nil; Syx_Value *bool_true; Syx_Value *bool_false; }, SYX_VALUE_CONSTANTS) {
   SYX_VALUE_CONSTANTS->nil = rc_acquire(make_syx_value(SYX_VALUE_KIND_PAIR, 0));
@@ -384,20 +406,20 @@ int issymbol(int c) {
       isalnum(c));
 }
 
-Syx_Value *syx_value_symbol_sv(String_View symbol) {
-  Syx_Value **stored = ht_find(SYX_SYMBOLS(), symbol);
+Syx_Value *syx_value_symbol_sv(String_View sv) {
+  Syx_Value **stored = ht_find(SYX_SYMBOLS(), sv);
   if (stored) return *stored;
-  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_SYMBOL, sizeof(Syx_Symbol) + sizeof(char) * symbol.count);
+  Syx_Value *value = make_syx_value(SYX_VALUE_KIND_SYMBOL, sizeof(Syx_Symbol) + sizeof(char) * sv.count + 1);
   rc_get(value)->methods.destructor = syx_value_symbol_destructor;
   value->symbol = (Syx_Symbol *)(value + 1);
   value->symbol->data = (char *)(value->symbol + 1);
-  value->symbol->count = symbol.count;
-  memcpy((char *)value->symbol->data, symbol.data, symbol.count);
+  value->symbol->count = sv.count;
+  memcpy((char *)value->symbol->data, sv.data, sv.count);
   value->symbol->data[value->symbol->count] = '\0';
   *ht_put(SYX_SYMBOLS(), sv_from_like(*value->symbol)) = value;
   value->symbol->guarded = false;
-  for (size_t index = 0; index < symbol.count; index += 1) {
-    if (issymbol(symbol.data[index])) continue;
+  for (size_t index = 0; index < sv.count; index += 1) {
+    if (issymbol(sv.data[index])) continue;
     value->symbol->guarded = true;
     break;
   }
@@ -500,21 +522,27 @@ Syx_Value *make_syx_value_stringf_dup(const char *format, ...) {
 void syx_value_object_destructor(void *data) {
   Syx_Value *value = data;
   rc_release(syx_value_from_object(value->object->proto));
-  Syx_Symbol_Value_Map *fields = &value->object->fields;
-  ht_foreach(value, fields) {
-    Syx_Symbol *symbol = ht_key(fields, value);
-    rc_release(syx_value_from_symbol(symbol));
-    rc_release(*value);
-  }
+  rc_release(value->object->fields);
 }
 
-Syx_Value *make_syx_value_object(Syx_Object *proto) {
+void syx_value_object_graph_visitor(Rc_Circulars *circulars, const void *data, const void *source) {
+  const Syx_Value *value = data;
+  if (value->object->proto) {
+    rc_graph_visitor(circulars, (void **)&value->object->proto, source);
+  }
+  rc_graph_visitor(circulars, (void **)&value->object->fields, source);
+}
+
+Syx_Value *make__syx_value_object(Syx_Object *proto, Syx_Fields_Map *fields, uint8_t /*Syx_Object_Access_Flags*/ access) {
   Syx_Value *value = make_syx_value(SYX_VALUE_KIND_OBJECT, sizeof(Syx_Object));
   rc_get(value)->methods.destructor = syx_value_object_destructor;
+  rc_get(value)->methods.graph_visitor = syx_value_object_graph_visitor;
   value->object = (Syx_Object *)(value + 1);
-  value->object->fields.hasheq = ht_syx_symbol_hasheq;
   rc_acquire(syx_value_from_object(proto));
   value->object->proto = proto;
+  if (!fields) fields = make_syx_fields();
+  value->object->fields = rc_acquire(fields);
+  value->object->access = access;
   return value;
 }
 
@@ -562,7 +590,6 @@ void syx_value_closure_lambda_destructor(void *data) {
 
 void syx_value_closure_lambda_graph_visitor(Rc_Circulars *circulars, const void *data, const void *source) {
   const Syx_Value *value = data;
-  if (value->kind != SYX_VALUE_KIND_CLOSURE && value->closure->kind != SYX_CLOSURE_KIND_LAMBDA) return;
   const Syx_Closure_Lambda *lambda = value->closure->lambda;
   rc_graph_visitor(circulars, (void **)&lambda->env, source);
 }
@@ -801,26 +828,49 @@ size_t sb_append_syx_value(String_Builder *sb, const Syx_Value *value) {
       stringify_append(&state, sb_append, '"');
     } break;
     case SYX_VALUE_KIND_OBJECT: {
-      stringify_append(&state, sb_append_strlit, "(object");
+      stringify_append(&state, sb_append_strlit, "#{");
       if (value->object->proto) {
-        stringify_append(&state, sb_append, ' ');
+        stringify_append(&state, sb_append_strlit, ":proto ");
         stringify_append(&state, sb_append_syx_value, syx_value_from_object(value->object->proto));
-      }
-      ht_foreach(field, &value->object->fields) {
         stringify_append(&state, sb_append, ' ');
-        stringify_append(&state, sb_append, ':');
-        Syx_Symbol *name = ht_key(&value->object->fields, field);
-        stringify_append(&state, sb_append_syx_value, syx_value_from_symbol(name));
-        stringify_append(&state, sb_append, ' ');
-        stringify_append(&state, sb_append_syx_value, *field);
       }
-      stringify_append(&state, sb_append, ')');
+      sb_append_syx_fields(sb, value->object->fields);
+      stringify_append(&state, sb_append, '}');
     } break;
     case SYX_VALUE_KIND_CLOSURE: {
-      TODO("TASK(20260913-072838): sb_append_syx_value: different closures");
-      stringify_append(&state, sb_append_strlit, "<fn ");
-      if (value->closure->name) stringify_append(&state, sb_append_syx_symbol, value->closure->name);
-      stringify_append(&state, sb_append, '>');
+      switch (value->closure->kind) {
+        case SYX_CLOSURE_KIND_SPECIALF: TODO("TASK(20260913-072838): sb_append_syx_value: special forms");
+        case SYX_CLOSURE_KIND_BUILTIN: TODO("TASK(20260913-072838): sb_append_syx_value: builtins");
+        case SYX_CLOSURE_KIND_LAMBDA: {
+          Syx_Closure_Lambda *lambda = value->closure->lambda;
+          stringify_append(&state, sb_append, '(');
+          stringify_append(&state, sb_append, '<');
+          if (value->closure->name) stringify_append(&state, sb_append_syx_symbol, value->closure->name);
+          stringify_append(&state, sb_append, '>');
+          stringify_append(&state, sb_append, ' ');
+          stringify_append(&state, sb_append, '(');
+          Syx_Value *rest_define = NULL;
+          bool add_space = false;
+          syx_list_for_each(lambda->defines, define, &rest_define) {
+            if (add_space) {
+              stringify_append(&state, sb_append, ' ');
+            } else {
+              add_space = true;
+            }
+            stringify_append(&state, sb_append_syx_value, define);
+          }
+          if (rest_define) {
+            stringify_append(&state, sb_append_strlit, " . ");
+            stringify_append(&state, sb_append_syx_value, rest_define);
+          }
+          stringify_append(&state, sb_append, ')');
+          syx_list_for_each(lambda->forms, form) {
+            stringify_append(&state, sb_append, ' ');
+            stringify_append(&state, sb_append_syx_value, form);
+          }
+          stringify_append(&state, sb_append, ')');
+        } break;
+      }
       //   __str_append_with(str_append_syxv, value->closure.defines);
       //   SyxV *it = value->closure.forms;
       //   while (it->kind == SYXV_KIND_PAIR) {

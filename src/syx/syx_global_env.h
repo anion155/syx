@@ -40,7 +40,7 @@ Syx_Eval_Ctx *make_global_syx_eval_ctx(Fs_Path cwd) {
   return make_syx_eval_ctx((Syx_Eval_Ctx){
       .cwd = cwd,
       .frames_stack = make_syx_frames_stack(),
-      .env = make_syx_env(syx_value_symbol_strlit("global")->symbol, make_global_syx_env()),
+      .env = make_global_syx_env(),
   });
 }
 

@@ -231,7 +231,7 @@
     if (_da_r_->capacity == 0) _da_r_->capacity = DA_INIT_CAP;                                                     \
     while ((target_capacity) > _da_r_->capacity) _da_r_->capacity *= 2;                                            \
     *da__reassign(_da_r_) = (typeof(_da_r_->data))realloc(_da_r_->data, _da_r_->capacity * sizeof(*_da_r_->data)); \
-    ASSERT(_da_r_->data != NULL && "Failed to reallocate dynamic array");                                          \
+    ASSERT(_da_r_->data != NULL, "Failed to reallocate dynamic array");                                            \
   }                                                                                                                \
   _da_r_->capacity;                                                                                                \
 })
@@ -241,10 +241,11 @@
  */
 #define da_reserve_exact(da, target_capacity) ({                                                                        \
   typeof(*(da)) *_da_re_ = (da);                                                                                        \
-  if ((target_capacity) > _da_re_->capacity) {                                                                          \
-    _da_re_->capacity = (target_capacity);                                                                              \
-    *da__reassign(_da_re_) = (typeof(_da_re_->data))realloc(_da_re_->data, (target_capacity) * sizeof(*_da_re_->data)); \
-    ASSERT(_da_re_->data != NULL && "Failed to reallocate dynamic array");                                              \
+  size_t _tc_re_ = (target_capacity);                                                                                   \
+  if (_tc_re_ > _da_re_->capacity) {                                                                                    \
+    _da_re_->capacity = _tc_re_ ? _tc_re_ : 1;                                                                          \
+    *da__reassign(_da_re_) = (typeof(_da_re_->data))realloc(_da_re_->data, _da_re_->capacity * sizeof(*_da_re_->data)); \
+    ASSERT(_da_re_->data != NULL, "Failed to reallocate dynamic array");                                                \
   }                                                                                                                     \
   _da_re_->capacity;                                                                                                    \
 })
@@ -260,7 +261,7 @@
     } else {                                                                                                           \
       _da_tr_->capacity = _da_tr_->count;                                                                              \
       *da__reassign(_da_tr_) = (typeof(_da_tr_->data))realloc(_da_tr_->data, _da_tr_->count * sizeof(*_da_tr_->data)); \
-      ASSERT(_da_tr_->data != NULL && "Failed to reallocate dynamic array");                                           \
+      ASSERT(_da_tr_->data != NULL, "Failed to reallocate dynamic array");                                             \
     }                                                                                                                  \
   }                                                                                                                    \
   _da_tr_->capacity;                                                                                                   \

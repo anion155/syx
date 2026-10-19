@@ -1,7 +1,7 @@
-# closure stringify
+# closure builtin and special form stringify
 
 - STATUS: OPEN
-- PRIORITY: 100
+- PRIORITY: 50
 - TAGS: value
 
 No description.

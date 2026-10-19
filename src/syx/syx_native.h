@@ -181,9 +181,12 @@ Syx_Value *syx_native_set(Syx_Eval_Ctx *ctx, Syx_Type *type, void *data, Syx_Val
         case SYX_VALUE_KIND_NUMBER: SYX_EVAL_THROW(ctx, "number can't be converted to native structure", (), (evaluated));
         case SYX_VALUE_KIND_STRING: SYX_EVAL_THROW(ctx, "string can't be converted to native structure", (), (evaluated));
         case SYX_VALUE_KIND_OBJECT: {
-          ht_foreach(field, &evaluated->object->fields) {
-            Syx_Symbol *symbol = ht_key(&evaluated->object->fields, *field);
-            Syx_Value *result = rc_acquire(syx_native_structure_set(ctx, type->structure, data, symbol, *field));
+          ht_foreach(field, evaluated->object->fields) {
+            Syx_Symbol *field_name = ht_key(evaluated->object->fields, field);
+            Syx_Value *value = rc_acquire(syx_object_get(ctx, evaluated->object, field_name));
+            syx_value_early_exit(value, (evaluated));
+            Syx_Value *result = rc_acquire(syx_native_structure_set(ctx, type->structure, data, field_name, value));
+            rc_release(value);
             syx_value_early_exit(result, (evaluated));
           }
         } break;

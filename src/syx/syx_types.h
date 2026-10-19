@@ -329,7 +329,9 @@ void syx_type_pointer_destructor(void *data) {
 
 void syx_type_pointer_graph_visitor(Rc_Circulars *circulars, const void *data, const void *source) {
   const Syx_Type *type = data;
-  if (type->name) rc_graph_visitor(circulars, (void **)&(type->name), source);
+  if (type->name) {
+    rc__graph_visitor(circulars, rc_get(syx_value_from_symbol(type->name)), (void **)&type->name, source);
+  }
 }
 
 Syx_Type *make_syx_type_pointer(Syx_Symbol *name, Syx_Type *target) {
@@ -351,7 +353,7 @@ void syx_type_structure_destructor(void *data) {
 void syx_type_structure_graph_visitor(Rc_Circulars *circulars, const void *data, const void *source) {
   Syx_Type_Structure *structure = ((const Syx_Type *)data)->structure;
   da_foreach(structure->fields, field) {
-    rc_graph_visitor(circulars, (void **)&(field->type), source);
+    rc_graph_visitor(circulars, (void **)&field->type, source);
   }
 }
 
@@ -401,8 +403,10 @@ void syx_type_function_destructor(void *data) {
 
 void syx_type_function_graph_visitor(Rc_Circulars *circulars, const void *data, const void *source) {
   Syx_Type_Function *func = ((const Syx_Type *)data)->function;
-  rc_graph_visitor(circulars, (void **)&(func->return_type), source);
-  da_foreach(func->args_types, arg_type) rc_graph_visitor(circulars, (void **)arg_type, source);
+  rc_graph_visitor(circulars, (void **)&func->return_type, source);
+  da_foreach(func->args_types, arg_type) {
+    rc_graph_visitor(circulars, (void **)arg_type, source);
+  }
 }
 
 Syx_Type *make_syx_type_function(Syx_Symbol *name, Syx_Type_Function func) {

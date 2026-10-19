@@ -26,7 +26,7 @@
 
 #define ASSERT_DEFAULT_MESSAGE "assertion failed"
 /** If not `condition` panics with "UNREACHABLE" message */
-#define ASSERT(condition, ...) ({ if (!(condition)) UNREACHABLE(WITH_DEFAULT(ASSERT_DEFAULT_MESSAGE, __VA_ARGS__) EXPAND_WITH_COMMA(REST_ARGS(__VA_ARGS__))); })
+#define ASSERT(condition, ...) ({ if (!(condition)) UNREACHABLE(WITH_DEFAULT(ASSERT_DEFAULT_MESSAGE, __VA_ARGS__) ": `" STRINGIFY(condition) "`" EXPAND_WITH_COMMA(REST_ARGS(__VA_ARGS__))); })
 /** Static assert as an expression. */
 #define STATIC_ASSERT(condition, ...) sizeof(struct { _Static_assert((condition), WITH_DEFAULT(ASSERT_DEFAULT_MESSAGE, __VA_ARGS__)); int dummy; })
 

@@ -13,6 +13,8 @@ void syx_env_define_special_forms(Syx_Env *env);
 
 #define SYX_TYPE_EXPRESSIONS_IMPL
 #include <syx/syx_type_expressions.h>
+#define SYX_PARSE_AND_EVAL_IMPL
+#include <syx/syx_parse_and_eval.h>
 
 /** Special forms */
 
@@ -114,7 +116,7 @@ Syx_Value *syx_special_form_update(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   syx_value_early_exit(name);
   SYX_EVAL_ASSERT(ctx, name->kind == SYX_VALUE_KIND_SYMBOL, "malformed update expression");
 
-  Syx_Value *target = rc_acquire(syx_env_get_value(ctx->env, name->symbol));
+  Syx_Value *target = rc_acquire(syx_eval_ctx_get_value(ctx, name->symbol));
   rc_release(name);
   SYX_EVAL_ASSERT(ctx, target, "value to update not found");
   syx_value_early_exit(target);
@@ -139,7 +141,7 @@ Syx_Value *syx_special_form_update(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 Syx_Value *syx_special_form_is_set(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *name_s = syx_list_next(&arguments);
   if (name_s->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "Symbol expression expected as name");
-  Syx_Value *stored = syx_env_get_value(ctx->env, name_s->symbol);
+  Syx_Value *stored = syx_eval_ctx_get_value(ctx, name_s->symbol);
   return syx_value_bool(stored != NULL);
 }
 
@@ -147,7 +149,7 @@ Syx_Value *syx_special_form_is_set(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
 Syx_Value *syx_special_form_get(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   Syx_Value *name_s = syx_list_next(&arguments);
   if (name_s->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "Symbol expression expected as name");
-  return syx_env_get_value(ctx->env, name_s->symbol);
+  return syx_eval_ctx_get_value(ctx, name_s->symbol);
 }
 
 /** Unbind value in current environment. */
@@ -156,11 +158,7 @@ Syx_Value *syx_special_form_unset(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   if (name_s->kind != SYX_VALUE_KIND_SYMBOL) SYX_EVAL_THROW(ctx, "Symbol expression expected as name");
   Syx_Env *env = syx_env_lookup_values(ctx->env, name_s->symbol);
   if (!env) return NULL;
-  Syx_Value **storage = ht_find(&env->values, name_s->symbol);
-  if (!storage) return NULL;
-  Syx_Value *value = *storage;
-  ht_delete(&env->values, storage);
-  rc_release(value);
+  syx_fields_delete_field(env->values, name_s->symbol);
   return NULL;
 }
 
@@ -458,6 +456,117 @@ Syx_Value *syx_special_form_extern(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
   return value;
 }
 
+struct Syx__Import_Module_Token {
+  Syx_Modules *modules;
+  Syx_Symbol *module_id;
+};
+
+void syx__import_module_token_destructor(void *data) {
+  struct Syx__Import_Module_Token *token = data;
+  ht_find_and_delete(token->modules, token->module_id);
+}
+
+/** Import module */
+Syx_Value *syx_special_form_import(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  Syx_Value *arg = syx_safe_call(syx_list_next(&arguments));
+  SYX_EVAL_ASSERT(ctx, arg->kind == SYX_VALUE_KIND_STRING && arg->string->count, "module name expected");
+  Fs_Path *path = rc_acquire(rc_malloc(sizeof(Fs_Path), .destructor = fs_path_destructor));
+  memset(path, 0, sizeof(Fs_Path));
+  if (da_first(*arg->string) == '/') {
+    fs_path_block(*arg->string, arg_path) fs_path_append_path(path, arg_path);
+  } else if (sv_starts_with(*arg->string, sv_from_strlit("./"))) {
+    fs_path_append_path(path, ctx->cwd);
+    fs_path_block(*arg->string, arg_path) fs_path_append_path(path, arg_path);
+  } else {
+    Fs_Path modules_dir = fs_path_copy(ctx->cwd);
+    Fs_Path *module_path = rc_acquire(rc_malloc(sizeof(Fs_Path), .destructor = fs_path_destructor));
+    fs_path_assign(module_path, fs_path_parse(*arg->string));
+    bool found = false;
+    while (true) {
+      path->count = 0;
+      fs_path_append_path(path, modules_dir);
+      fs_path_append_strlit(path, "syx_modules");
+      if (!fs_file_exists(*path) || fs_file_kind(*path) != FS_FILE_KIND_DIRECTORY) goto continue_search;
+      fs_path_append_path(path, *module_path);
+      if (!fs_file_exists(*path)) goto continue_search;
+      found = true;
+      break;
+    continue_search:
+      if (fs_path_is_root(modules_dir)) break;
+      fs_path_pop(&modules_dir);
+    }
+    fs_path_free(&modules_dir);
+    SYX_EVAL_ASSERT(ctx, found,
+                    "failed to resolve module '" SV_FMT "': syx_modules directory not found",
+                    (sv_fmt_arg(*arg->string)),
+                    (module_path, path));
+    fs_path_append_path(path, *module_path);
+    rc_release(module_path);
+  }
+  if (!sv_eq(fs_path_file_ext(*path), sv_from_strlit(".syx")) && fs_file_kind(*path) == FS_FILE_KIND_DIRECTORY) {
+    fs_path_append_strlit(path, "index.syx");
+  }
+  SYX_EVAL_ASSERT(ctx, fs_file_exists(*path),
+                  "failed to resolve module '" SV_FMT "': module not found '" SV_FMT "'",
+                  (sv_fmt_arg(*arg->string), sv_fmt_arg(path->cstr)),
+                  (path));
+  while (fs_file_kind(*path) == FS_FILE_KIND_SYMLINK) {
+    SYX_EVAL_TODO(ctx,
+                  "failed to resolve module '" SV_FMT "': symlinks are not supported",
+                  (sv_fmt_arg(*arg->string)),
+                  (path));
+  }
+  SYX_EVAL_ASSERT(ctx, fs_file_kind(*path) == FS_FILE_KIND_REGULAR,
+                  "failed to resolve module '" SV_FMT "': unsupported file type '" SV_FMT "'",
+                  (sv_fmt_arg(*arg->string), sv_fmt_arg(path->cstr)),
+                  (path));
+  String_Builder source = {0};
+  if (!fs_read_from_file(&source, *path)) {
+    SYX_EVAL_THROW(ctx, "failed to resolve module '" SV_FMT "': failed to read file '" SV_FMT "'",
+                   (sv_fmt_arg(*arg->string), sv_fmt_arg(path->cstr)),
+                   (path));
+  }
+  Syx_Symbol *id = syx_value_symbol_sv(sv_from_like(path->cstr))->symbol;
+  rc_release(path);
+  Syx_Module **stored_module = ht_find(ctx->modules, id);
+  if (stored_module) return make_syx_value_object(NULL, (*stored_module)->exports, SYX_OBJECT_ACCESS_SEALED);
+  Syx_Eval_Ctx *import_ctx = rc_acquire(inherit_syx_eval_ctx(ctx, (Syx_Eval_Ctx){.env = make_syx_env(id, syx_env_global(ctx->env)), .import_id = id}));
+  Syx_Module *module = make_syx_module(id);
+  *ht_put(ctx->modules, id) = rc_acquire(module);
+  Rc_Token *module_token = rc_make_token_opt(((Rc_Token){
+      .data = &(struct Syx__Import_Module_Token){.modules = ctx->modules, .module_id = id},
+      .destructor = syx__import_module_token_destructor}));
+  syx_ctx_push_frame(ctx, sv_from_strlit("import"));
+  Syx_Value *result = rc_acquire(syx_parse_and_eval(import_ctx, sv_from_like(source)));
+  syx_ctx_pop_frame(ctx);
+  sb_free(&source);
+  syx_value_early_exit(result, (import_ctx, module_token));
+  rc_release_token(module_token);
+  rc_release_all(result, import_ctx);
+  return make_syx_value_object(NULL, module->exports, SYX_OBJECT_ACCESS_SEALED);
+}
+
+/** Export module */
+Syx_Value *syx_special_form_export(Syx_Eval_Ctx *ctx, Syx_Pair *arguments) {
+  Syx_Value *arg = syx_list_next(&arguments);
+  Syx_Symbol *name = NULL;
+  Syx_Value *value = NULL;
+  if (arg->kind == SYX_VALUE_KIND_PREFIXED && arg->prefixed->kind == SYX_PREFIXED_KIND_COLON && arg->prefixed->value->kind == SYX_VALUE_KIND_SYMBOL) {
+    name = arg->prefixed->value->symbol;
+    value = syx_safe_call(syx_eval(ctx, syx_list_next(&arguments)));
+  } else if (arg->kind == SYX_VALUE_KIND_SYMBOL) {
+    name = arg->symbol;
+    value = syx_safe_call(syx_eval_ctx_get_value(ctx, name));
+  } else {
+    SYX_EVAL_THROW(ctx, "malformed export expression");
+  }
+  SYX_EVAL_ASSERT(ctx, ctx->import_id != NULL, "module to export not set up");
+  Syx_Module **module = ht_find(ctx->modules, ctx->import_id);
+  SYX_EVAL_ASSERT(ctx, module != NULL, "module to export not found");
+  syx_fields_define_field((*module)->exports, name, syx_value_field(rc_move(value)));
+  return NULL;
+}
+
 void syx_env_define_special_forms(Syx_Env *env) {
   /** Special forms */
   syx_env_define_value_strlit(env, "begin", make_syx_value_closure_specialf(NULL, syx_special_form_begin));
@@ -490,6 +599,9 @@ void syx_env_define_special_forms(Syx_Env *env) {
   syx_env_define_value_strlit(env, "object", make_syx_value_closure_specialf(NULL, syx_special_form_object));
   syx_env_define_value_strlit(env, "new", make_syx_value_closure_specialf(NULL, syx_special_form_new));
   syx_env_define_value_strlit(env, "extern", make_syx_value_closure_specialf(NULL, syx_special_form_extern));
+
+  syx_env_define_value_strlit(env, "import", make_syx_value_closure_specialf(NULL, syx_special_form_import));
+  syx_env_define_value_strlit(env, "export", make_syx_value_closure_specialf(NULL, syx_special_form_export));
 }
 
 #endif // SYX_EVAL_SPECIALF_IMPL
